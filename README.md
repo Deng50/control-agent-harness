@@ -4,6 +4,8 @@
 
 当前版本已完成线性、非线性及独立 Python 对象的数值闭环、Web 三入口和真实 DeepSeek 业务对话验证。具体范围与证据见[验收记录](docs/acceptance.md)，原项目能力的迁移对应见[功能表](docs/function-map.md)。仿真集成验收不等于实物部署认证。
 
+第一次使用请阅读[中文使用手册](docs/user-guide-zh.md)，包含当前电脑快速启动、从 GitHub 首次安装、温控案例的完整流程、三个智能体的手动接力、对话示例及常见问题。
+
 ## 环境与启动
 
 要求 Node.js ≥ 24.9、pnpm 11、Python ≥ 3.10，以及 NumPy、SciPy、PyTorch。当前机器使用 Python 3.10.22 / Torch 2.7.1 / SciPy 1.15.3。集成目录的 `.venv` 继承现有 `mpc_light` 环境；复制到另一台机器时需重新建环境，不要复制此虚拟环境。
