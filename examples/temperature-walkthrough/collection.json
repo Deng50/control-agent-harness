@@ -1,0 +1,161 @@
+{
+  "scenarios": [
+    {
+      "name": "expert-1",
+      "initial_state": [
+        20
+      ],
+      "reference": [
+        28
+      ],
+      "disturbance": [
+        18
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-2",
+      "initial_state": [
+        22
+      ],
+      "reference": [
+        30
+      ],
+      "disturbance": [
+        19
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-3",
+      "initial_state": [
+        24
+      ],
+      "reference": [
+        32
+      ],
+      "disturbance": [
+        20
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-4",
+      "initial_state": [
+        26
+      ],
+      "reference": [
+        31
+      ],
+      "disturbance": [
+        21
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-5",
+      "initial_state": [
+        28
+      ],
+      "reference": [
+        33
+      ],
+      "disturbance": [
+        22
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-6",
+      "initial_state": [
+        30
+      ],
+      "reference": [
+        29
+      ],
+      "disturbance": [
+        20
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-7",
+      "initial_state": [
+        32
+      ],
+      "reference": [
+        30
+      ],
+      "disturbance": [
+        22
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-8",
+      "initial_state": [
+        34
+      ],
+      "reference": [
+        32
+      ],
+      "disturbance": [
+        23
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-9",
+      "initial_state": [
+        23
+      ],
+      "reference": [
+        29
+      ],
+      "disturbance": [
+        18
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-10",
+      "initial_state": [
+        25
+      ],
+      "reference": [
+        33
+      ],
+      "disturbance": [
+        24
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-11",
+      "initial_state": [
+        29
+      ],
+      "reference": [
+        31
+      ],
+      "disturbance": [
+        19
+      ],
+      "steps": 20
+    },
+    {
+      "name": "expert-12",
+      "initial_state": [
+        31
+      ],
+      "reference": [
+        28
+      ],
+      "disturbance": [
+        21
+      ],
+      "steps": 20
+    }
+  ],
+  "seed": 44
+}

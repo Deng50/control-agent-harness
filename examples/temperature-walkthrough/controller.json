@@ -1,0 +1,71 @@
+{
+  "parameters": {
+    "horizon": 5,
+    "q": 1.0,
+    "r": 0.002,
+    "s": 0.0005,
+    "input_rate_bounds": [
+      [
+        -0.35,
+        0.35
+      ]
+    ]
+  },
+  "parameter_space": {
+    "r": {
+      "lower": 1e-05,
+      "upper": 0.005
+    },
+    "s": {
+      "lower": 1e-05,
+      "upper": 0.005
+    }
+  },
+  "budget": 8,
+  "seed": 43,
+  "tuning_scenarios": [
+    {
+      "name": "tuning",
+      "initial_state": [
+        22
+      ],
+      "reference": [
+        30
+      ],
+      "disturbance": [
+        20
+      ],
+      "steps": 18
+    }
+  ],
+  "verification_scenarios": [
+    {
+      "name": "verification",
+      "initial_state": [
+        24
+      ],
+      "reference": [
+        32
+      ],
+      "disturbance": [
+        21
+      ],
+      "steps": 18
+    }
+  ],
+  "test_scenarios": [
+    {
+      "name": "controller-test",
+      "initial_state": [
+        26
+      ],
+      "reference": [
+        31
+      ],
+      "disturbance": [
+        19
+      ],
+      "steps": 20
+    }
+  ]
+}

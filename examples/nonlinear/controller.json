@@ -1,0 +1,68 @@
+{
+  "parameters": {
+    "horizon": 4,
+    "q": 1,
+    "r": 0.015,
+    "s": 0.01
+  },
+  "parameter_space": {
+    "r": {
+      "lower": 0.0001,
+      "upper": 0.04
+    },
+    "s": {
+      "lower": 0.0001,
+      "upper": 0.04
+    }
+  },
+  "budget": 8,
+  "seed": 43,
+  "tuning_scenarios": [
+    {
+      "name": "condition-101",
+      "initial_state": [
+        0.57659225729372,
+        -0.18275265665595491
+      ],
+      "reference": [
+        0.22784432957598166
+      ],
+      "disturbance": [
+        0.03651127409176472
+      ],
+      "steps": 9
+    }
+  ],
+  "verification_scenarios": [
+    {
+      "name": "condition-201",
+      "initial_state": [
+        0.6379538683428972,
+        0.04762332622756049
+      ],
+      "reference": [
+        -0.009326921051335202
+      ],
+      "disturbance": [
+        0.036789757364849324
+      ],
+      "steps": 10
+    }
+  ],
+  "test_scenarios": [
+    {
+      "name": "condition-301",
+      "initial_state": [
+        -0.12903714007500433,
+        -0.3896283445891145
+      ],
+      "reference": [
+        -0.12189810733583545
+      ],
+      "disturbance": [
+        0.17074926880739139
+      ],
+      "steps": 11
+    }
+  ]
+}

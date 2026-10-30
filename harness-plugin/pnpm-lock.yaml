@@ -1,0 +1,25 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: link:../vendor/deepseek-harness/vendor/cordis
+        version: link:../vendor/deepseek-harness/vendor/cordis
+      '@deepseek-ai/dsh-tools':
+        specifier: link:../vendor/deepseek-harness/packages/core/tools
+        version: link:../vendor/deepseek-harness/packages/core/tools
+      '@deepseek-ai/schemastery':
+        specifier: link:../vendor/deepseek-harness/vendor/schemastery
+        version: link:../vendor/deepseek-harness/vendor/schemastery
+      react:
+        specifier: link:../vendor/deepseek-harness/apps/web/node_modules/react
+        version: link:../vendor/deepseek-harness/apps/web/node_modules/react
+      react-dom:
+        specifier: link:../vendor/deepseek-harness/apps/web/node_modules/react-dom
+        version: link:../vendor/deepseek-harness/apps/web/node_modules/react-dom

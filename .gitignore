@@ -1,0 +1,54 @@
+.venv/
+venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.pnpm-store/
+vendor/
+harness-plugin/lib/
+build/
+dist/
+
+# Credentials and machine-local authentication/configuration.
+.env
+.env.*
+!.env.example
+!.env.*.example
+.credentials.yaml
+.credentials.yml
+.credentials.json
+.netrc
+_netrc
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Sessions, uploaded assets, datasets, trained weights and worker state.
+.dsh/
+workspaces/
+test-output/
+.control-jobs/
+.staging/
+.operation.lock
+.workspace.mutex
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.npz
+*.npy
+*.log
+*.tmp
+*.bak
+
+# Local acceptance exports contain workspace paths and session/job identifiers.
+# Commit only the deliberately sanitized, portable numerical summary.
+/docs/*.json
+!/docs/validation-summary.json
+/docs/web-*.png
+/docs/web-*.jpg

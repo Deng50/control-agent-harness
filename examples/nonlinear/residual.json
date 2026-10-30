@@ -1,0 +1,12 @@
+{
+  "epochs": 130,
+  "hidden_dims": [
+    24,
+    24
+  ],
+  "learning_rate": 0.006,
+  "batch_size": 128,
+  "patience": 30,
+  "physics_weight": 0.1,
+  "seed": 42
+}

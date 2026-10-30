@@ -1,0 +1,372 @@
+{
+  "schema_version": 1,
+  "name": "One-state temperature walkthrough, explicit simulation",
+  "steps": [
+    {
+      "id": "nominal",
+      "operation": "register_model",
+      "inputs": {
+        "model_path": "nominal.json"
+      },
+      "config": {
+        "source": {
+          "kind": "user_nominal",
+          "description": "Declared one-state temperature benchmark"
+        }
+      }
+    },
+    {
+      "id": "reference",
+      "operation": "register_model",
+      "inputs": {
+        "model_path": "reference.json"
+      },
+      "config": {
+        "source": {
+          "kind": "reference_simulator",
+          "description": "Explicit mathematical reference simulator; not measurements"
+        }
+      }
+    },
+    {
+      "id": "data",
+      "operation": "simulate_transitions",
+      "inputs": {
+        "nominal_model": {
+          "stage": "nominal"
+        },
+        "reference_model": {
+          "stage": "reference"
+        }
+      },
+      "config": {
+        "trajectories": 18,
+        "steps": 30,
+        "seed": 41
+      }
+    },
+    {
+      "id": "corrected",
+      "operation": "train_residual",
+      "inputs": {
+        "nominal_model": {
+          "stage": "nominal"
+        },
+        "dataset": {
+          "stage": "data"
+        }
+      },
+      "config": {
+        "input_dim": 3,
+        "output_dim": 1,
+        "epochs": 250,
+        "hidden_dims": [
+          16,
+          16
+        ],
+        "learning_rate": 0.008,
+        "batch_size": 64,
+        "patience": 50,
+        "physics_weight": 0.1,
+        "seed": 42
+      }
+    },
+    {
+      "id": "controller",
+      "operation": "design_controller",
+      "inputs": {
+        "model": {
+          "stage": "corrected"
+        },
+        "evaluation_model": {
+          "stage": "reference"
+        }
+      },
+      "config": {
+        "parameters": {
+          "horizon": 5,
+          "q": 1.0,
+          "r": 0.002,
+          "s": 0.0005,
+          "input_rate_bounds": [
+            [
+              -0.35,
+              0.35
+            ]
+          ]
+        },
+        "parameter_space": {
+          "r": {
+            "lower": 1e-05,
+            "upper": 0.005
+          },
+          "s": {
+            "lower": 1e-05,
+            "upper": 0.005
+          }
+        },
+        "budget": 8,
+        "seed": 43,
+        "tuning_scenarios": [
+          {
+            "name": "tuning",
+            "initial_state": [
+              22
+            ],
+            "reference": [
+              30
+            ],
+            "disturbance": [
+              20
+            ],
+            "steps": 18
+          }
+        ],
+        "verification_scenarios": [
+          {
+            "name": "verification",
+            "initial_state": [
+              24
+            ],
+            "reference": [
+              32
+            ],
+            "disturbance": [
+              21
+            ],
+            "steps": 18
+          }
+        ],
+        "test_scenarios": [
+          {
+            "name": "controller-test",
+            "initial_state": [
+              26
+            ],
+            "reference": [
+              31
+            ],
+            "disturbance": [
+              19
+            ],
+            "steps": 20
+          }
+        ]
+      }
+    },
+    {
+      "id": "expert",
+      "operation": "collect_expert",
+      "inputs": {
+        "controller": {
+          "stage": "controller"
+        },
+        "evaluation_model": {
+          "stage": "reference"
+        }
+      },
+      "config": {
+        "scenarios": [
+          {
+            "name": "expert-1",
+            "initial_state": [
+              20
+            ],
+            "reference": [
+              28
+            ],
+            "disturbance": [
+              18
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-2",
+            "initial_state": [
+              22
+            ],
+            "reference": [
+              30
+            ],
+            "disturbance": [
+              19
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-3",
+            "initial_state": [
+              24
+            ],
+            "reference": [
+              32
+            ],
+            "disturbance": [
+              20
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-4",
+            "initial_state": [
+              26
+            ],
+            "reference": [
+              31
+            ],
+            "disturbance": [
+              21
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-5",
+            "initial_state": [
+              28
+            ],
+            "reference": [
+              33
+            ],
+            "disturbance": [
+              22
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-6",
+            "initial_state": [
+              30
+            ],
+            "reference": [
+              29
+            ],
+            "disturbance": [
+              20
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-7",
+            "initial_state": [
+              32
+            ],
+            "reference": [
+              30
+            ],
+            "disturbance": [
+              22
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-8",
+            "initial_state": [
+              34
+            ],
+            "reference": [
+              32
+            ],
+            "disturbance": [
+              23
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-9",
+            "initial_state": [
+              23
+            ],
+            "reference": [
+              29
+            ],
+            "disturbance": [
+              18
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-10",
+            "initial_state": [
+              25
+            ],
+            "reference": [
+              33
+            ],
+            "disturbance": [
+              24
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-11",
+            "initial_state": [
+              29
+            ],
+            "reference": [
+              31
+            ],
+            "disturbance": [
+              19
+            ],
+            "steps": 20
+          },
+          {
+            "name": "expert-12",
+            "initial_state": [
+              31
+            ],
+            "reference": [
+              28
+            ],
+            "disturbance": [
+              21
+            ],
+            "steps": 20
+          }
+        ],
+        "seed": 44
+      }
+    },
+    {
+      "id": "imitation",
+      "operation": "train_imitation",
+      "inputs": {
+        "dataset": {
+          "stage": "expert"
+        }
+      },
+      "config": {
+        "architecture": "mlp",
+        "input_dim": 3,
+        "output_dim": 1,
+        "epochs": 300,
+        "hidden_dims": [
+          32,
+          16
+        ],
+        "learning_rate": 0.004,
+        "batch_size": 32,
+        "patience": 50,
+        "seed": 45
+      }
+    },
+    {
+      "id": "optimized",
+      "operation": "optimize_policy",
+      "inputs": {
+        "policy": {
+          "stage": "imitation"
+        },
+        "model": {
+          "stage": "corrected"
+        }
+      },
+      "config": {
+        "epochs": 20,
+        "horizon": 10,
+        "learning_rate": 0.0003,
+        "seed": 46
+      }
+    }
+  ]
+}

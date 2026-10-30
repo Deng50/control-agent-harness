@@ -1,0 +1,144 @@
+{
+  "interface": {
+    "schema_version": 1,
+    "name": "linear_demonstration",
+    "sample_time": 0.1,
+    "time_semantics": "discrete_state_transition",
+    "states": [
+      {
+        "name": "x1",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      },
+      {
+        "name": "x2",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      },
+      {
+        "name": "x3",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      },
+      {
+        "name": "x4",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      }
+    ],
+    "controls": [
+      {
+        "name": "u1",
+        "unit": "1",
+        "lower": -1.5,
+        "upper": 1.5
+      },
+      {
+        "name": "u2",
+        "unit": "1",
+        "lower": -1.5,
+        "upper": 1.5
+      }
+    ],
+    "outputs": [
+      {
+        "name": "y1",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      },
+      {
+        "name": "y2",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      }
+    ],
+    "disturbances": [
+      {
+        "name": "d1",
+        "unit": "1",
+        "lower": -0.3,
+        "upper": 0.3
+      }
+    ]
+  },
+  "representation": "discrete_polynomial",
+  "A": [
+    [
+      0.82,
+      0.04,
+      0,
+      0
+    ],
+    [
+      0,
+      0.78,
+      0.03,
+      0
+    ],
+    [
+      0.01,
+      0,
+      0.72,
+      0.02
+    ],
+    [
+      0,
+      0.02,
+      0,
+      0.74
+    ]
+  ],
+  "B": [
+    [
+      0.22,
+      0
+    ],
+    [
+      0,
+      0.2
+    ],
+    [
+      0.09,
+      0.03
+    ],
+    [
+      0.02,
+      0.1
+    ]
+  ],
+  "E": [
+    [
+      0.025
+    ],
+    [
+      0.025
+    ],
+    [
+      0.025
+    ],
+    [
+      0.025
+    ]
+  ],
+  "C": [
+    [
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      0,
+      0
+    ]
+  ],
+  "terms": []
+}

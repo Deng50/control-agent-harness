@@ -1,0 +1,6 @@
+{
+  "epochs": 20,
+  "horizon": 10,
+  "learning_rate": 0.0003,
+  "seed": 46
+}

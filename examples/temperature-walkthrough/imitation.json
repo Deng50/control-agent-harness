@@ -1,0 +1,14 @@
+{
+  "architecture": "mlp",
+  "input_dim": 3,
+  "output_dim": 1,
+  "epochs": 300,
+  "hidden_dims": [
+    32,
+    16
+  ],
+  "learning_rate": 0.004,
+  "batch_size": 32,
+  "patience": 50,
+  "seed": 45
+}

@@ -1,0 +1,64 @@
+{
+  "representation": "discrete_polynomial",
+  "interface": {
+    "schema_version": 1,
+    "name": "temperature-walkthrough",
+    "sample_time": 1.0,
+    "time_semantics": "discrete_state_transition",
+    "states": [
+      {
+        "name": "temperature",
+        "unit": "degC",
+        "lower": 10,
+        "upper": 55
+      }
+    ],
+    "controls": [
+      {
+        "name": "heater_fraction",
+        "unit": "1",
+        "lower": 0,
+        "upper": 1
+      }
+    ],
+    "outputs": [
+      {
+        "name": "temperature",
+        "unit": "degC",
+        "lower": 10,
+        "upper": 55
+      }
+    ],
+    "disturbances": [
+      {
+        "name": "ambient_temperature",
+        "unit": "degC",
+        "lower": 15,
+        "upper": 30
+      }
+    ]
+  },
+  "A": [
+    [
+      0.88
+    ]
+  ],
+  "B": [
+    [
+      2.4
+    ]
+  ],
+  "E": [
+    [
+      0.12
+    ]
+  ],
+  "C": [
+    [
+      1.0
+    ]
+  ],
+  "bias": [
+    0.15
+  ]
+}

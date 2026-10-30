@@ -1,0 +1,36 @@
+{
+  "name": "@control-engineering/harness-bundle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Control model correction, MPC design and neural controller tools for DeepSeek Harness",
+  "exports": {".": "./src/index.mjs", "./role": "./src/role.mjs", "./client": "./lib/client.js", "./cordis.patch.yml": "./cordis.patch.yml", "./package.json": "./package.json"},
+  "files": ["src", "lib/client.js", "cordis.patch.yml"],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.6-alpha.1",
+    "@deepseek-ai/schemastery": "*",
+    "@deepseek-ai/dsh-tools": "0.2.2-alpha.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "link:../vendor/deepseek-harness/vendor/cordis",
+    "@deepseek-ai/schemastery": "link:../vendor/deepseek-harness/vendor/schemastery",
+    "@deepseek-ai/dsh-tools": "link:../vendor/deepseek-harness/packages/core/tools",
+    "react": "link:../vendor/deepseek-harness/apps/web/node_modules/react",
+    "react-dom": "link:../vendor/deepseek-harness/apps/web/node_modules/react-dom"
+  },
+  "dsh": {
+    "bundle": {"patch": "./cordis.patch.yml"},
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-job-controller",
+        "@deepseek-ai/dsh-client-file-upload",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  }
+}

@@ -1,0 +1,93 @@
+- insert:
+    - id: control-engineering
+      name: '@control-engineering/harness-bundle'
+      config:
+        pythonPath: !!js process.env.CONTROL_PYTHON
+        codeRoot: !!js process.env.CONTROL_CODE_ROOT
+        maxConcurrentWorkers: 1
+        timeoutSeconds: 1800
+        cancellationGraceMs: 10000
+    - id: preset-control-model
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: control-model
+        name: 模型与数据智能体
+        description: 被控对象检查、数据导入、线性辨识与物理约束残差网络
+        order: 10
+        plugins:
+          - name: '@control-engineering/harness-bundle/role'
+            config: { role: model }
+          - name: '@deepseek-ai/dsh-agent-instructions'
+            config: { maxBytes: 65536 }
+          - name: '@deepseek-ai/dsh-tool-jobs'
+            config: { completionDelivery: quiet }
+          - name: '@deepseek-ai/dsh-tool-fs'
+          - name: '@deepseek-ai/dsh-tool-fs-search'
+            config: { sampleOverCapGlobResults: false }
+          - name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - name: '@deepseek-ai/dsh-tool-ask-user'
+          - name: cordis:group
+            group: true
+            isolate: { compaction: true }
+            config:
+              - name: '@deepseek-ai/dsh-compaction-basic'
+              - name: '@deepseek-ai/dsh-command-compact'
+    - id: preset-control-controller
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: control-controller
+        name: 控制器设计与调参智能体
+        description: MPC 控制器设计、真实候选仿真调参与 KF/EKF 验证
+        order: 11
+        plugins:
+          - name: '@control-engineering/harness-bundle/role'
+            config: { role: controller }
+          - name: '@deepseek-ai/dsh-agent-instructions'
+            config: { maxBytes: 65536 }
+          - name: '@deepseek-ai/dsh-tool-jobs'
+            config: { completionDelivery: quiet }
+          - name: '@deepseek-ai/dsh-tool-fs'
+          - name: '@deepseek-ai/dsh-tool-fs-search'
+            config: { sampleOverCapGlobResults: false }
+          - name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - name: '@deepseek-ai/dsh-tool-ask-user'
+          - name: cordis:group
+            group: true
+            isolate: { compaction: true }
+            config:
+              - name: '@deepseek-ai/dsh-compaction-basic'
+              - name: '@deepseek-ai/dsh-command-compact'
+    - id: preset-control-lightweight
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: control-lightweight
+        name: 轻量化控制智能体
+        description: 专家数据采集、神经网络模仿与可微控制策略优化
+        order: 12
+        plugins:
+          - name: '@control-engineering/harness-bundle/role'
+            config: { role: lightweight }
+          - name: '@deepseek-ai/dsh-agent-instructions'
+            config: { maxBytes: 65536 }
+          - name: '@deepseek-ai/dsh-tool-jobs'
+            config: { completionDelivery: quiet }
+          - name: '@deepseek-ai/dsh-tool-fs'
+          - name: '@deepseek-ai/dsh-tool-fs-search'
+            config: { sampleOverCapGlobResults: false }
+          - name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - name: '@deepseek-ai/dsh-tool-ask-user'
+          - name: cordis:group
+            group: true
+            isolate: { compaction: true }
+            config:
+              - name: '@deepseek-ai/dsh-compaction-basic'
+              - name: '@deepseek-ai/dsh-command-compact'

@@ -1,0 +1,377 @@
+{
+  "schema_version": 1,
+  "name": "Reviewed standalone PyTorch benchmark; explicit simulation only",
+  "steps": [
+    {
+      "id": "nominal",
+      "operation": "register_python_model",
+      "inputs": {
+        "model_path": "model.py"
+      },
+      "config": {
+        "source": {
+          "kind": "user_nominal",
+          "description": "Reviewed standalone non-polynomial mathematical model"
+        }
+      }
+    },
+    {
+      "id": "reference",
+      "operation": "register_python_model",
+      "inputs": {
+        "model_path": "model.py"
+      },
+      "config": {
+        "model_spec": {
+          "representation": "python_torch_transition",
+          "entrypoint": "transition",
+          "output_entrypoint": "observe",
+          "parameters": {
+            "gains": [
+              0.24,
+              0.18
+            ],
+            "bias": [
+              0.01,
+              -0.008,
+              0.004
+            ]
+          },
+          "interface": {
+            "schema_version": 1,
+            "name": "standalone-nonpolynomial-benchmark",
+            "sample_time": 0.1,
+            "time_semantics": "discrete_state_transition",
+            "states": [
+              {
+                "name": "x1",
+                "unit": "1",
+                "lower": -2,
+                "upper": 2
+              },
+              {
+                "name": "x2",
+                "unit": "1",
+                "lower": -2,
+                "upper": 2
+              },
+              {
+                "name": "x3",
+                "unit": "1",
+                "lower": -2,
+                "upper": 2
+              }
+            ],
+            "controls": [
+              {
+                "name": "u1",
+                "unit": "1",
+                "lower": -1.5,
+                "upper": 1.5
+              },
+              {
+                "name": "u2",
+                "unit": "1",
+                "lower": -1.5,
+                "upper": 1.5
+              }
+            ],
+            "outputs": [
+              {
+                "name": "y1",
+                "unit": "1",
+                "lower": -2.1,
+                "upper": 2.1
+              },
+              {
+                "name": "y2",
+                "unit": "1",
+                "lower": -2.1,
+                "upper": 2.1
+              }
+            ],
+            "disturbances": [
+              {
+                "name": "d1",
+                "unit": "1",
+                "lower": -0.3,
+                "upper": 0.3
+              }
+            ]
+          }
+        },
+        "source": {
+          "kind": "reference_simulator",
+          "description": "Explicit separate benchmark parameters; not measured plant truth"
+        }
+      }
+    },
+    {
+      "id": "data",
+      "operation": "simulate_transitions",
+      "inputs": {
+        "nominal_model": {
+          "stage": "nominal"
+        },
+        "reference_model": {
+          "stage": "reference"
+        }
+      },
+      "config": {
+        "trajectories": 12,
+        "steps": 16,
+        "seed": 54
+      }
+    },
+    {
+      "id": "corrected",
+      "operation": "train_residual",
+      "inputs": {
+        "nominal_model": {
+          "stage": "nominal"
+        },
+        "dataset": {
+          "stage": "data"
+        }
+      },
+      "config": {
+        "epochs": 100,
+        "hidden_dims": [
+          12,
+          12
+        ],
+        "learning_rate": 0.008,
+        "batch_size": 32,
+        "patience": 30,
+        "seed": 55
+      }
+    },
+    {
+      "id": "controller",
+      "operation": "design_controller",
+      "inputs": {
+        "model": {
+          "stage": "corrected"
+        },
+        "evaluation_model": {
+          "stage": "reference"
+        }
+      },
+      "config": {
+        "parameters": {
+          "horizon": 3,
+          "q": 1,
+          "r": 0.01,
+          "s": 0.005
+        },
+        "budget": 8,
+        "seed": 56,
+        "tuning_scenarios": [
+          {
+            "name": "tune-0",
+            "initial_state": [
+              -0.22203876426248392,
+              0.014863976706362969,
+              -0.33627682244287227
+            ],
+            "reference": [
+              0.03871985488262525,
+              -0.20693980590911326
+            ],
+            "disturbance": [
+              -0.01341315678221855
+            ],
+            "steps": 6
+          }
+        ],
+        "verification_scenarios": [
+          {
+            "name": "verify-0",
+            "initial_state": [
+              0.13414930539254843,
+              -0.2971425601485477,
+              0.3410963842193243
+            ],
+            "reference": [
+              0.21580208708759308,
+              -0.012716394147118837
+            ],
+            "disturbance": [
+              0.0635125577857889
+            ],
+            "steps": 7
+          }
+        ],
+        "test_scenarios": [
+          {
+            "name": "test-0",
+            "initial_state": [
+              -0.285219439151579,
+              -0.2612778078168412,
+              0.21525576505930388
+            ],
+            "reference": [
+              -0.057175503891309154,
+              0.16175398713882205
+            ],
+            "disturbance": [
+              0.13325998843147083
+            ],
+            "steps": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": "expert",
+      "operation": "collect_expert",
+      "inputs": {
+        "controller": {
+          "stage": "controller"
+        },
+        "evaluation_model": {
+          "stage": "reference"
+        }
+      },
+      "config": {
+        "scenarios": [
+          {
+            "name": "expert-0",
+            "initial_state": [
+              -0.23194008559273327,
+              0.13054247429184707,
+              0.1454236351005479
+            ],
+            "reference": [
+              0.16318436822066285,
+              -0.19444741830557988
+            ],
+            "disturbance": [
+              -0.14251748350928578
+            ],
+            "steps": 6
+          },
+          {
+            "name": "expert-1",
+            "initial_state": [
+              -0.1682223742090522,
+              0.09581319969762436,
+              0.36116647601886787
+            ],
+            "reference": [
+              0.2267800333894317,
+              -0.11347607402180981
+            ],
+            "disturbance": [
+              -0.13780916077949365
+            ],
+            "steps": 6
+          },
+          {
+            "name": "expert-2",
+            "initial_state": [
+              -0.37518314177522943,
+              -0.046776704700641214,
+              0.10443614558775782
+            ],
+            "reference": [
+              -0.16583837384396755,
+              -0.22215219977228268
+            ],
+            "disturbance": [
+              -0.11814257882241969
+            ],
+            "steps": 6
+          },
+          {
+            "name": "expert-3",
+            "initial_state": [
+              -0.32791306947195986,
+              0.03595324279032913,
+              0.38950175634121165
+            ],
+            "reference": [
+              -0.13746624595880208,
+              -0.08492291428398818
+            ],
+            "disturbance": [
+              0.10025123073475797
+            ],
+            "steps": 6
+          },
+          {
+            "name": "expert-4",
+            "initial_state": [
+              0.15017984801032003,
+              -0.1291512443654445,
+              0.19363741500719955
+            ],
+            "reference": [
+              0.12517609813051733,
+              -0.162246619900477
+            ],
+            "disturbance": [
+              -0.10701715756271848
+            ],
+            "steps": 6
+          },
+          {
+            "name": "expert-5",
+            "initial_state": [
+              -0.08200290889322392,
+              -0.013630769715660407,
+              -0.18319828705630858
+            ],
+            "reference": [
+              0.18124979947787673,
+              0.2345535669601183
+            ],
+            "disturbance": [
+              -0.14426564187444302
+            ],
+            "steps": 6
+          }
+        ],
+        "seed": 57
+      }
+    },
+    {
+      "id": "imitation",
+      "operation": "train_imitation",
+      "inputs": {
+        "dataset": {
+          "stage": "expert"
+        }
+      },
+      "config": {
+        "architecture": "mlp",
+        "epochs": 50,
+        "hidden_dims": [
+          16,
+          12
+        ],
+        "batch_size": 16,
+        "learning_rate": 0.005,
+        "seed": 58
+      }
+    },
+    {
+      "id": "optimized",
+      "operation": "optimize_policy",
+      "inputs": {
+        "policy": {
+          "stage": "imitation"
+        },
+        "model": {
+          "stage": "corrected"
+        }
+      },
+      "config": {
+        "epochs": 2,
+        "horizon": 4,
+        "learning_rate": 0.0002,
+        "seed": 59
+      }
+    }
+  ]
+}

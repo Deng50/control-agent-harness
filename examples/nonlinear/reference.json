@@ -1,0 +1,101 @@
+{
+  "interface": {
+    "schema_version": 1,
+    "name": "nonlinear_demonstration",
+    "sample_time": 0.1,
+    "time_semantics": "discrete_state_transition",
+    "states": [
+      {
+        "name": "x1",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      },
+      {
+        "name": "x2",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      }
+    ],
+    "controls": [
+      {
+        "name": "u1",
+        "unit": "1",
+        "lower": -1.5,
+        "upper": 1.5
+      }
+    ],
+    "outputs": [
+      {
+        "name": "y1",
+        "unit": "1",
+        "lower": -2,
+        "upper": 2
+      }
+    ],
+    "disturbances": [
+      {
+        "name": "d1",
+        "unit": "1",
+        "lower": -0.3,
+        "upper": 0.3
+      }
+    ]
+  },
+  "representation": "discrete_polynomial",
+  "A": [
+    [
+      0.9,
+      0.04
+    ],
+    [
+      0.03,
+      0.81
+    ]
+  ],
+  "B": [
+    [
+      0.22
+    ],
+    [
+      0.1
+    ]
+  ],
+  "E": [
+    [
+      0.025
+    ],
+    [
+      0.025
+    ]
+  ],
+  "C": [
+    [
+      1,
+      0
+    ]
+  ],
+  "terms": [
+    {
+      "state_index": 0,
+      "coefficient": -0.025,
+      "powers": [
+        3,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "state_index": 1,
+      "coefficient": -0.018,
+      "powers": [
+        0,
+        3,
+        0,
+        0
+      ]
+    }
+  ]
+}

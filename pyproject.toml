@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "control-agent-harness"
+version = "0.1.0"
+description = "Control engineering domain plugins and numerical workers for DeepSeek Harness"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "scipy>=1.10", "torch>=2.1"]
+
+[project.scripts]
+control-worker = "control_harness.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

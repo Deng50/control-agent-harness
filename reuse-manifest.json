@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "source": "NMPC-light/plugins/networks/mlp.py",
+      "source_sha256": "d6793e644d0388d710b6c3cc353c0bf8b60de50545c479c7a842661e493263f7",
+      "source_class": "MLPNetwork",
+      "source_line": 30,
+      "output": "src/control_harness/reused/mlp.py",
+      "adaptation": "AST extraction; remove application registries; use nn.Module; preserve method bodies"
+    },
+    {
+      "source": "NMPC-light/plugins/networks/lstm.py",
+      "source_sha256": "1222b10ca59184d22dc0e9bf152d0f08cae65d1b51b662aa606876fef0405556",
+      "source_class": "LSTMNetwork",
+      "source_line": 35,
+      "output": "src/control_harness/reused/lstm.py",
+      "adaptation": "AST extraction; remove application registries; use nn.Module; preserve method bodies"
+    },
+    {
+      "source": "NMPC-light/plugins/networks/rnn.py",
+      "source_sha256": "5175426213d7d1af506a532d6102cbf074c2679e4865f1e4b042a258a556b28e",
+      "source_class": "RNNNetwork",
+      "source_line": 29,
+      "output": "src/control_harness/reused/rnn.py",
+      "adaptation": "AST extraction; remove application registries; use nn.Module; preserve method bodies"
+    },
+    {
+      "source": "AIagent/pgac_auto_train_agent_v1/kernels/pgac_core.py",
+      "source_sha256": "2db9a8af9e240a9fff3230fc268da9f8450ce1258381374028d737c15db946f4",
+      "source_class": "PerceptionNet",
+      "source_line": 259,
+      "output": "src/control_harness/reused/perception.py",
+      "adaptation": "AST extraction; remove application registries; use nn.Module; preserve method bodies"
+    },
+    {
+      "source": "mpc_agent_v5/app/skills/tuning.py",
+      "source_sha256": "94255a5b7be90f27e973f6a508b22ba673a89dadbafb7944922b0ef85ba64a08",
+      "source_class": "ParameterTuningSkill",
+      "source_line": 16,
+      "output": "src/control_harness/reused/genetic.py",
+      "adaptation": "AST extraction; remove application registries; use nn.Module; preserve method bodies"
+    }
+  ]
+}

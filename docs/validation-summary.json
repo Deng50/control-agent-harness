@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-30",
+  "scope": "Sanitized summaries of actual local simulation and integration checks. Raw workspace records, sessions, credentials, weights and screenshots are intentionally excluded from Git.",
+  "upstream_commit": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
+  "regression": {
+    "python": {
+      "passed": 116,
+      "seconds": 111.056
+    },
+    "node": {
+      "passed": 16,
+      "seconds": 39.325
+    }
+  },
+  "simulation_cases": {
+    "linear": {
+      "residual_test": {
+        "nominal_mse": 0.00024555403462969824,
+        "corrected_mse": 4.8131627707316994e-06,
+        "nominal_mse_per_state": [
+          0.0006690590037145743,
+          0.0001636742755100336,
+          3.520935137080619e-05,
+          0.00011427350792337898
+        ],
+        "corrected_mse_per_state": [
+          9.173247231705601e-06,
+          2.8434096622509224e-06,
+          1.9473847851081305e-06,
+          5.288609403862145e-06
+        ],
+        "samples": 96
+      },
+      "residual_test_mse_improvement": 0.9803987632376309,
+      "controller_tuned_candidate_accepted": true,
+      "controller_test": {
+        "hard_constraints_passed": true,
+        "score": 0.01673241706280629
+      },
+      "held_out_policy_comparison": {
+        "expert": {
+          "normalized_rmse": 0.008886849448274737,
+          "rmse": 0.03554739779309895,
+          "max_state_violation": 0.0,
+          "max_input_violation": 0.0,
+          "input_total_variation": 2.337109346633847,
+          "mean_control_seconds": 0.25681115833382745
+        },
+        "imitation": {
+          "normalized_rmse": 0.04076531622976699,
+          "rmse": 0.16306126491906797,
+          "max_state_violation": 0.0,
+          "max_input_violation": 0.0,
+          "input_total_variation": 1.7710060291224263,
+          "mean_control_seconds": 0.00016378749993843183
+        },
+        "optimized": {
+          "normalized_rmse": 0.03340648707873198,
+          "rmse": 0.1336259483149279,
+          "max_state_violation": 0.0,
+          "max_input_violation": 0.0,
+          "input_total_variation": 2.249361061245957,
+          "mean_control_seconds": 0.000165874999765947
+        }
+      },
+      "all_artifact_files_and_dependencies_verified": true
+    },
+    "nonlinear": {
+      "residual_test": {
+        "nominal_mse": 0.00012418061273327462,
+        "corrected_mse": 1.8615436548131254e-06,
+        "nominal_mse_per_state": [
+          0.00019186438904904835,
+          5.649683641750094e-05
+        ],
+        "corrected_mse_per_state": [
+          3.6567301511554897e-06,
+          6.635715847076205e-08
+        ],
+        "samples": 96
+      },
+      "residual_test_mse_improvement": 0.9850093858144225,
+      "controller_tuned_candidate_accepted": true,
+      "controller_test": {
+        "hard_constraints_passed": true,
+        "score": 0.0002235326112193858
+      },
+      "held_out_policy_comparison": {
+        "expert": {
+          "normalized_rmse": 0.020055574254186706,
+          "rmse": 0.08022229701674682,
+          "max_state_violation": 0.0,
+          "max_input_violation": 0.0,
+          "input_total_variation": 2.2542162756321016,
+          "mean_control_seconds": 0.09695337916643136
+        },
+        "imitation": {
+          "normalized_rmse": 0.024183794363595468,
+          "rmse": 0.09673517745438187,
+          "max_state_violation": 0.0,
+          "max_input_violation": 0.0,
+          "input_total_variation": 1.9394358648141445,
+          "mean_control_seconds": 0.00018361249976805993
+        },
+        "optimized": {
+          "normalized_rmse": 0.024183794363595468,
+          "rmse": 0.09673517745438187,
+          "max_state_violation": 0.0,
+          "max_input_violation": 0.0,
+          "input_total_variation": 1.9394358648141445,
+          "mean_control_seconds": 0.0001765541661976992
+        }
+      },
+      "all_artifact_files_and_dependencies_verified": true
+    },
+    "temperature_walkthrough": {
+      "equations": {
+        "nominal": "T_next=0.9*T+2*u+0.1*ambient",
+        "reference": "T_next=0.88*T+2.4*u+0.12*ambient+0.15"
+      },
+      "model_test": {
+        "nominal_rmse_degC": 0.209135912824338,
+        "corrected_rmse_degC": 0.0008930771288115816,
+        "samples": 90,
+        "epochs": 250
+      },
+      "controller": {
+        "tuned_candidate_accepted": false,
+        "parameters": {
+          "horizon": 5,
+          "q": 1,
+          "r": 0.002,
+          "s": 0.0005,
+          "input_rate_bounds": [
+            [
+              -0.35,
+              0.35
+            ]
+          ]
+        },
+        "independent_test": {
+          "rmse": 1.5002859962851407,
+          "rmse_per_output": [
+            1.5002859962851407
+          ],
+          "normalized_rmse": 0.03333968880633646,
+          "max_state_violation": 0.0,
+          "max_input_violation": 0.0,
+          "max_output_violation": 0.0,
+          "input_total_variation": 1.4680430885415645,
+          "mean_control_seconds": 0.32268275000242286,
+          "p95_control_seconds": 0.34638822500564864,
+          "control_effort": 0.3741876977103971,
+          "max_rate_violation": 5.551115123125783e-17
+        },
+        "last_test_temperature": [
+          30.889616898337703
+        ]
+      },
+      "policy": {
+        "network": {
+          "architecture": "mlp",
+          "input_dim": 3,
+          "output_dim": 1,
+          "hidden_dims": [
+            32,
+            16
+          ],
+          "input_semantics": "current_state_reference_disturbance"
+        },
+        "parameter_count": 769,
+        "imitation_epochs": 57,
+        "best_validation_epoch": 7,
+        "optimization_epochs": 20,
+        "algorithm": "differentiable_physical_rollout_policy_gradient",
+        "same_condition_comparison": [
+          {
+            "condition": {
+              "name": "expert-1",
+              "initial_state": [
+                20
+              ],
+              "reference": [
+                28
+              ],
+              "disturbance": [
+                18
+              ],
+              "steps": 20
+            },
+            "strategies": {
+              "expert": {
+                "rmse_degC": 2.2776853991412747,
+                "mean_control_ms": 269.0272899984848,
+                "p95_control_ms": 393.78575999217,
+                "total_variation": 1.5677511541503852,
+                "max_constraint_violation": 5.551115123125783e-17
+              },
+              "imitation": {
+                "rmse_degC": 2.5104934463424424,
+                "mean_control_ms": 0.24631499982206148,
+                "p95_control_ms": 0.36452499771257874,
+                "total_variation": 0.9821329076441896,
+                "max_constraint_violation": 0.0
+              },
+              "optimized": {
+                "rmse_degC": 2.395158244120465,
+                "mean_control_ms": 0.24708499913685958,
+                "p95_control_ms": 0.3914499924576376,
+                "total_variation": 1.1793027578846202,
+                "max_constraint_violation": 0.0
+              }
+            }
+          },
+          {
+            "condition": {
+              "name": "expert-11",
+              "initial_state": [
+                29
+              ],
+              "reference": [
+                31
+              ],
+              "disturbance": [
+                19
+              ],
+              "steps": 20
+            },
+            "strategies": {
+              "expert": {
+                "rmse_degC": 0.6308734251681654,
+                "mean_control_ms": 366.4467449976655,
+                "p95_control_ms": 382.3335449989827,
+                "total_variation": 1.1629339579513336,
+                "max_constraint_violation": 0.0
+              },
+              "imitation": {
+                "rmse_degC": 0.6922886455358075,
+                "mean_control_ms": 0.28320999845163897,
+                "p95_control_ms": 0.5310400010785088,
+                "total_variation": 0.8718929078856901,
+                "max_constraint_violation": 0.0
+              },
+              "optimized": {
+                "rmse_degC": 0.6800854789603769,
+                "mean_control_ms": 0.24244000087492168,
+                "p95_control_ms": 0.2973900016513655,
+                "total_variation": 1.0345627463223521,
+                "max_constraint_violation": 0.0
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "native_business_dialogue": {
+    "status": "verified",
+    "preflight_passed": true,
+    "workflow_attempts": 1,
+    "verified_artifacts": 8,
+    "source": "Explicit standalone PyTorch mathematical reference simulator, not measurements"
+  }
+}
