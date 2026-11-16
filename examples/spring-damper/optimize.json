@@ -1,0 +1,9 @@
+{
+  "epochs": 35,
+  "horizon": 6,
+  "learning_rate": 0.0003,
+  "batch_size": 24,
+  "imitation_weight": 0.1,
+  "constraint_weight": 100,
+  "seed": 146
+}

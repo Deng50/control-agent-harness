@@ -1,0 +1,31 @@
+{
+  "equations": [
+    "L di/dt = U - R i - Ke omega",
+    "J domega/dt = Kt i - b omega - tau_load"
+  ],
+  "nominal": {
+    "R": 2,
+    "L": 0.5,
+    "J": 0.02,
+    "b": 0.02,
+    "Ke": 0.1,
+    "Kt": 0.1
+  },
+  "reference": {
+    "R": 2.3,
+    "L": 0.55,
+    "J": 0.024,
+    "b": 0.024,
+    "Ke": 0.105,
+    "Kt": 0.095
+  },
+  "source": "illustrative_mathematical_simulator_not_measured_motor",
+  "units": {
+    "R": "ohm",
+    "L": "H",
+    "J": "kg*m^2",
+    "b": "N*m*s/rad",
+    "Ke": "V*s/rad",
+    "Kt": "N*m/A"
+  }
+}

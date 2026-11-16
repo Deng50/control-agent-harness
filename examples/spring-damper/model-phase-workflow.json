@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "name": "二阶质量-弹簧-阻尼系统：模型角色前四阶段",
+  "steps": [
+    {
+      "id": "nominal",
+      "operation": "register_model",
+      "inputs": {
+        "model_path": "nominal.json"
+      },
+      "config": {
+        "source": {
+          "kind": "user_nominal",
+          "description": "Declared continuous mass-spring-damper nominal equations; m=1 kg, c=0.8 N*s/m, k=2 N/m; exact ZOH at 0.2 s"
+        }
+      }
+    },
+    {
+      "id": "reference",
+      "operation": "register_model",
+      "inputs": {
+        "model_path": "reference.json"
+      },
+      "config": {
+        "source": {
+          "kind": "reference_simulator",
+          "description": "Explicit separate continuous reference simulator; m=1.1 kg, c=1 N*s/m, k=2.3 N/m; exact ZOH; not measured plant data"
+        }
+      }
+    },
+    {
+      "id": "data",
+      "operation": "simulate_transitions",
+      "inputs": {
+        "nominal_model": {
+          "stage": "nominal"
+        },
+        "reference_model": {
+          "stage": "reference"
+        }
+      },
+      "config": {
+        "trajectories": 30,
+        "steps": 35,
+        "seed": 141
+      }
+    },
+    {
+      "id": "corrected",
+      "operation": "train_residual",
+      "inputs": {
+        "nominal_model": {
+          "stage": "nominal"
+        },
+        "dataset": {
+          "stage": "data"
+        }
+      },
+      "config": {
+        "input_dim": 4,
+        "output_dim": 2,
+        "epochs": 300,
+        "hidden_dims": [
+          24,
+          24
+        ],
+        "learning_rate": 0.005,
+        "batch_size": 64,
+        "patience": 50,
+        "physics_weight": 0.1,
+        "seed": 142
+      }
+    }
+  ]
+}

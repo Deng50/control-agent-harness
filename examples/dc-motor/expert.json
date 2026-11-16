@@ -1,0 +1,173 @@
+{
+  "scenarios": [
+    {
+      "name": "motor-expert-01",
+      "initial_state": [
+        0,
+        0
+      ],
+      "reference": [
+        12
+      ],
+      "disturbance": [
+        0.02
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-02",
+      "initial_state": [
+        1,
+        4
+      ],
+      "reference": [
+        -10
+      ],
+      "disturbance": [
+        -0.03
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-03",
+      "initial_state": [
+        -1,
+        -4
+      ],
+      "reference": [
+        16
+      ],
+      "disturbance": [
+        0.04
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-04",
+      "initial_state": [
+        0,
+        5
+      ],
+      "reference": [
+        -14
+      ],
+      "disturbance": [
+        -0.05
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-05",
+      "initial_state": [
+        2,
+        2
+      ],
+      "reference": [
+        10
+      ],
+      "disturbance": [
+        0.06
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-06",
+      "initial_state": [
+        -2,
+        -2
+      ],
+      "reference": [
+        -16
+      ],
+      "disturbance": [
+        -0.02
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-07",
+      "initial_state": [
+        0,
+        -6
+      ],
+      "reference": [
+        14
+      ],
+      "disturbance": [
+        0.03
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-08",
+      "initial_state": [
+        1,
+        6
+      ],
+      "reference": [
+        -12
+      ],
+      "disturbance": [
+        -0.04
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-09",
+      "initial_state": [
+        -1,
+        -5
+      ],
+      "reference": [
+        8
+      ],
+      "disturbance": [
+        0.05
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-10",
+      "initial_state": [
+        0,
+        3
+      ],
+      "reference": [
+        -8
+      ],
+      "disturbance": [
+        -0.06
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-11",
+      "initial_state": [
+        2,
+        -3
+      ],
+      "reference": [
+        18
+      ],
+      "disturbance": [
+        0.02
+      ],
+      "steps": 30
+    },
+    {
+      "name": "motor-expert-12",
+      "initial_state": [
+        -2,
+        3
+      ],
+      "reference": [
+        -18
+      ],
+      "disturbance": [
+        -0.03
+      ],
+      "steps": 30
+    }
+  ],
+  "seed": 249
+}

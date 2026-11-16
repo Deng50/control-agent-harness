@@ -9,6 +9,9 @@ description = "Control engineering domain plugins and numerical workers for Deep
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "scipy>=1.10", "torch>=2.1"]
 
+[project.optional-dependencies]
+presentation = ["matplotlib>=3.8", "pymupdf>=1.24"]
+
 [project.scripts]
 control-worker = "control_harness.cli:main"
 
