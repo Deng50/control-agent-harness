@@ -1,10 +1,10 @@
 # 控制工程智能体平台
 
-基于固定版本的 DeepSeek Harness，通过外部 Cordis bundle 接入模型残差训练、MPC 设计与遗传调参、专家数据采集和策略轻量化。原四个仓库不作修改。Python 执行领域计算，Harness 负责会话、工具、人机命令、作业、附件与沙箱。
+基于固定版本的 DeepSeek Harness，以三个专业入口和共享 Cordis 插件提供对象采数与 NN、实车格式数据训练、受限条件 ODE PINN、MPC 仅设计与偏好调参、外部专家模仿和受限 PGAC。原四个仓库保留；固定上游内核不作修改。Python 和 MATLAB 适配器执行领域计算，Harness 负责会话、技能、工具、规划、子智能体、人机命令、作业、附件与沙箱。
 
-当前版本已完成线性、非线性及独立 Python 对象的数值闭环、Web 三入口和真实 DeepSeek 业务对话验证。具体范围与证据见[验收记录](docs/acceptance.md)，原项目能力的迁移对应见[功能表](docs/function-map.md)。仿真集成验收不等于实物部署认证。
+本轮完成受支持数值路线、Web 三入口、旧线性/非线性兼容、三个真实业务对话与独立加载的实际验收。最终门状态、源码归档和精确支持范围见[验收记录](docs/acceptance.md)，原项目迁移对应见[功能表](docs/function-map.md)。仿真集成验收不等于实物部署认证。
 
-第一次使用请阅读[中文使用手册](docs/user-guide-zh.md)，包含当前电脑快速启动、从 GitHub 首次安装、温控案例的完整流程、三个智能体的手动接力、对话示例及常见问题。
+第一次使用请先读 [V2 安装、独立入口与产物迁移](docs/v2-delivery.md)，再按[中文使用手册](docs/user-guide-zh.md)使用当前电脑、安装环境或运行温控旧案例。三个入口可在用户要求的阶段结束，不必运行整条流程。
 
 完整的二阶控制演示见[质量—弹簧—阻尼案例](examples/spring-damper/README.md)：从连续模型、残差校正、MPC 遗传调参到专家模仿与物理策略优化，并提供真实三角色会话执行及 PPT 曲线素材导出脚本。
 
@@ -35,7 +35,7 @@ Set-Location D:\projects\control-agent-harness
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install -c constraints-v2-validated.txt -e .
 ```
 
 从 GitHub 在另一台 Windows 机器恢复时，先安装上文要求的 Git、Node.js、pnpm 和 Python，再执行：
@@ -44,7 +44,7 @@ python -m venv .venv
 git clone https://github.com/Deng50/control-agent-harness.git
 Set-Location control-agent-harness
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install -c constraints-v2-validated.txt -e .
 .\scripts\setup-harness.ps1
 .\scripts\prepare-workspace.ps1 -Workspace "$PWD\workspaces\project-01"
 .\scripts\start-web.ps1
@@ -72,9 +72,17 @@ Windows 的 Harness 沙箱需要工作目录由当前用户拥有，且该用户
 
 ## 使用方式
 
-侧栏进入“控制工程”，选择项目目录，再选择“模型校正”“控制器设计”或“控制器轻量化”。每个项目和角色使用不同的 Harness Session，表单草稿在当前浏览器中保留。输入区填写产物 ID 或绝对文件路径；模型 JSON、独立 Python 文件和转移数据 NPZ 可以通过 Harness 附件服务上传。参数区的结构化选项与 JSON 配置同步。
+三个控制角色保留固定上游 standard 的原生工具、技能、规划、压缩、子智能体和工作流组合，领域角色只替换 persona 并保留 quiet 作业通知。角色入口分别加载 `train-object-model`、`design-and-tune-mpc`、`distill-controller`，按用户材料和交付停止点规划，不要求每个请求都运行八阶段。已实现的适配合同、数值分支和限制见 [V2 支持矩阵](docs/v2-delivery.md)；操作字段以当前 `control_help` 为准，实际验收状态见 [acceptance.md](docs/acceptance.md)。
 
-点击“执行阶段”会立即返回原生作业，右侧显示进度、日志和验证损失曲线。作业可取消。产物可查看校验后的报告与文件清单，成功产物可选入下阶段；评估对象、独立测试工况等额外前提仍须填写。“持久任务记录与恢复”在服务重启后仍可读取结果，并提供按原请求重试、训练检查点续训或流程阶段接续；界面上另外的“按当前配置重试”仍是一次新运行。
+条件热过程 PINN 的问题声明、单位、损失、独立导出和用途边界见[条件 ODE PINN](docs/conditional-pinn.md)。它的条件轨迹接口与控制预测动力学接口不同，当前数值验收状态仍以逐步验收记录为准。
+
+从实际外部模仿权重继续进行有界物理 rollout 策略梯度训练，以及原 Python/MATLAB 对象上的专家／模仿／候选比较，见[受限 PGAC](docs/restricted-pgac.md)。模型先通过数值与梯度资格验证；候选须经固定的原对象验证、测试和可行基线回退规则，才可成为最终产物。
+
+公共组合由固定上游清单生成，升级或修改组合后执行 `node scripts/sync-control-presets.mjs --write`，用 `--check` 检查漂移。业务 skills 随 `harness-plugin` 打包；启动脚本通过 `CONTROL_CODE_ROOT` 注册该技能根，并继续保留默认用户技能目录。原生 `skill` 工具用于加载技能，不新增单独的技能调度器。
+
+侧栏进入“控制工程”，选择项目目录，再选择“模型与数据”“控制器设计”或“控制器轻量化”。每个项目和角色使用独立的原生 Harness Session，表单草稿在当前浏览器中保留。输入区支持绝对文件路径或点击上传，Python、MATLAB、SLX、CSV、XLSX 等材料经同一快照协议登记。参数区的结构化选项与 JSON 配置同步。旧会话路径或角色不兼容时，使用“新建专业会话并保留旧记录”；该动作保留旧历史和数值草稿，清除旧会话的确认权限。
+
+先生成实际摘要，核对信号语义、工况或训练参数，再通过原生确认按钮批准该版本，随后点击“执行阶段”。未确认不创建数值作业，实质编辑后旧确认失效；同版本已确认的全量执行或兼容检查点恢复不重复确认。作业区显示进度、日志和验证损失曲线，并支持取消。产物可查看校验后的报告、实际数组和完整下载包。评估对象、独立测试工况等额外前提仍须填写。“持久任务记录与恢复”在服务重启后仍可读取结果，按原句柄检查并显式续训或接续；“按当前配置重试”是一次新运行。
 
 “检查对象材料”支持 JSON、Python AST 和 Simulink 静态材料检查，列出已声明接口、缺失项与不确定项。有完整候选时可进入接口表单修改名称、单位、边界和采样周期，再显式导入。检查阶段不执行源码；独立、确定、可微的 PyTorch 对象可随后通过“运行并导入 Python 动力学”执行、保存源码快照并校验梯度，详见[Python 动力学适配](docs/python-dynamics.md)。SLX 静态查看不等于运行原始 Simulink。模型角色另有满秩线性最小二乘辨识，控制器角色提供真实估计状态驱动 MPC 的 KF/EKF 验证。
 
@@ -129,4 +137,4 @@ node scripts/smoke-quiet-forms.mjs
 
 连续动力学已支持显式 Euler/RK4 和仿射精确 ZOH 转换，见[连续模型适配](docs/continuous-dynamics.md)。强制退出后的未发布检查点可经 OS 存活判定和完整性校验归档，见[检查点说明](docs/training-checkpoints.md)。三个角色使用原生预设、工具帮助及依赖接力，见[角色与报告](docs/role-relay.md)。
 
-当前支持声明式离散/连续动力学及独立 PyTorch 可微对象。SLX/MDL 仍为静态检查；任意 Python 工程迁移、原始 Simulink 执行和通用 PDE PINN 不在已实现能力内。新对象仍需明确接口、模型来源、约束与独立评价工况；神经策略达到部署性能需要进一步工程验证。
+当前支持声明式离散/连续动力学、独立 PyTorch 可微对象，以及明确接口下的 Python callable、MATLAB 函数和受限平坦 SLX 原模型批量采数，适配范围见[单对象采样](docs/plant-sampling.md)和[外部专家](docs/external-experts.md)。任意 Python 工程、任意复杂 Simulink 工程的自动迁移及通用 PDE PINN 不在当前支持范围内；静态结构可读不代表该模型能仿真或可微。新对象仍需明确接口、模型来源、约束与独立评价工况；有限工况通过不构成稳定性证明或未来在线域外保护。

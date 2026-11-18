@@ -40,6 +40,14 @@
       "source_line": 16,
       "output": "src/control_harness/reused/genetic.py",
       "adaptation": "AST extraction; remove application registries; use nn.Module; preserve method bodies"
+    },
+    {
+      "source": "mpc_agent_v5/app/performance.py",
+      "source_sha256": "f99b0da7b8e44882b1812756d88b8cfdef4b0a152a739fd0615e3d3d7d3d8c89",
+      "source_function": "canonical_tracking_metrics",
+      "source_line": 67,
+      "output": "src/control_harness/objectives.py",
+      "adaptation": "Pure per-channel error, constant-reference segmentation and signed overshoot formulas; explicit pre-step initial output, unavailable states, fixed external preferences, settling/crossing and constraint metrics; no application dependencies."
     }
   ]
 }

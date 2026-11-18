@@ -32,6 +32,7 @@ _netrc
 workspaces/
 test-output/
 .control-jobs/
+.case-plans/
 .staging/
 .operation.lock
 .workspace.mutex

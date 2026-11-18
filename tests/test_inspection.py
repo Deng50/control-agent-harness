@@ -50,9 +50,14 @@ class InspectionTests(unittest.TestCase):
         data = simulate_transitions(self.workspace, self.nominal, self.reference, {"trajectories": 6, "steps": 3})
         corrected = self.record("corrected_model", [self.nominal, data], {"report.json": {}})
         result = prepare_handoff(self.workspace, corrected)
-        self.assertEqual(result["handoff"]["inputs"], {"model": corrected, "evaluation_model": self.reference})
-        self.assertEqual(result["status"], "needs_input")
-        self.assertIn("test_scenarios", result["handoff"]["missing_config"])
+        self.assertEqual(result["handoff"]["operation"], "synthesize_mpc")
+        self.assertEqual(result["handoff"]["inputs"], {"model": corrected})
+        self.assertEqual(result["optional_handoffs"][0]["inputs"], {"model": corrected, "evaluation_model": self.reference})
+        self.assertEqual(result["optional_handoffs"][0]["operation"], "tune_controller")
+        self.assertIn("evaluation",result["optional_handoffs"][0]["missing_config"])
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["handoff"]["missing_config"], [])
+        self.assertIn("test_scenarios", result["optional_handoffs"][0]["missing_config"])
         self.assertIn(self.reference, [row["id"] for row in result["source_versions"]])
 
     def test_measured_data_does_not_fabricate_an_evaluation_model(self):
@@ -60,12 +65,27 @@ class InspectionTests(unittest.TestCase):
         measured = register_transitions(self.workspace, self.nominal, arrays,
                                        {"kind": "measured", "description": "Protocol test source attribution"})
         corrected = self.record("corrected_model", [self.nominal, measured], {"report.json": {}})
-        plan = prepare_handoff(self.workspace, corrected)["handoff"]
+        result = prepare_handoff(self.workspace, corrected)
+        self.assertEqual(result["handoff"]["inputs"], {"model": corrected})
+        plan = result["optional_handoffs"][0]
         self.assertEqual(plan["inputs"]["evaluation_model"], "")
         self.assertEqual(plan["missing_inputs"], ["evaluation_model"])
         plan = prepare_handoff(self.workspace, measured)["handoff"]
         self.assertEqual(plan["inputs"], {"dataset": measured, "nominal_model": self.nominal})
         self.assertEqual(plan["config_suggestions"]["output_dim"], self.interface.nx)
+
+    def test_design_delivery_only_offers_tuning_for_its_bound_numeric_predictor(self):
+        from control_harness.design_only import synthesize_mpc
+        numeric = synthesize_mpc(self.workspace,{"model":self.nominal},{"solver_check":False})
+        delivered = prepare_handoff(self.workspace,numeric)
+        self.assertIsNone(delivered["handoff"]["operation"],"Design-only delivery must remain a stopping point")
+        optional = delivered["optional_handoffs"][0]
+        self.assertEqual(optional["operation"],"tune_controller")
+        self.assertEqual(optional["inputs"],{"model":self.nominal,"evaluation_model":""})
+        self.assertEqual(optional["missing_inputs"],["evaluation_model"])
+        self.assertIn("evaluation",optional["missing_config"])
+        draft = synthesize_mpc(self.workspace,{"description":"spring damper parameters unknown"},{})
+        self.assertEqual(prepare_handoff(self.workspace,draft)["optional_handoffs"],[],"A parameterized draft is not an executable tuning model")
 
     def test_controller_and_policy_handoffs_bind_full_chain(self):
         corrected = self.record("corrected_model", [self.nominal, self.data], {"report.json": {}})

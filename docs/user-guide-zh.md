@@ -1,5 +1,7 @@
 # 控制工程智能体平台使用手册
 
+本手册保留温控与八阶段的完整旧案例。V2 首次使用请先读[独立入口、当前支持矩阵与迁移说明](v2-delivery.md)；仅训练、仅设计、仅模仿均可作为任务终点，不要求沿旧案例逐阶段运行。
+
 适用项目：`control-agent-harness`。适用环境：当前提供的 Windows PowerShell 启动方式。说明日期：2026 年 10 月 30 日。
 
 本平台在 DeepSeek Harness 中提供模型校正、MPC 设计调参和控制器轻量化三个入口。第一次使用，建议先运行随仓库提供的温控工作流，确认安装与数值计算正常；再按本手册逐阶段操作，理解模型、数据、控制器和策略如何接力。
@@ -57,10 +59,11 @@ flowchart LR
 
 - 支持声明式离散动力学，以及通过明确积分配置接入的连续动力学。
 - 支持经过检查、显式注册的独立 PyTorch 可微动力学源码。
-- 模型校正采用离散下一状态残差监督学习，并可加入声明的物理约束；它不是通用 PDE PINN 求解器。
+- 对象模型可按受支持合同采数后训练下一状态 NN；只有 CSV/XLSX 数据时也可按明确列映射直接训练。原有模型校正分支采用离散下一状态残差监督学习。
+- 条件热过程 PINN 使用真实方程残差、自动微分和初值项，提供有界 `T(t;T0,P)` 轨迹查询；它不提供任意状态转移接口，也不自动接入 MPC/PGAC，详见[条件 PINN](conditional-pinn.md)。
 - 策略微调采用可微物理 rollout 梯度方法，不是 PPO/SAC，也没有独立学习的 Critic 网络。
-- Python 工程材料、SLX 和 MDL 可以检查；任意 Python 工程自动迁移与原始 Simulink 执行尚不支持。
-- 随附案例不需要 MATLAB、Simulink 或 GPU。当前数值模型与训练适配使用 CPU；安装了 CUDA 版 PyTorch 也不意味着会自动使用 GPU。
+- Python、MATLAB 函数、SLX 和 MDL 可进行只读材料检查。实际采数支持明确注册的 Python/MATLAB 合同，以及平坦已知模块、完整 UnitDelay 状态可读的 SLX 子集；未知模块、隐藏状态和不满足合同的工程会被拒绝。任意工程自动迁移不在已验收范围，详见[对象与采样](plant-sampling.md)。
+- 纯 Python 案例不需要 MATLAB、Simulink 或 GPU。执行 MATLAB/SLX 路线需有许可的本机产品和独立配置的 MATLAB MCP/Toolkit，见[连接说明](matlab-existing-session.md)。当前训练及验收使用 CPU；安装 CUDA 版 PyTorch 不会自动启用 GPU。
 
 ## 当前电脑快速启动
 
@@ -138,7 +141,7 @@ Set-Location control-agent-harness
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install -c constraints-v2-validated.txt -e .
 ```
 
 验证依赖导入：

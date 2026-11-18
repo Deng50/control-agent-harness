@@ -17,7 +17,7 @@ from .data import validate_transitions
 from .modeling import DeclarativeDynamics
 from .runtime import Cancelled, OperationContext
 
-MODELS = {"nominal_model", "reference_model", "corrected_model", "identified_model"}
+MODELS = {"nominal_model", "reference_model", "corrected_model", "identified_model", "learned_model"}
 # Inputs are explicit. An active artifact is never silently substituted mid-workflow.
 STAGES = {
     "register_model": ({"model_path": "file"}, "nominal_model"),

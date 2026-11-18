@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 from typing import Iterator
 
-from .contracts import ContractError, ModelInterface, SCHEMA_VERSION, canonical_hash
+from .contracts import ContractError, ModelInterface, SCHEMA_VERSION, canonical_hash, parse_interface
 from .locking import kernel_mutex, process_alive
 
 
@@ -263,6 +263,7 @@ class Workspace:
                     manifest["artifacts"][item_id] = {
                         "path": destination.relative_to(self.path).as_posix(), "kind": meta["kind"], "status": "verified",
                         "metadata_hash": canonical_hash(meta), "parents": [p["id"] for p in meta["parents"]],
+                        "metadata_file_sha256": file_hash((staged.get(item_id) or destination) / "artifact.json"),
                         "imported_from_project": source.manifest["project_id"], "imported_at": time.time()}
                 for item_id, (root, meta) in ordered.items():
                     _, current = source.resolve(item_id)
@@ -277,7 +278,8 @@ class Workspace:
                     published.append(item_id)
                 for item_id in adopted:
                     verify_directory(destination_for(item_id), ordered[item_id][1])
-                activate_artifact(manifest, requested["kind"], artifact_id)
+                if requested.get("activation", "kind") == "kind":
+                    activate_artifact(manifest, requested["kind"], artifact_id)
                 commit_attempted = True
                 atomic_json(self.manifest_path, manifest)
             except BaseException as exc:
@@ -320,12 +322,15 @@ class Workspace:
         return artifact_id
 
     @contextlib.contextmanager
-    def stage(self, kind: str, interface: ModelInterface, parents: list[str], config: dict) -> Iterator["Stage"]:
+    def stage(self, kind: str, interface, parents: list[str], config: dict, *, compatible_parents: bool = True) -> Iterator["Stage"]:
+        if type(compatible_parents) is not bool:
+            raise ContractError("compatible_parents must be an explicit boolean")
         with self.lock(kind):
             dependencies = []
             for parent in parents:
                 _, meta = self.resolve(parent)
-                interface.compatible(ModelInterface.parse(meta["interface"]))
+                if compatible_parents:
+                    interface.compatible(parse_interface(meta["interface"]))
                 dependencies.append({"id": parent, "metadata_hash": canonical_hash(meta)})
             stage = Stage(self, kind, interface, dependencies, config)
             try:
@@ -365,7 +370,8 @@ class Stage:
         if owner.get("pid") != os.getpid() or not owner.get("token"):
             raise WorkspaceBusy("Stage creation requires this process to own the workspace lock")
         algorithm = {"corrected_model": "residual_training", "imitation_policy": "expert_imitation",
-                     "optimized_policy": "physical_policy_optimization"}.get(kind, kind)
+                     "optimized_policy": "physical_policy_optimization", "supervised_model": "supervised_training",
+                     "pinn_model": "conditional_ode_pinn", "external_pgac_candidate": "external_physical_policy_optimization"}.get(kind, kind)
         atomic_json(self.root / "stage.intent.json", {
             "format_version": 1, "stage_id": self.id, "kind": kind, "algorithm": algorithm,
             "workspace": str(workspace.path), "project_id": workspace.manifest["project_id"],
@@ -374,17 +380,20 @@ class Stage:
             "dependencies": parents, "config": config, "config_hash": canonical_hash(config),
             "workflow": self.workflow_stage, "training": None})
 
-    def publish(self, validation: dict, *, preprocessing: dict | None = None, source: dict | None = None) -> str:
+    def publish(self, validation: dict, *, preprocessing: dict | None = None, source: dict | None = None, activate: bool = True) -> str:
         if self.committed:
             raise RuntimeError("Stage already published")
         if validation.get("status") not in {"verified", "rejected"}:
             raise ContractError("Publication requires an explicit verified/rejected validation outcome")
+        if type(activate) is not bool:
+            raise ContractError("activate must be an explicit boolean")
         import numpy
         import scipy
         import torch
         files = {p.relative_to(self.root).as_posix(): file_hash(p)
                  for p in self.root.rglob("*") if p.is_file()}
         metadata = {"schema_version": SCHEMA_VERSION, "id": self.id, "kind": self.kind,
+                    "activation": "kind" if activate else "none",
                     "created_at": time.time(), "interface": self.interface.to_dict(),
                     "interface_hash": self.interface.fingerprint, "parents": self.parents,
                     "files": files, "validation": validation, "preprocessing": preprocessing or {},
@@ -400,8 +409,9 @@ class Stage:
         manifest = self.workspace.manifest
         manifest["artifacts"][self.id] = {"path": destination.relative_to(self.workspace.path).as_posix(),
             "kind": self.kind, "status": validation["status"], "metadata_hash": canonical_hash(metadata),
+            "metadata_file_sha256": file_hash(destination / "artifact.json"),
             "parents": [p["id"] for p in self.parents]}
-        if validation["status"] == "verified":
+        if validation["status"] == "verified" and activate:
             activate_artifact(manifest, self.kind, self.id)
         atomic_json(self.workspace.manifest_path, manifest)
         self.committed = True

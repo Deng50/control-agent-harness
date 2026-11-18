@@ -40,7 +40,12 @@ export class WorkerSlots {
 }
 
 /** Returns synchronous native-job hooks; done includes process-range cleanup. */
-export function numericalJob({ ctx, job, slots, config, request, policy, onEvent = () => {} }) {
+export function numericalJob({ ctx, job, slots, config, request, policy, onEvent = () => {}, confirmation, extraEnv = {} }) {
+  const privateKeys = new Set(['CONTROL_MATLAB_PHASE', 'CONTROL_MATLAB_EXCHANGE_DIR', 'CONTROL_MATLAB_REQUEST_SHA256',
+    'CONTROL_MATLAB_NONCE', 'CONTROL_MATLAB_RESULT_PATH', 'CONTROL_MATLAB_RESULT_SHA256']);
+  if (Object.entries(extraEnv).some(([key,value]) => !privateKeys.has(key) || typeof value !== 'string')) {
+    throw new Error('Only fixed private MATLAB batch fields may extend a numerical worker environment');
+  }
   const abort = new AbortController();
   let process, forceTimer, cancelled = false, cleanupVerified = true;
   const cancel = () => {
@@ -64,7 +69,12 @@ export function numericalJob({ ctx, job, slots, config, request, policy, onEvent
       abort.signal.throwIfAborted();
       process = ctx.subprocess.spawn({ argv, cwd: config.codeRoot, graceMs: config.cancellationGraceMs,
         stdio: { stdin: 'pipe', stdout: 'pipe', stderr: { maxBytes: 65536 } },
-        env: { PYTHONPATH: `${config.codeRoot}/src`, PYTHONDONTWRITEBYTECODE: '1', PYTHONUNBUFFERED: '1' },
+        env: { ...extraEnv, PYTHONPATH: `${config.codeRoot}/src`, PYTHONDONTWRITEBYTECODE: '1', PYTHONUNBUFFERED: '1',
+          PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8',
+          CONTROL_CASE_RECEIPT_BODY: confirmation?.env.CONTROL_CASE_RECEIPT_BODY ?? '',
+          CONTROL_CASE_RECEIPT_SIGNATURE: confirmation?.env.CONTROL_CASE_RECEIPT_SIGNATURE ?? '',
+          CONTROL_CASE_RECEIPT_KEY: confirmation?.env.CONTROL_CASE_RECEIPT_KEY ?? '',
+          CONTROL_CASE_NATIVE_SESSION: confirmation?.env.CONTROL_CASE_NATIVE_SESSION ?? '' },
       });
       cleanupVerified = false;
       let pending = '', result, workerError;
@@ -95,7 +105,9 @@ export function numericalJob({ ctx, job, slots, config, request, policy, onEvent
         }
       });
       process.stdin.on('error', error => { workerError ??= error.message; });
-      process.stdin.write(`${JSON.stringify(request)}\n`);
+      const rawRequest = confirmation?.rawRequest ?? JSON.stringify(request);
+      if (confirmation && rawRequest !== JSON.stringify(request)) throw new Error('Confirmed request changed before worker dispatch');
+      process.stdin.write(`${rawRequest}\n`);
       if (cancelled) cancel();
       const outcome = await process.done;
       await process.waitForExit();

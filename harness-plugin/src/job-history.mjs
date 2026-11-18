@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const TERMINAL = new Set(['completed', 'failed', 'killed']);
 const ATTEMPT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const TRAINING = new Set(['train_residual', 'train_imitation', 'optimize_policy']);
+const TRAINING = new Set(['train_residual', 'train_imitation', 'optimize_policy', 'train_supervised', 'train_predictive_model', 'train_external_imitation', 'train_pinn', 'optimize_external_policy']);
 
 function inside(root, target) {
   const path = relative(root, target);

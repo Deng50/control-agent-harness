@@ -15,7 +15,17 @@ from .runtime import OperationContext
 
 
 TRAINING_KINDS = {"corrected_model": "residual_training", "imitation_policy": "expert_imitation",
-                  "optimized_policy": "physical_policy_optimization"}
+                  "optimized_policy": "physical_policy_optimization", "supervised_model": "supervised_training",
+                  "pinn_model": "conditional_ode_pinn", "external_pgac_candidate": "external_physical_policy_optimization"}
+
+
+def _checkpoint_algorithm(kind):
+    # External imitation composes S05 training and then exports/projects it.
+    # Only the real inner supervised_model stage owns optimizer/RNG state.
+    # An interrupted outer package is not an optimizer checkpoint in disguise.
+    if kind == "external_imitation_policy":
+        raise ContractError("External imitation wrapper has no optimizer checkpoint; recover its actual supervised_model/supervised_training checkpoint stage")
+    return TRAINING_KINDS.get(kind)
 
 
 def _plain_directory(workspace: Workspace, relative: str) -> Path:
@@ -72,7 +82,7 @@ def recover_interrupted_stage(workspace: Workspace, stage_id: str,
                     or Path(intent.get("workspace", "")).resolve() != workspace.path
                     or intent.get("project_id") != workspace.manifest["project_id"]
                     or not stage_id.startswith(f"{intent.get('kind')}-")
-                    or TRAINING_KINDS.get(intent.get("kind")) != intent.get("algorithm")):
+                    or _checkpoint_algorithm(intent.get("kind")) != intent.get("algorithm")):
                 raise ContractError("Interrupted stage intent identity or algorithm is unsupported")
             owner = intent.get("owner", {})
             if (owner.get("host") != platform.node()
@@ -116,7 +126,7 @@ def recover_interrupted_stage(workspace: Workspace, stage_id: str,
                     or file_hash(root / "stage.intent.json") != sidecar["stage_intent_sha256"]):
                 raise ContractError("Interrupted checkpoint changed during recovery validation")
             result = {"status": "archived", "stage_id": stage_id, "workspace": str(workspace.path),
-                      "algorithm": contract["algorithm"], "epoch": checkpoint["epoch"],
+                      "algorithm": contract["algorithm"], "checkpoint_kind": intent["kind"], "epoch": checkpoint["epoch"],
                       "optimizer_updates": checkpoint["updates"], "training_signature": signature,
                       "checkpoint": str(destination / "latest.pt"), "checkpoint_sha256": digest,
                       "failed_path": str(destination)}

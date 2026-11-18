@@ -1,0 +1,33 @@
+# Optional Windows existing-session integration. scripts/start-web.ps1 -Matlab
+# validates a dedicated-session marker and supplies these process variables.
+# The MCP child sees a private APPDATA discovery namespace, never the user's
+# global "most recently shared MATLAB" connection file.
+- id: control-engineering
+  config:
+    # The pinned patch layer replaces config; retain the existing Host fields.
+    pythonPath: !!js process.env.CONTROL_PYTHON
+    codeRoot: !!js process.env.CONTROL_CODE_ROOT
+    maxConcurrentWorkers: 1
+    timeoutSeconds: 1800
+    cancellationGraceMs: 10000
+    matlabResource:
+      directory: !!js process.env.CONTROL_MATLAB_RESOURCE_DIRECTORY
+      identityFile: !!js process.env.CONTROL_MATLAB_IDENTITY_FILE
+      toolPrefixes: ['mcp__matlab__']
+      pollIntervalMs: 50
+- insert:
+    - id: mcp-matlab
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: matlab
+        transport: stdio
+        command: !!js process.env.CONTROL_MATLAB_MCP_EXECUTABLE
+        args:
+          - '--matlab-session-mode=existing'
+          - !!js "'--extension-file=' + process.env.CONTROL_SIMULINK_TOOLKIT_ROOT + '/tools/tools.json'"
+          - '--disable-telemetry=true'
+        env:
+          APPDATA: !!js process.env.CONTROL_MATLAB_SESSION_APPDATA
+        cwd: !!js process.env.CONTROL_CODE_ROOT
+        toolCallTimeoutMs: 300000
+        failOnStartupError: true

@@ -1,0 +1,63 @@
+{
+  "description": "质量弹簧阻尼系统，仅设计MPC；状态为位移和速度，力为输入，位移为输出，无额外扰动通道。未知参数保持未实例化。",
+  "draft_config": {
+    "template": "spring_damper",
+    "controller": {
+      "horizon": 5,
+      "max_iterations": 120,
+      "solver_tolerance": 1e-09
+    },
+    "weights": {
+      "q": 1,
+      "r": 0.01,
+      "s": 0.01
+    }
+  },
+  "parameters": {
+    "mass": 1.0,
+    "damping": 0.8,
+    "stiffness": 2.0,
+    "sample_time": 0.2,
+    "state_bounds": [
+      [
+        -1,
+        1
+      ],
+      [
+        -1.5,
+        1.5
+      ]
+    ],
+    "input_bounds": [
+      [
+        -4,
+        4
+      ]
+    ],
+    "output_bounds": [
+      [
+        -1,
+        1
+      ]
+    ]
+  },
+  "solver_check": {
+    "x": [
+      0.1,
+      0
+    ],
+    "reference": [
+      0
+    ],
+    "disturbance": [],
+    "previous": [
+      0
+    ]
+  },
+  "expected": {
+    "ga_trials": 0,
+    "closed_loop": "not_run",
+    "numeric_solver_status": "passed"
+  },
+  "scope": "F01 mass/damping/stiffness/dt/bounds reused; this explicit spring template declares nd=0, not the full F01 disturbance fixture"
+}

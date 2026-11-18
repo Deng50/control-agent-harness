@@ -330,6 +330,14 @@ def train_imitation(workspace: Workspace, dataset_id: str, config: dict,
                                                "expert_controller": meta["source"]["controller"],
                                                "action_constraints": net_config["action_constraints"]})
         torch.save({"policy_state": best_state}, stage.root / "policy.pt")
+        from .legacy_policy_export import export_legacy_policy
+        try:
+            report["standalone_export"] = export_legacy_policy(stage.root / "bundle", interface, net_config, scalers, best_state,
+                provenance={"dataset":dataset_id,"expert_controller":meta["source"]["controller"],"evaluation_model":reference_id,
+                            "scope":"Existing internal imitation route; original supplied-state and declared-preview semantics retained"})
+        except ContractError as error:
+            report["standalone_export"] = {"status":"not_exported","reason":str(error)}
+        atomic_json(stage.root / "report.json", report)
         return stage.publish({"status": "verified" if constraints_pass(evaluation["test"]) else "rejected", "test_action_rmse": report["test_action_rmse"],
                               "closed_loop_constraints_passed": constraints_pass(evaluation["test"]),
                               "constraint_checks": policy_constraint_checks(policy)},

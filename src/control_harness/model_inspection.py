@@ -244,6 +244,80 @@ def _slx_structure(content: bytes, context: OperationContext) -> dict:
         raise ContractError(f"Unable to inspect SLX archive: {exc}") from exc
 
 
+def _matlab_source_structure(content: bytes, context: OperationContext) -> dict:
+    """Recognize literal declarations only; this is not a MATLAB interpreter."""
+    text = content.decode("utf-8-sig")
+    functions, literals, headers = [], [], []
+    number = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+    in_block_comment = False
+    logical, first_line = "", 0
+    for line_number, raw in enumerate(text.splitlines(), 1):
+        context.check()
+        stripped = raw.strip()
+        if stripped == "%{":
+            in_block_comment = True
+            continue
+        if stripped == "%}":
+            in_block_comment = False
+            continue
+        if in_block_comment:
+            continue
+        if stripped.startswith("%"):
+            if not functions and not literals and len(headers) < 8:
+                header = stripped[1:].strip()
+                headers.append({"line": line_number,
+                                "text": "[redacted]" if _SENSITIVE.search(header) else header[:240]})
+            continue
+        # Only signatures and numeric literal assignments are recognized below.
+        # They contain no string literals, so an inline % starts a comment.
+        clean = raw.split("%", 1)[0].strip()
+        if not logical:
+            first_line = line_number
+        continued = clean.endswith("...")
+        logical += " " + (clean[:-3] if continued else clean)
+        if continued:
+            continue
+        declaration, logical = logical.strip(), ""
+        function = re.fullmatch(r"function\s+(?:(\[[^\]]*\]|[A-Za-z]\w*)\s*=\s*)?"
+                                r"([A-Za-z]\w*)\s*(?:\(([^)]*)\))?\s*;?", declaration)
+        if function:
+            outputs, name, arguments = function.groups()
+            functions.append({"name": name, "line": first_line, "end_line": line_number,
+                "arguments": [value.strip() for value in (arguments or "").split(",") if value.strip()],
+                "outputs": [value for value in re.split(r"[\s,]+", (outputs or "").strip("[] ")) if value],
+                "evidence": "matlab_function_header_only"})
+            continue
+        assignment = re.fullmatch(r"([A-Za-z]\w*)\s*=\s*(.*?)\s*;?", declaration)
+        if not assignment:
+            continue
+        name, expression = assignment.groups()
+        expression = expression.rstrip("; ")
+        if _SENSITIVE.search(name):
+            literals.append({"name": name, "line": first_line, "value": "[redacted]",
+                             "kind": "matlab_assignment_candidate"})
+            continue
+        value = None
+        if re.fullmatch(number, expression):
+            value = float(expression)
+        elif expression.startswith("[") and expression.endswith("]"):
+            rows = [row.strip() for row in expression[1:-1].split(";")]
+            tokens = [re.split(r"[\s,]+", row) for row in rows]
+            if (tokens and all(row and all(re.fullmatch(number, token) for token in row) for row in tokens)
+                    and len({len(row) for row in tokens}) == 1 and sum(map(len, tokens)) <= 256):
+                value = [[float(token) for token in row] for row in tokens]
+        if value is not None:
+            try:
+                value = _json_literal(value)
+            except ValueError:
+                continue
+            literals.append({"name": name, "line": first_line, "value": value,
+                             "kind": "matlab_numeric_literal_assignment_candidate",
+                             "semantic_role": "unconfirmed", "scope": "not_resolved"})
+    return {"text_decoded": True, "compiled": False, "executed": False,
+            "functions": functions, "numeric_literals": literals, "comment_header": headers,
+            "scope": "Static function headers and numeric literals only; equations, scopes and dimensions are not inferred"}
+
+
 def inspect_model_source(model_path: str | Path, context: OperationContext | None = None) -> dict:
     """Return evidence and editable candidates without registering or running source."""
     context = context or OperationContext()
@@ -254,8 +328,8 @@ def inspect_model_source(model_path: str | Path, context: OperationContext | Non
     if path.stat().st_size > MAX_SOURCE_BYTES:
         raise ContractError("Model inspection source exceeds 8 MiB")
     suffix = path.suffix.lower()
-    if suffix not in {".json", ".py", ".slx", ".mdl"}:
-        raise ContractError("Static model inspection supports .json, .py, .slx and .mdl")
+    if suffix not in {".json", ".py", ".m", ".slx", ".mdl"}:
+        raise ContractError("Static model inspection supports .json, .py, .m, .slx and .mdl")
     content = path.read_bytes()
     if len(content) > MAX_SOURCE_BYTES:
         raise ContractError("Model inspection source exceeds 8 MiB")
@@ -288,7 +362,13 @@ def inspect_model_source(model_path: str | Path, context: OperationContext | Non
             report["errors"].append(f"Cannot parse Python: {exc}")
     else:
         report["runtime"] = matlab_runtime_status()
-        if suffix == ".slx":
+        if suffix == ".m":
+            report["runtime"]["required_products"] = ["MATLAB"]
+            try:
+                report["matlab_structure"] = _matlab_source_structure(content, context)
+            except UnicodeDecodeError:
+                report["errors"].append("MATLAB text encoding is not UTF-8; explicit conversion is needed")
+        elif suffix == ".slx":
             try:
                 report["simulink_structure"] = _slx_structure(content, context)
             except ContractError as exc:
@@ -302,7 +382,7 @@ def inspect_model_source(model_path: str | Path, context: OperationContext | Non
                     report["errors"].append("No Model/Library header found in textual MDL source")
             except UnicodeDecodeError:
                 report["errors"].append("MDL text encoding is not UTF-8; explicit conversion is needed")
-        report["uncertain"].append({"field": "simulink_runtime_interface", "reason":
+        report["uncertain"].append({"field": "matlab_runtime_interface" if suffix == ".m" else "simulink_runtime_interface", "reason":
             "Compiled dimensions, units, initial conditions, equations and licenses are unverified; no MATLAB session was started"})
     for candidate in report["candidates"]:
         if candidate.get("registration_operation") != "register_python_model":

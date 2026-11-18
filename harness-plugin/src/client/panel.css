@@ -43,4 +43,15 @@
 .control-handoff pre { height: auto; max-height: 190px; }
 .control-preview-note { font-size: 12px; opacity: .8; }
 .control-directory { display: flex; flex-wrap: wrap; gap: 7px; padding: 14px 0; max-height: 220px; overflow: auto; }
+.control-panel fieldset { border: 1px solid #8a9b9d40; border-radius: 8px; margin: 16px 0; padding: 12px; min-width: 0; }
+.control-panel legend { padding: 0 6px; font-weight: 650; }
+.control-panel fieldset:disabled { opacity: .75; }
+.control-panel .control-checkbox { flex-direction: row; align-items: center; font-weight: 400; }
+.control-panel .control-checkbox input { width: auto; }
+.control-mapping-row { display: grid; grid-template-columns: minmax(100px,2fr) minmax(80px,1fr) minmax(80px,1fr) auto; gap: 8px; align-items: end; }
+.control-mapping-row button { margin-bottom: 12px; }
+.control-column-editor { border-left: 2px solid #8a9b9d40; padding-left: 10px; margin: 10px 0; }
+.control-review { margin-top: 18px; padding: 14px; border: 1px solid #408b8360; border-radius: 8px; }
+.control-summary { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #408b830c; padding: 12px; border-radius: 6px; font: 11px/1.6 Consolas,monospace; }
+.control-row button[aria-pressed=true] { border-color: #368b81; background: #25857715; }
 @media(max-width: 1000px) { .control-panel { padding: 20px; } .control-columns { grid-template-columns: 1fr; } .control-stages { gap: 7px; } }

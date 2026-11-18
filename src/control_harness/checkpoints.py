@@ -24,7 +24,8 @@ def training_contract(workspace: Workspace, algorithm: str, dependencies: list[s
                       effective_config: dict, interface_hash: str) -> dict:
     """Bind an optimizer trajectory to exact data/model versions and effective settings.
 
-    Only the requested total epoch budget and checkpoint location may change.
+    Epoch budgets, checkpoint locations and engineering authorization references
+    are not optimizer settings. All effective numerical settings stay bound.
     Resolving dependencies also verifies their complete transitive file closure.
     """
     parents = []
@@ -34,7 +35,7 @@ def training_contract(workspace: Workspace, algorithm: str, dependencies: list[s
     return {"algorithm": algorithm, "algorithm_version": 1, "interface_hash": interface_hash,
             "dependencies": parents,
             "config": {k: v for k, v in effective_config.items()
-                       if k not in {"epochs", "resume_checkpoint", "resume_checkpoint_sha256"}},
+                       if k not in {"epochs", "resume_checkpoint", "resume_checkpoint_sha256", "plan_refs"}},
             "runtime": {"python": list(sys.version_info[:3]), "numpy": str(np.__version__),
                         "scipy": str(scipy.__version__), "torch": str(torch.__version__),
                         "device": "cpu", "dtype": "float64"}}

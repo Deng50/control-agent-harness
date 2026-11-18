@@ -201,6 +201,13 @@ def register_model(workspace: Workspace, spec: dict, source: dict) -> str:
 
 def load_model(workspace: Workspace, artifact_id: str):
     root, meta = workspace.resolve(artifact_id)
+    if meta["kind"] in {"pinn_model", "conditional_ode_problem"}:
+        raise ContractError("A conditional ODE PINN trajectory solution has no verified arbitrary state-transition interface for MPC/PGAC; select a validated dynamics model instead")
+    if meta["kind"] == "learned_model":
+        from .learned_dynamics import load_learned_model
+        model = load_learned_model(root)
+        model.interface.compatible(ModelInterface.parse(meta["interface"]))
+        return model
     if meta["kind"] in {"nominal_model", "reference_model", "identified_model"}:
         spec = read_json(root / "model.json")
         if spec.get("representation") in {"python_torch_transition", "python_torch_derivative"}:

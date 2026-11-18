@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "source_kinds": {
+    "f03-synthetic.csv": "synthetic mathematical reference, not measured",
+    "external-qp-records.csv": "recorded external QP commands in a declared simulator; all 1280 actual rows preserved"
+  },
+  "runtime_old_run_paths_required": false,
+  "fixtures": [
+    {
+      "path": "f03-synthetic.csv",
+      "sha256": "11a7547ecd08d46b7c04f9b02f707753479f18a4d062c2a2499206fa20343715",
+      "bytes": 139931
+    },
+    {
+      "path": "external-qp-records.csv",
+      "sha256": "e3399370fa48ba3895ccd489ad134d184f7b33ceaf5d747495da16a572f25b33",
+      "bytes": 302591
+    },
+    {
+      "path": "model-nn.json",
+      "sha256": "150865a4d8f983cfc9c61b2612472b85aad430fa2994667769a8f1ab10de8458",
+      "bytes": 3220
+    },
+    {
+      "path": "mpc-design.json",
+      "sha256": "678b5428cf31f8890cc01d3cc749a6289caa0eae3d72d7539794730e190fbd88",
+      "bytes": 1170
+    },
+    {
+      "path": "imitation.json",
+      "sha256": "33f14b90f462e495b93a8098bd764269e9d0dc10fe8d8d622f67b1c156992eb6",
+      "bytes": 7633
+    }
+  ],
+  "gates": {
+    "F03_per_output_NRMSE": 0.15,
+    "F05_per_action_NRMSE": 0.2,
+    "same_export_atol": 1e-06,
+    "same_export_rtol": 1e-05
+  },
+  "selection": "Fixed before S14 execution using previously accepted explicit configurations, not new test-driven tuning"
+}

@@ -1,265 +1,945 @@
 {
-  "schema_version": 1,
-  "recorded_date": "2026-10-30",
-  "scope": "Sanitized summaries of actual local simulation and integration checks. Raw workspace records, sessions, credentials, weights and screenshots are intentionally excluded from Git.",
-  "upstream_commit": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
-  "regression": {
+  "schema_version": 2,
+  "recorded_date": "2026-11-18",
+  "status": "ACTUAL_E01_E04_VERIFIED_FINAL_ARCHIVE_STATUS_RECORDED_SEPARATELY",
+  "scope": "Sanitized public summary of actual local integration and explicitly synthetic/declared-simulation numerical fixtures. Earlier real executions and fresh S14 executions are labeled separately. No raw paths, Sessions, Jobs, credentials or weights are embedded.",
+  "versions": {
+    "business_package": "0.1.0",
+    "upstream_harness": "0.2.2-alpha.2",
+    "upstream_commit": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
+    "business_baseline_commit": "2052155bd950ea6a38c6d9c181d1af7d8536302d",
+    "node": "v26.13.0",
+    "pnpm": "11.28.5",
+    "python": "3.10.22",
+    "numpy": "2.2.6",
+    "scipy": "1.15.3",
+    "torch": "2.7.1+cu128",
+    "openpyxl": "3.1.5",
+    "threadpoolctl": "3.7.0",
+    "MATLAB": "R2024b",
+    "matlab_mcp_server": "0.16.0",
+    "simulink_toolkit": "2026.11.a",
+    "engine_api_used": false,
+    "validated_minimal_constraints_sha256": "3b66db543b1a23eb4cd3b93833409b6d323ae6ec78b8b7219c595bcb5cfd8c69",
+    "constraints_scope": "Five directly validated Python scientific packages in the existing local runtime; not a complete OS or environment lock and not a new-machine installation test."
+  },
+  "current_regression": {
+    "execution_origin": "fresh_S14_actual_full_execution",
     "python": {
-      "passed": 116,
-      "seconds": 111.056
+      "discovered": 629,
+      "passed": 629,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0
     },
     "node": {
-      "passed": 16,
-      "seconds": 39.325
+      "discovered": 120,
+      "passed": 120,
+      "skipped": 0,
+      "failures": 0,
+      "cancelled": 0
+    },
+    "plugin_build": "PASS",
+    "old_linear_and_nonlinear_workflows": {
+      "full_original_stages_each": 8,
+      "actual_native_jobs": 12,
+      "verified_artifacts": 16,
+      "completed_stage_reuse": true,
+      "LLM_turns": 0,
+      "MATLAB_calls": 0
     }
   },
-  "simulation_cases": {
-    "linear": {
-      "residual_test": {
-        "nominal_mse": 0.00024555403462969824,
-        "corrected_mse": 4.8131627707316994e-06,
-        "nominal_mse_per_state": [
-          0.0006690590037145743,
-          0.0001636742755100336,
-          3.520935137080619e-05,
-          0.00011427350792337898
-        ],
-        "corrected_mse_per_state": [
-          9.173247231705601e-06,
-          2.8434096622509224e-06,
-          1.9473847851081305e-06,
-          5.288609403862145e-06
-        ],
-        "samples": 96
-      },
-      "residual_test_mse_improvement": 0.9803987632376309,
-      "controller_tuned_candidate_accepted": true,
-      "controller_test": {
-        "hard_constraints_passed": true,
-        "score": 0.01673241706280629
-      },
-      "held_out_policy_comparison": {
-        "expert": {
-          "normalized_rmse": 0.008886849448274737,
-          "rmse": 0.03554739779309895,
-          "max_state_violation": 0.0,
-          "max_input_violation": 0.0,
-          "input_total_variation": 2.337109346633847,
-          "mean_control_seconds": 0.25681115833382745
+  "current_business_dialogues": {
+    "status": "PASS",
+    "roles": [
+      {
+        "role": "model",
+        "execution_origin": "fresh_S14_actual_native_business_dialogue",
+        "business_turns": 5,
+        "actual_model": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "low"
         },
-        "imitation": {
-          "normalized_rmse": 0.04076531622976699,
-          "rmse": 0.16306126491906797,
-          "max_state_violation": 0.0,
-          "max_input_violation": 0.0,
-          "input_total_variation": 1.7710060291224263,
-          "mean_control_seconds": 0.00016378749993843183
-        },
-        "optimized": {
-          "normalized_rmse": 0.03340648707873198,
-          "rmse": 0.1336259483149279,
-          "max_state_violation": 0.0,
-          "max_input_violation": 0.0,
-          "input_total_variation": 2.249361061245957,
-          "mean_control_seconds": 0.000165874999765947
-        }
-      },
-      "all_artifact_files_and_dependencies_verified": true
-    },
-    "nonlinear": {
-      "residual_test": {
-        "nominal_mse": 0.00012418061273327462,
-        "corrected_mse": 1.8615436548131254e-06,
-        "nominal_mse_per_state": [
-          0.00019186438904904835,
-          5.649683641750094e-05
-        ],
-        "corrected_mse_per_state": [
-          3.6567301511554897e-06,
-          6.635715847076205e-08
-        ],
-        "samples": 96
-      },
-      "residual_test_mse_improvement": 0.9850093858144225,
-      "controller_tuned_candidate_accepted": true,
-      "controller_test": {
-        "hard_constraints_passed": true,
-        "score": 0.0002235326112193858
-      },
-      "held_out_policy_comparison": {
-        "expert": {
-          "normalized_rmse": 0.020055574254186706,
-          "rmse": 0.08022229701674682,
-          "max_state_violation": 0.0,
-          "max_input_violation": 0.0,
-          "input_total_variation": 2.2542162756321016,
-          "mean_control_seconds": 0.09695337916643136
-        },
-        "imitation": {
-          "normalized_rmse": 0.024183794363595468,
-          "rmse": 0.09673517745438187,
-          "max_state_violation": 0.0,
-          "max_input_violation": 0.0,
-          "input_total_variation": 1.9394358648141445,
-          "mean_control_seconds": 0.00018361249976805993
-        },
-        "optimized": {
-          "normalized_rmse": 0.024183794363595468,
-          "rmse": 0.09673517745438187,
-          "max_state_violation": 0.0,
-          "max_input_violation": 0.0,
-          "input_total_variation": 1.9394358648141445,
-          "mean_control_seconds": 0.0001765541661976992
-        }
-      },
-      "all_artifact_files_and_dependencies_verified": true
-    },
-    "temperature_walkthrough": {
-      "equations": {
-        "nominal": "T_next=0.9*T+2*u+0.1*ambient",
-        "reference": "T_next=0.88*T+2.4*u+0.12*ambient+0.15"
-      },
-      "model_test": {
-        "nominal_rmse_degC": 0.209135912824338,
-        "corrected_rmse_degC": 0.0008930771288115816,
-        "samples": 90,
-        "epochs": 250
-      },
-      "controller": {
-        "tuned_candidate_accepted": false,
-        "parameters": {
-          "horizon": 5,
-          "q": 1,
-          "r": 0.002,
-          "s": 0.0005,
-          "input_rate_bounds": [
-            [
-              -0.35,
-              0.35
-            ]
-          ]
-        },
-        "independent_test": {
-          "rmse": 1.5002859962851407,
-          "rmse_per_output": [
-            1.5002859962851407
-          ],
-          "normalized_rmse": 0.03333968880633646,
-          "max_state_violation": 0.0,
-          "max_input_violation": 0.0,
-          "max_output_violation": 0.0,
-          "input_total_variation": 1.4680430885415645,
-          "mean_control_seconds": 0.32268275000242286,
-          "p95_control_seconds": 0.34638822500564864,
-          "control_effort": 0.3741876977103971,
-          "max_rate_violation": 5.551115123125783e-17
-        },
-        "last_test_temperature": [
-          30.889616898337703
-        ]
-      },
-      "policy": {
+        "report_sha256": "c102060b3ae9b3695750ad084bd56ab87059698b7c5d9f9fc31ef212dec7c352",
+        "artifact_metadata_sha256": "5e7b4bb024973651f6dad2a3ae4789e9cfac6643f98f20bcc73dd57a8cc26ee2",
+        "standalone_isolated_process": "PASS",
+        "standalone_max_absolute_difference": 0,
+        "task": "data_only_NN",
+        "source_semantics": "synthetic_mathematical_grouped_data",
         "network": {
+          "schema_version": 1,
           "architecture": "mlp",
           "input_dim": 3,
-          "output_dim": 1,
+          "output_dim": 2,
           "hidden_dims": [
-            32,
+            24,
             16
           ],
-          "input_semantics": "current_state_reference_disturbance"
+          "activation": "tanh",
+          "dtype": "float64"
         },
-        "parameter_count": 769,
-        "imitation_epochs": 57,
-        "best_validation_epoch": 7,
-        "optimization_epochs": 20,
-        "algorithm": "differentiable_physical_rollout_policy_gradient",
-        "same_condition_comparison": [
-          {
-            "condition": {
-              "name": "expert-1",
-              "initial_state": [
-                20
-              ],
-              "reference": [
-                28
-              ],
-              "disturbance": [
-                18
-              ],
-              "steps": 20
-            },
-            "strategies": {
-              "expert": {
-                "rmse_degC": 2.2776853991412747,
-                "mean_control_ms": 269.0272899984848,
-                "p95_control_ms": 393.78575999217,
-                "total_variation": 1.5677511541503852,
-                "max_constraint_violation": 5.551115123125783e-17
-              },
-              "imitation": {
-                "rmse_degC": 2.5104934463424424,
-                "mean_control_ms": 0.24631499982206148,
-                "p95_control_ms": 0.36452499771257874,
-                "total_variation": 0.9821329076441896,
-                "max_constraint_violation": 0.0
-              },
-              "optimized": {
-                "rmse_degC": 2.395158244120465,
-                "mean_control_ms": 0.24708499913685958,
-                "p95_control_ms": 0.3914499924576376,
-                "total_variation": 1.1793027578846202,
-                "max_constraint_violation": 0.0
-              }
-            }
+        "trained_epochs": 569,
+        "optimizer_updates": 5690,
+        "test_rmse": [
+          0.0023713297364142804,
+          0.0016820870411808294
+        ],
+        "test_nrmse": [
+          0.004077742876775896,
+          0.0037115625235470866
+        ],
+        "test_evaluations": 1,
+        "test_used_for_training_or_selection": false
+      },
+      {
+        "role": "controller",
+        "execution_origin": "fresh_S14_actual_native_business_dialogue",
+        "business_turns": 3,
+        "actual_model": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "low"
+        },
+        "report_sha256": "6c063bb82ec762720b5fe808ec07a9fd82bf56975b67e093eaa2ac4350e4f96d",
+        "artifact_metadata_sha256": "63546500c5c0274958d0247067245594adf34f054975d025502704000cb6216e",
+        "standalone_isolated_process": "PASS",
+        "standalone_max_absolute_difference": 0,
+        "task": "basic_MPC_design_only",
+        "missing_parameter_draft_preserved": 7,
+        "model_instantiated": true,
+        "solver_check": {
+          "point": {
+            "x": [
+              0.1,
+              0.0
+            ],
+            "reference": [
+              0.0
+            ],
+            "disturbance": [],
+            "previous": [
+              0.0
+            ]
           },
-          {
-            "condition": {
-              "name": "expert-11",
-              "initial_state": [
-                29
-              ],
-              "reference": [
-                31
-              ],
-              "disturbance": [
-                19
-              ],
-              "steps": 20
-            },
-            "strategies": {
-              "expert": {
-                "rmse_degC": 0.6308734251681654,
-                "mean_control_ms": 366.4467449976655,
-                "p95_control_ms": 382.3335449989827,
-                "total_variation": 1.1629339579513336,
-                "max_constraint_violation": 0.0
-              },
-              "imitation": {
-                "rmse_degC": 0.6922886455358075,
-                "mean_control_ms": 0.28320999845163897,
-                "p95_control_ms": 0.5310400010785088,
-                "total_variation": 0.8718929078856901,
-                "max_constraint_violation": 0.0
-              },
-              "optimized": {
-                "rmse_degC": 0.6800854789603769,
-                "mean_control_ms": 0.24244000087492168,
-                "p95_control_ms": 0.2973900016513655,
-                "total_variation": 1.0345627463223521,
-                "max_constraint_violation": 0.0
-              }
-            }
-          }
-        ]
+          "point_source": "explicit_diagnostic_point",
+          "generated_fields": [],
+          "purpose": "solver/constraint self-consistency only; not an original-plant closed-loop condition",
+          "status": "passed",
+          "solves": 1,
+          "action": [
+            -1.059891587884468
+          ],
+          "diagnostics": {
+            "solve_seconds": 1.9062675000168383,
+            "iterations": 22,
+            "predicted_objective": 0.0023744990516416844,
+            "constraint_violation": 0.0
+          },
+          "solver": "scipy_slsqp_with_torch_derivatives",
+          "optimality": "local numerical solver diagnostic, no global optimum certificate"
+        },
+        "closed_loop": {
+          "status": "not_run",
+          "evaluation_model": null,
+          "ga_trials": 0,
+          "plant_rollout_steps": 0
+        }
+      },
+      {
+        "role": "lightweight",
+        "execution_origin": "fresh_S14_actual_native_business_dialogue",
+        "business_turns": 5,
+        "actual_model": {
+          "provider": "deepseek-official",
+          "model": "deepseek-flash",
+          "reasoningEffort": "low"
+        },
+        "report_sha256": "a2d5b349f87e3319e176affad3c66bbf8e8cdc8f4b217d97043f550d2868fc4f",
+        "artifact_metadata_sha256": "a84d628855fce26ebe95e87d341351b47843e99f061b9acb1cce7cd56d3d60b1",
+        "standalone_isolated_process": "PASS",
+        "standalone_max_absolute_difference": 0,
+        "task": "external_expert_imitation_only",
+        "source_semantics": "declared_simulation_external_QP_actions_not_vehicle_measurements",
+        "network": {
+          "schema_version": 1,
+          "architecture": "mlp",
+          "input_dim": 9,
+          "output_dim": 2,
+          "hidden_dims": [
+            8
+          ],
+          "activation": "tanh",
+          "dtype": "float64"
+        },
+        "trained_epochs": 4294,
+        "optimizer_updates": 55822,
+        "test_rmse": [
+          0.014290454839808934,
+          0.017702936985718905
+        ],
+        "test_nrmse": [
+          0.09622273103019328,
+          0.10833563084336241
+        ],
+        "test_evaluations": 1,
+        "test_used_for_training_or_selection": false,
+        "evaluation_mode": "teacher_forced_recorded_features_and_actual_previous_actions",
+        "closed_loop": "not_run",
+        "pgac": "not_run",
+        "physical_plant_provided": false,
+        "raw_increment_max_abs_per_action": [
+          0.3776741705838361,
+          0.3591858409379345
+        ],
+        "configured_rate_bounds": [
+          [
+            -0.25,
+            0.25
+          ],
+          [
+            -0.25,
+            0.25
+          ]
+        ],
+        "rate_semantics": "per_control_step",
+        "excess_over_step_bound": [
+          0.12767417058383612,
+          0.10918584093793449
+        ],
+        "raw_rate_violating_coordinates": 9,
+        "projected_rate_violating_coordinates": 0
       }
+    ],
+    "prior_automatic_review_refusal_preserved": true,
+    "same_boundary_review_allowed_after_synthetic_disclosure_proof": true,
+    "only_precise_read_only_self_corrections_may_be_accepted": "controller inspect_artifact argument correction and same-bytes expert-material descriptive-column-count correction; no unresolved numerical failure accepted",
+    "business_turns": 13,
+    "explanation_correction_turns": 1,
+    "total_turns": 14,
+    "fixture_user_confirmations": 7,
+    "actual_MATLAB_calls": 0,
+    "numerical_failures": 0,
+    "original_read_only_failed_job_retained": 1,
+    "explanatory_error_and_actual_text_correction_preserved": true,
+    "normalization_sha256": "44ca2aeaddeb6aff90ead227f3dde4640c3c648c694ab6fc6d356a40a887e4e3",
+    "explanatory_correction_proof_sha256": "bf81ee168b6fe22b160d82466a47de674ccddf08ce6a126fa711ebe7fd609ecc"
+  },
+  "prior_actual_business_results_rechecked": {
+    "data_only_NN": {
+      "execution_origin": "prior_real_execution_rechecked_in_S14",
+      "cases": [
+        {
+          "format": "csv",
+          "report_sha256": "fd4876a4789b2b55e7cd40a37b86d2545b856fe218811aa38599ac3838ba4ed9",
+          "source": "synthetic grouped mathematical data, not measurements",
+          "network": {
+            "schema_version": 1,
+            "architecture": "mlp",
+            "input_dim": 3,
+            "output_dim": 2,
+            "hidden_dims": [
+              24,
+              16
+            ],
+            "activation": "tanh",
+            "dtype": "float64"
+          },
+          "epochs": 569,
+          "optimizer_updates": 5690,
+          "test_samples": 192,
+          "test_rmse_per_output": [
+            0.0023713297364142804,
+            0.0016820870411808294
+          ],
+          "test_nrmse_per_output": [
+            0.004077742876775896,
+            0.0037115625235470866
+          ],
+          "nrmse_scale_source": "training_partition_only",
+          "validation_selection": "validation_scaled_target_mse_with_declared_min_delta",
+          "test_evaluations": 1,
+          "test_used_for_training_or_selection": false
+        },
+        {
+          "format": "xlsx",
+          "report_sha256": "1ef80a859900f15da8479cad0a0ae21c12dfdc8196815b06769b93f1c2ac06e9",
+          "source": "synthetic grouped mathematical data, not measurements",
+          "network": {
+            "schema_version": 1,
+            "architecture": "mlp",
+            "input_dim": 3,
+            "output_dim": 2,
+            "hidden_dims": [
+              32,
+              32
+            ],
+            "activation": "tanh",
+            "dtype": "float64"
+          },
+          "epochs": 600,
+          "optimizer_updates": 6000,
+          "test_samples": 192,
+          "test_rmse_per_output": [
+            0.0010998551092031292,
+            0.001551849894240054
+          ],
+          "test_nrmse_per_output": [
+            0.0018913128225770716,
+            0.0034241913578910333
+          ],
+          "nrmse_scale_source": "training_partition_only",
+          "validation_selection": "validation_scaled_target_mse_with_declared_min_delta",
+          "test_evaluations": 1,
+          "test_used_for_training_or_selection": false
+        }
+      ],
+      "frozen_per_output_test_gate": 0.15
+    },
+    "single_Plant_next_state_NN": {
+      "execution_origin": "prior_real_execution_rechecked_in_S14",
+      "cases": [
+        {
+          "format": "python",
+          "report_sha256": "bf3d3f9993c9e39632f1b88e101b5bb6418193aa4e233f12d5430bd776935855",
+          "one_step_state_nrmse": [
+            3.1501138997725286e-06,
+            5.2092279042988656e-08
+          ],
+          "one_step_output_nrmse": [
+            3.1501138997725295e-06
+          ],
+          "recursive_state_nrmse": [
+            1.0248150275567173e-05,
+            1.8572847557046516e-05
+          ],
+          "recursive_output_nrmse": [
+            1.024815027556717e-05
+          ],
+          "test_steps_per_trajectory": 50,
+          "acceptance": "passed",
+          "target_semantics": "next_x_in_state_units_no_dt_multiplication",
+          "pinn": false
+        },
+        {
+          "format": "matlab_function",
+          "report_sha256": "87f82ac2c62dba209efcf91b762a99f70d4d59d989cfaa49e642763eb8738fc1",
+          "one_step_state_nrmse": [
+            3.1501153139658535e-06,
+            5.209230828719235e-08
+          ],
+          "one_step_output_nrmse": [
+            3.1501153139658535e-06
+          ],
+          "recursive_state_nrmse": [
+            1.0248154756389011e-05,
+            1.8572855893989435e-05
+          ],
+          "recursive_output_nrmse": [
+            1.0248154756389011e-05
+          ],
+          "test_steps_per_trajectory": 50,
+          "acceptance": "passed",
+          "target_semantics": "next_x_in_state_units_no_dt_multiplication",
+          "pinn": false
+        },
+        {
+          "format": "simulink",
+          "report_sha256": "d98c41546ede39a322e21e045fe27a272cb35d5e55cac9a61bd53a4710fee834",
+          "one_step_state_nrmse": [
+            3.1501153139658535e-06,
+            5.209230828719235e-08
+          ],
+          "one_step_output_nrmse": [
+            3.1501153139658535e-06
+          ],
+          "recursive_state_nrmse": [
+            1.0248154756389011e-05,
+            1.8572855893989435e-05
+          ],
+          "recursive_output_nrmse": [
+            1.0248154756389011e-05
+          ],
+          "test_steps_per_trajectory": 50,
+          "acceptance": "passed",
+          "target_semantics": "next_x_in_state_units_no_dt_multiplication",
+          "pinn": false
+        }
+      ],
+      "frozen_per_state_and_output_gate": 0.15
+    },
+    "MPC_preference_tuning": {
+      "execution_origin": "prior_real_execution_rechecked_in_S14",
+      "cases": [
+        {
+          "recipe": "tracking",
+          "report_sha256": "35916437434042c43e2a03f91c6a5c7da645e501ff482917f01efba7b19eac53",
+          "actual_GA_budget": 8,
+          "actual_trials": 8,
+          "selected_parameters": {
+            "horizon": 4,
+            "q": 1.0,
+            "r": 0.015,
+            "s": 0.007355536784353561,
+            "max_iterations": 80,
+            "solver_tolerance": 1e-08
+          },
+          "tuned_candidate_accepted": true,
+          "test_score": 0.738477222648263,
+          "test_hard_constraints_passed": true,
+          "test_scenarios": 1,
+          "test_rmse_by_scenario": [
+            0.06908414524577232
+          ],
+          "test_used_for_selection": false,
+          "stability_proof": false
+        },
+        {
+          "recipe": "energy",
+          "report_sha256": "25a2b9c726506908f440de5a9c3da221cacadc9f0e7d950c7afe9ac9994a68d0",
+          "actual_GA_budget": 8,
+          "actual_trials": 8,
+          "selected_parameters": {
+            "horizon": 4,
+            "q": 1.0,
+            "r": 0.03544805721464799,
+            "s": 0.028471562558422023,
+            "max_iterations": 80,
+            "solver_tolerance": 1e-08
+          },
+          "tuned_candidate_accepted": true,
+          "test_score": 0.07659568987951149,
+          "test_hard_constraints_passed": true,
+          "test_scenarios": 1,
+          "test_rmse_by_scenario": [
+            0.10516774420855543
+          ],
+          "test_used_for_selection": false,
+          "stability_proof": false
+        }
+      ],
+      "energy_semantics": "sum of squared action coordinates over time, not measured physical joules"
+    },
+    "external_expert_imitation": {
+      "execution_origin": "prior_real_execution_rechecked_in_S14",
+      "cases": [
+        {
+          "backend": "python",
+          "report_sha256": "64d6e331ebde97f2f6221180c9fc55d042cfb26a5ddb7f1db839e382287b1da7",
+          "original_Plant_evaluation_report_sha256": "1c2ee97c0315857278227b1ee5b9dd94d955fd11883f9cd6655838af9df3516b",
+          "test_raw_action_nrmse": [
+            0.11654999423304445,
+            0.1331120447074134
+          ],
+          "test_projected_action_nrmse": [
+            0.09622273103019328,
+            0.10833563084336241
+          ],
+          "action_metric_scale": [
+            0.1485143342618783,
+            0.16340826049478385
+          ],
+          "scale_source": "explicit_user_scales",
+          "test_action_rows": 240,
+          "autonomous_comparison_scenarios": 12,
+          "imitation_tracking_rmse_worse_than_expert_scenarios": 10,
+          "controller_only_seconds_median": {
+            "expert": 0.00024684999999999996,
+            "imitation": 0.0001834
+          },
+          "benchmark_settings": {
+            "warmup": 5,
+            "repeats": 50,
+            "batch_size": 1,
+            "threads": 1
+          },
+          "Plant_timing": "separate from controller-only timing",
+          "closed_loop_degradation_retained": true
+        },
+        {
+          "backend": "matlab",
+          "report_sha256": "2ea870003d17e0cdf06220b4be18ee1ccc8215710f139f5500951273e4ec4b4a",
+          "original_Plant_evaluation_report_sha256": "424eaf7f1b17e8d8d06ffff17cef33d75cf23b5fc7dea9551489ce8e4d06c2e2",
+          "test_raw_action_nrmse": [
+            0.1165499404197288,
+            0.13311202863348043
+          ],
+          "test_projected_action_nrmse": [
+            0.09622268518747781,
+            0.10833557636409144
+          ],
+          "action_metric_scale": [
+            0.1485143342618783,
+            0.16340826049478385
+          ],
+          "scale_source": "explicit_user_scales",
+          "test_action_rows": 240,
+          "autonomous_comparison_scenarios": 12,
+          "imitation_tracking_rmse_worse_than_expert_scenarios": 10,
+          "controller_only_seconds_median": {
+            "expert": 0.00281865,
+            "imitation": 4.55e-05
+          },
+          "benchmark_settings": {
+            "warmup": 5,
+            "repeats": 50,
+            "batch_size": 1,
+            "threads": 1
+          },
+          "Plant_timing": "not separately available for pure MATLAB batch",
+          "closed_loop_degradation_retained": true
+        }
+      ],
+      "frozen_per_action_test_gate": 0.2,
+      "prior_rejected_candidate_and_test_exposure_preserved": true,
+      "later_selection": "restricted train/validation-only study; original exposed test is not claimed newly unseen"
+    },
+    "conditional_thermal_PINN": {
+      "execution_origin": "prior_real_execution_rechecked_in_S14",
+      "report_sha256": "f2fe7d3199ba3f17c491511214f0df1813a8c2b8202289db2d7b882717cfe9fb",
+      "equation": "C*dT/dt + G*(T-Ta) - P = 0",
+      "input_semantics": [
+        "time",
+        "initial temperature",
+        "constant power over a trajectory"
+      ],
+      "network": {
+        "schema_version": 1,
+        "architecture": "mlp",
+        "input_dim": 3,
+        "output_dim": 1,
+        "hidden_dims": [
+          32,
+          32
+        ],
+        "activation": "tanh",
+        "dtype": "float64"
+      },
+      "conditional_parameterization": "affine_initial_power",
+      "loss_weights": {
+        "data": 1.0,
+        "physics": 1.0,
+        "initial": 10.0
+      },
+      "is_pinn": true,
+      "training_time_derivative_create_graph": true,
+      "test_samples": 804,
+      "test_nrmse": 0.0017377054841528365,
+      "worst_test_condition_nrmse": 0.0024383208587482413,
+      "normalized_physics_rms": 0.004338881663729949,
+      "normalized_soft_initial_max_error": 3.356220004491206e-05,
+      "frozen_gates": {
+        "nrmse": 0.1,
+        "normalized_physics_rms": 0.1,
+        "normalized_initial_max_error": 0.01
+      },
+      "physics_off_ablation_is_not_PINN": true,
+      "initial_rejection_and_test_exposure_retained": true,
+      "capability": "conditional constant-forcing thermal trajectory only; no arbitrary one-step Plant/PDE interface",
+      "additional_holdout_conditions": 16,
+      "additional_holdout_origin": "prospectively frozen before final weights; distinct from exposed original test"
+    },
+    "restricted_PGAC": {
+      "execution_origin": "prior_real_execution_rechecked_in_S14",
+      "cases": [
+        {
+          "backend": "python",
+          "report_sha256": "901d28fe36ab12f3e3c4d7522ae9dad943207a341f2ef65fb91d8cad904b52d9",
+          "actual_initial_imitation_tensors_exact": true,
+          "actual_first_Adam_parameters_exact": true,
+          "actual_epochs": 3,
+          "actual_updates": 60,
+          "actual_last_weights_changed": true,
+          "selected_version": "candidate",
+          "original_validation_score": {
+            "expert": 0.0002667468752816478,
+            "imitation": 0.00027878743313556367,
+            "candidate": 0.00027502223526275875
+          },
+          "original_test_score": {
+            "expert": 9.851967882465241e-05,
+            "imitation": 9.920263112978704e-05,
+            "candidate": 9.441182590525902e-05
+          },
+          "original_test_feasible": {
+            "expert": true,
+            "imitation": true,
+            "candidate": true
+          },
+          "acceptance": {
+            "selected_version": "candidate",
+            "candidate_accepted": true,
+            "approved": true,
+            "reason": "fixed_candidate_passed_original_test"
+          },
+          "selection_partition": "validation",
+          "test_used_for_checkpoint_or_hyperparameter_selection": false,
+          "deployment_online_OOD_fallback": "not implemented; external domain guard required"
+        },
+        {
+          "backend": "matlab",
+          "report_sha256": "dbfa7595381a94defbc8804e89bba330fb591572a00a5c386c4ba340ec014f92",
+          "actual_initial_imitation_tensors_exact": true,
+          "actual_first_Adam_parameters_exact": true,
+          "actual_epochs": 3,
+          "actual_updates": 60,
+          "actual_last_weights_changed": true,
+          "selected_version": "candidate",
+          "original_validation_score": {
+            "expert": 0.00026674687872542705,
+            "imitation": 0.00027878744021959473,
+            "candidate": 0.00027502224090559136
+          },
+          "original_test_score": {
+            "expert": 9.851968185245718e-05,
+            "imitation": 9.920263454774482e-05,
+            "candidate": 9.441182599056004e-05
+          },
+          "original_test_feasible": {
+            "expert": true,
+            "imitation": true,
+            "candidate": true
+          },
+          "acceptance": {
+            "selected_version": "candidate",
+            "candidate_accepted": true,
+            "approved": true,
+            "reason": "fixed_candidate_passed_original_test"
+          },
+          "selection_partition": "validation",
+          "test_used_for_checkpoint_or_hyperparameter_selection": false,
+          "deployment_online_OOD_fallback": "not implemented; external domain guard required"
+        }
+      ],
+      "original_three_way_control_rows": 2880,
+      "original_physical_dt_steps": 2880,
+      "counting_note": "before/after state endpoint comparisons do not double physical steps",
+      "independent_actor_parameters": 98,
+      "finite_difference_steps": [
+        0.0001,
+        1e-05,
+        1e-06
+      ],
+      "learned_critic": false
     }
   },
-  "native_business_dialogue": {
-    "status": "verified",
-    "preflight_passed": true,
-    "workflow_attempts": 1,
-    "verified_artifacts": 8,
-    "source": "Explicit standalone PyTorch mathematical reference simulator, not measurements"
+  "current_GUI": {
+    "execution_origin": "S13_actual_root_GUI_then_final_current-file_recheck",
+    "original_cases": 20,
+    "passed": 20,
+    "all_four_downloaded_packages_independently_loaded": true,
+    "fresh_MATLAB_timeout_quarantine_OS_exit_recovery_and_normal_health": true,
+    "canonical_three_role_refresh_and_explicit_legacy_migration": true
+  },
+  "current_migration": {
+    "execution_origin": "fresh_S14_repository_external_directory_with_audited_existing_local_runtime",
+    "primary_portable_roles": 3,
+    "primary_frozen_files": 53,
+    "actual_independent_processes": 3,
+    "actual_new_native_Sessions": 3,
+    "actual_native_read_only_jobs": 3,
+    "new_machine_installation_claim": false,
+    "registry_import_claim": false,
+    "additional_selected_PINN_same_weight_isolated_load": true,
+    "additional_PINN_max_abs_transport_error_K": 0.0
+  },
+  "support": {
+    "single_Plant_sampling": [
+      "declared Python callable/factory contract",
+      "declared MATLAB pure-function subset",
+      "flat known-block complete-state SLX subset"
+    ],
+    "tabular": "CSV/XLSX column positions/worksheets, causal features, grouped splits and train-only scaling",
+    "training": "data-only and next-state MLP; optional nominal/state residual; separately labeled conditional thermal ODE PINN",
+    "MPC": "parameterized design-only drafts, real numerical MPC and preference-scored bounded GA",
+    "lightweight": "external expert collection/import, independent imitation stopping point, qualified bounded differentiable physical rollout PGAC"
+  },
+  "limits": [
+    "All supplied vehicle-format and control fixtures are synthetic mathematics or explicitly declared simulator records, not actual vehicle measurements.",
+    "Arbitrary engineering migration, hidden-state inference, generic I/O latent-state identification, general PDE PINN and arbitrary conditional-model Plant step are not claimed.",
+    "The selected thermal PINN uses an explicit affine initial-temperature/power prior, genuine NN time dependence and soft IC loss; no analytic trajectory is inserted.",
+    "Offline teacher-forced errors and autonomous original-Plant feedback are separate; imitation may track worse than expert MPC.",
+    "Action-square energy is a proxy, not physical joules. Finite simulation is not stability proof or deployment certification.",
+    "Per-call median/p95 timing is not WCET/hard realtime; MATLAB Plant time may be unavailable and is not invented.",
+    "Restricted PGAC has no learned Critic/PPO/SAC or automatic online OOD fallback; an external deployment domain guard remains required.",
+    "Prior rejected candidates, validation-only studies, test-exposure history, original tool self-corrections and observer failures remain retained.",
+    "Same-weight isolated transport checks do not create new training-accuracy or original-Plant improvement claims."
+  ],
+  "final_delivery_consistency": {
+    "authoritative_local_results": [
+      "S14/E05-final-delivery-consistency.json",
+      "S14/archive-verification.json",
+      "S14/S14-current-source-files.json",
+      "S14/S14-summary.json"
+    ],
+    "rule": "Finalizer publishes E05 and the complete mandatory gate state only after the original forty-four checks, exact full public source inventory, ZIP CRC and every member SHA. Archive hash is stored separately to avoid a self-referential source hash.",
+    "self_preexisting_PASS_required": false
+  },
+  "historical_release_20261030_scope": "The following object is the exact previous sanitized release summary, including the old116/16 counts. It is historical and is not the current V2 regression or a fresh S14 execution.",
+  "historical_release_original_file_sha256": "fdff07debf2c1b8f9072aab6478149fb04958453fe51e6ea4c61fc3952b1e8d6",
+  "historical_release_20261030": {
+    "schema_version": 1,
+    "recorded_date": "2026-10-30",
+    "scope": "Sanitized summaries of actual local simulation and integration checks. Raw workspace records, sessions, credentials, weights and screenshots are intentionally excluded from Git.",
+    "upstream_commit": "f3803c96974ad4a94195fb97e5c637e9c2a3afe3",
+    "regression": {
+      "python": {
+        "passed": 116,
+        "seconds": 111.056
+      },
+      "node": {
+        "passed": 16,
+        "seconds": 39.325
+      }
+    },
+    "simulation_cases": {
+      "linear": {
+        "residual_test": {
+          "nominal_mse": 0.00024555403462969824,
+          "corrected_mse": 4.8131627707316994e-06,
+          "nominal_mse_per_state": [
+            0.0006690590037145743,
+            0.0001636742755100336,
+            3.520935137080619e-05,
+            0.00011427350792337898
+          ],
+          "corrected_mse_per_state": [
+            9.173247231705601e-06,
+            2.8434096622509224e-06,
+            1.9473847851081305e-06,
+            5.288609403862145e-06
+          ],
+          "samples": 96
+        },
+        "residual_test_mse_improvement": 0.9803987632376309,
+        "controller_tuned_candidate_accepted": true,
+        "controller_test": {
+          "hard_constraints_passed": true,
+          "score": 0.01673241706280629
+        },
+        "held_out_policy_comparison": {
+          "expert": {
+            "normalized_rmse": 0.008886849448274737,
+            "rmse": 0.03554739779309895,
+            "max_state_violation": 0.0,
+            "max_input_violation": 0.0,
+            "input_total_variation": 2.337109346633847,
+            "mean_control_seconds": 0.25681115833382745
+          },
+          "imitation": {
+            "normalized_rmse": 0.04076531622976699,
+            "rmse": 0.16306126491906797,
+            "max_state_violation": 0.0,
+            "max_input_violation": 0.0,
+            "input_total_variation": 1.7710060291224263,
+            "mean_control_seconds": 0.00016378749993843183
+          },
+          "optimized": {
+            "normalized_rmse": 0.03340648707873198,
+            "rmse": 0.1336259483149279,
+            "max_state_violation": 0.0,
+            "max_input_violation": 0.0,
+            "input_total_variation": 2.249361061245957,
+            "mean_control_seconds": 0.000165874999765947
+          }
+        },
+        "all_artifact_files_and_dependencies_verified": true
+      },
+      "nonlinear": {
+        "residual_test": {
+          "nominal_mse": 0.00012418061273327462,
+          "corrected_mse": 1.8615436548131254e-06,
+          "nominal_mse_per_state": [
+            0.00019186438904904835,
+            5.649683641750094e-05
+          ],
+          "corrected_mse_per_state": [
+            3.6567301511554897e-06,
+            6.635715847076205e-08
+          ],
+          "samples": 96
+        },
+        "residual_test_mse_improvement": 0.9850093858144225,
+        "controller_tuned_candidate_accepted": true,
+        "controller_test": {
+          "hard_constraints_passed": true,
+          "score": 0.0002235326112193858
+        },
+        "held_out_policy_comparison": {
+          "expert": {
+            "normalized_rmse": 0.020055574254186706,
+            "rmse": 0.08022229701674682,
+            "max_state_violation": 0.0,
+            "max_input_violation": 0.0,
+            "input_total_variation": 2.2542162756321016,
+            "mean_control_seconds": 0.09695337916643136
+          },
+          "imitation": {
+            "normalized_rmse": 0.024183794363595468,
+            "rmse": 0.09673517745438187,
+            "max_state_violation": 0.0,
+            "max_input_violation": 0.0,
+            "input_total_variation": 1.9394358648141445,
+            "mean_control_seconds": 0.00018361249976805993
+          },
+          "optimized": {
+            "normalized_rmse": 0.024183794363595468,
+            "rmse": 0.09673517745438187,
+            "max_state_violation": 0.0,
+            "max_input_violation": 0.0,
+            "input_total_variation": 1.9394358648141445,
+            "mean_control_seconds": 0.0001765541661976992
+          }
+        },
+        "all_artifact_files_and_dependencies_verified": true
+      },
+      "temperature_walkthrough": {
+        "equations": {
+          "nominal": "T_next=0.9*T+2*u+0.1*ambient",
+          "reference": "T_next=0.88*T+2.4*u+0.12*ambient+0.15"
+        },
+        "model_test": {
+          "nominal_rmse_degC": 0.209135912824338,
+          "corrected_rmse_degC": 0.0008930771288115816,
+          "samples": 90,
+          "epochs": 250
+        },
+        "controller": {
+          "tuned_candidate_accepted": false,
+          "parameters": {
+            "horizon": 5,
+            "q": 1,
+            "r": 0.002,
+            "s": 0.0005,
+            "input_rate_bounds": [
+              [
+                -0.35,
+                0.35
+              ]
+            ]
+          },
+          "independent_test": {
+            "rmse": 1.5002859962851407,
+            "rmse_per_output": [
+              1.5002859962851407
+            ],
+            "normalized_rmse": 0.03333968880633646,
+            "max_state_violation": 0.0,
+            "max_input_violation": 0.0,
+            "max_output_violation": 0.0,
+            "input_total_variation": 1.4680430885415645,
+            "mean_control_seconds": 0.32268275000242286,
+            "p95_control_seconds": 0.34638822500564864,
+            "control_effort": 0.3741876977103971,
+            "max_rate_violation": 5.551115123125783e-17
+          },
+          "last_test_temperature": [
+            30.889616898337703
+          ]
+        },
+        "policy": {
+          "network": {
+            "architecture": "mlp",
+            "input_dim": 3,
+            "output_dim": 1,
+            "hidden_dims": [
+              32,
+              16
+            ],
+            "input_semantics": "current_state_reference_disturbance"
+          },
+          "parameter_count": 769,
+          "imitation_epochs": 57,
+          "best_validation_epoch": 7,
+          "optimization_epochs": 20,
+          "algorithm": "differentiable_physical_rollout_policy_gradient",
+          "same_condition_comparison": [
+            {
+              "condition": {
+                "name": "expert-1",
+                "initial_state": [
+                  20
+                ],
+                "reference": [
+                  28
+                ],
+                "disturbance": [
+                  18
+                ],
+                "steps": 20
+              },
+              "strategies": {
+                "expert": {
+                  "rmse_degC": 2.2776853991412747,
+                  "mean_control_ms": 269.0272899984848,
+                  "p95_control_ms": 393.78575999217,
+                  "total_variation": 1.5677511541503852,
+                  "max_constraint_violation": 5.551115123125783e-17
+                },
+                "imitation": {
+                  "rmse_degC": 2.5104934463424424,
+                  "mean_control_ms": 0.24631499982206148,
+                  "p95_control_ms": 0.36452499771257874,
+                  "total_variation": 0.9821329076441896,
+                  "max_constraint_violation": 0.0
+                },
+                "optimized": {
+                  "rmse_degC": 2.395158244120465,
+                  "mean_control_ms": 0.24708499913685958,
+                  "p95_control_ms": 0.3914499924576376,
+                  "total_variation": 1.1793027578846202,
+                  "max_constraint_violation": 0.0
+                }
+              }
+            },
+            {
+              "condition": {
+                "name": "expert-11",
+                "initial_state": [
+                  29
+                ],
+                "reference": [
+                  31
+                ],
+                "disturbance": [
+                  19
+                ],
+                "steps": 20
+              },
+              "strategies": {
+                "expert": {
+                  "rmse_degC": 0.6308734251681654,
+                  "mean_control_ms": 366.4467449976655,
+                  "p95_control_ms": 382.3335449989827,
+                  "total_variation": 1.1629339579513336,
+                  "max_constraint_violation": 0.0
+                },
+                "imitation": {
+                  "rmse_degC": 0.6922886455358075,
+                  "mean_control_ms": 0.28320999845163897,
+                  "p95_control_ms": 0.5310400010785088,
+                  "total_variation": 0.8718929078856901,
+                  "max_constraint_violation": 0.0
+                },
+                "optimized": {
+                  "rmse_degC": 0.6800854789603769,
+                  "mean_control_ms": 0.24244000087492168,
+                  "p95_control_ms": 0.2973900016513655,
+                  "total_variation": 1.0345627463223521,
+                  "max_constraint_violation": 0.0
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "native_business_dialogue": {
+      "status": "verified",
+      "preflight_passed": true,
+      "workflow_attempts": 1,
+      "verified_artifacts": 8,
+      "source": "Explicit standalone PyTorch mathematical reference simulator, not measurements"
+    }
   }
 }

@@ -1,0 +1,315 @@
+{
+  "data_file": "external-qp-records.csv",
+  "data_config": {
+    "interface": {
+      "features": [
+        {
+          "lag": 0,
+          "signal": "observation::x1",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "observation::x2",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "observation::x3",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "observation::x4",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "reference::y1",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "reference::y2",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "disturbance::d1",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "previous_action::u1",
+          "window": 1
+        },
+        {
+          "lag": 0,
+          "signal": "previous_action::u2",
+          "window": 1
+        }
+      ],
+      "input_dim": 9,
+      "interface_kind": "tabular_supervised",
+      "name": "Declared causal external expert policy data",
+      "output_dim": 2,
+      "sample_time": 0.1,
+      "schema_version": 1,
+      "signals": [
+        {
+          "availability": "simulation_only",
+          "column": {
+            "index": 2,
+            "header": "observation::x1",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "observation",
+          "name": "observation::x1",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "availability": "simulation_only",
+          "column": {
+            "index": 3,
+            "header": "observation::x2",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "observation",
+          "name": "observation::x2",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "availability": "simulation_only",
+          "column": {
+            "index": 4,
+            "header": "observation::x3",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "observation",
+          "name": "observation::x3",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "availability": "simulation_only",
+          "column": {
+            "index": 5,
+            "header": "observation::x4",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "observation",
+          "name": "observation::x4",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "column": {
+            "index": 6,
+            "header": "reference::y1",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "reference",
+          "name": "reference::y1",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "column": {
+            "index": 7,
+            "header": "reference::y2",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "reference",
+          "name": "reference::y2",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "column": {
+            "index": 8,
+            "header": "disturbance::d1",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "disturbance",
+          "name": "disturbance::d1",
+          "observable": true,
+          "role": "disturbance",
+          "unit": "1"
+        },
+        {
+          "column": {
+            "index": 9,
+            "header": "previous_action::u1",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "previous_action",
+          "name": "previous_action::u1",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "column": {
+            "index": 10,
+            "header": "previous_action::u2",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "previous_action",
+          "name": "previous_action::u2",
+          "observable": true,
+          "role": "auxiliary",
+          "unit": "1"
+        },
+        {
+          "column": {
+            "index": 11,
+            "header": "expert_action::u1",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "expert_action",
+          "name": "expert_action::u1",
+          "observable": true,
+          "role": "control",
+          "unit": "1"
+        },
+        {
+          "column": {
+            "index": 12,
+            "header": "expert_action::u2",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "expert_role": "expert_action",
+          "name": "expert_action::u2",
+          "observable": true,
+          "role": "control",
+          "unit": "1"
+        }
+      ],
+      "targets": [
+        {
+          "offset": 0,
+          "signal": "expert_action::u1"
+        },
+        {
+          "offset": 0,
+          "signal": "expert_action::u2"
+        }
+      ],
+      "task": "dynamic_prediction",
+      "time_column": {
+        "index": 0,
+        "header": "time",
+        "worksheet": null
+      },
+      "trip_column": {
+        "index": 1,
+        "header": "trajectory_id",
+        "worksheet": null
+      }
+    },
+    "source_mapping": {
+      "signals": {
+        "previous_action::u1": {
+          "time_semantics": "already_previous_applied_action",
+          "action_target": "expert_action::u1"
+        },
+        "previous_action::u2": {
+          "time_semantics": "already_previous_applied_action",
+          "action_target": "expert_action::u2"
+        }
+      }
+    },
+    "split": {
+      "mode": "trip",
+      "train": 0.625,
+      "validation": 0.1875,
+      "test": 0.1875
+    },
+    "scaler": "standard",
+    "source": {
+      "kind": "recorded_external_expert",
+      "description": "Actual recorded external fixed-QP actions from declared S09 simulator collection; not measured hardware or replacement labels",
+      "previous_action_semantics": "actual_applied_action_before_current_decision",
+      "original_source_kind": "declared_simulation",
+      "measured": false
+    },
+    "action_constraints": {
+      "bounds": [
+        [
+          -1.5,
+          1.5
+        ],
+        [
+          -1.5,
+          1.5
+        ]
+      ],
+      "rate_bounds": [
+        [
+          -0.25,
+          0.25
+        ],
+        [
+          -0.25,
+          0.25
+        ]
+      ],
+      "rate_semantics": "per_control_step"
+    }
+  },
+  "training_config": {
+    "network": {
+      "learning_rate": 0.001,
+      "epochs": 5000,
+      "patience": 500,
+      "batch_size": 64,
+      "seed": 20261122,
+      "min_delta": 1e-10,
+      "grad_clip": 10.0,
+      "activation": "tanh",
+      "hidden_dims": [
+        8
+      ],
+      "weight_decay": 0.001
+    },
+    "max_test_action_nrmse": 0.2,
+    "action_metric_scale": [
+      0.1485143342618783,
+      0.16340826049478385
+    ]
+  },
+  "expected": {
+    "input_dim": 9,
+    "output_dim": 2,
+    "rows": 1280,
+    "split_rows": {
+      "train": 800,
+      "validation": 240,
+      "test": 240
+    },
+    "test_nrmse_max": 0.2,
+    "parameter_count": 98,
+    "physical_context": null,
+    "pgac": "not_run",
+    "closed_loop": "not_run"
+  }
+}

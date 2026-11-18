@@ -9,7 +9,7 @@ import numpy as np
 from .artifacts import Workspace, canonical_hash, confined, read_json
 from .contracts import ContractError, ModelInterface, validate_network_dimensions
 
-MODEL_KINDS = {"nominal_model", "reference_model", "corrected_model", "identified_model"}
+MODEL_KINDS = {"nominal_model", "reference_model", "corrected_model", "identified_model", "learned_model"}
 
 
 def report_preview(path: Path) -> dict:
@@ -45,6 +45,186 @@ def report_preview(path: Path) -> dict:
 
 def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
     root, metadata = workspace.resolve(artifact_id)
+    if metadata["kind"] == "differentiable_validation":
+        from .differentiable_validation import read_differentiable_validation
+        report = read_differentiable_validation(workspace, artifact_id)
+        return {"artifact_id": artifact_id, "kind": metadata["kind"], "status": "needs_input", "handoff": {
+            "agent": "lightweight", "operation": "optimize_external_policy",
+            "inputs": {"model": report["bindings"]["candidate"]["id"], "validation": artifact_id},
+            "missing_inputs": ["policy"], "missing_config": ["Review the restricted PGAC training and frozen original-Plant evaluation configuration"],
+            "interface": report["physical_interface"], "config_suggestions": {"domain": report["coverage"]["domain"]},
+            "scope": "This receipt qualifies only the bound model and sampled validation/domain checks; a bounded surrogate retains proxy gradients and unproved joint coverage."},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "external_pgac_candidate":
+        report = read_json(root / "report.json")
+        frozen = report.get("original_evaluation_config")
+        if not isinstance(frozen, dict):
+            raise ContractError("PGAC candidate lacks its prospectively frozen original-Plant evaluation configuration")
+        return {"artifact_id": artifact_id, "kind": metadata["kind"], "status": "needs_input", "handoff": {
+            "agent": "lightweight", "operation": "evaluate_external_pgac", "inputs": {"candidate": artifact_id},
+            "missing_inputs": [], "missing_config": ["Review the exact frozen original-Plant validation/test comparison before execution"],
+            "interface": metadata["interface"], "config_suggestions": frozen,
+            "scope": "Inactive numerical candidate. Original-Plant acceptance and any feasible baseline fallback are still pending."},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "external_optimized_policy":
+        return {"artifact_id": artifact_id, "kind": metadata["kind"], "status": "complete", "handoff": {
+            "agent": "lightweight", "operation": None, "inputs": {"policy": artifact_id}, "missing_inputs": [], "missing_config": [],
+            "interface": metadata["interface"], "config_suggestions": {},
+            "scope": "Read the original-Plant comparison and selection record to distinguish an accepted optimized candidate from a feasible retained imitation baseline; the bounded simulation result is not a stability or hardware certificate."},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "conditional_ode_problem":
+        signals = metadata.get("source", {}).get("pinn_signals")
+        if not isinstance(signals, dict):
+            raise ContractError("Conditional ODE problem lacks its explicit equation/signal summary")
+        return {"artifact_id": artifact_id, "kind": metadata["kind"], "status": "needs_input", "handoff": {
+            "agent": "model", "operation": "train_pinn", "inputs": {"problem": artifact_id},
+            "missing_inputs": [], "missing_config": ["Review and confirm the smooth conditional network, actual physics/initial loss weights and training summary"],
+            "interface": signals, "config_suggestions": {"network": {"input_dim": 3, "output_dim": 1}},
+            "scope": "Known bounded constant-forcing thermal ODE; explicit time, initial condition and driving input. Not a general PDE or Plant transition."},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "pinn_model":
+        descriptor = read_json(root / "pinn.json")
+        problem_id = descriptor.get("problem")
+        if problem_id not in {row["id"] for row in metadata["parents"]}:
+            raise ContractError("Conditional PINN must bind its exact ODE problem ancestor")
+        _, problem = workspace.resolve(problem_id, kind="conditional_ode_problem")
+        report = read_json(root / "report.json")
+        return {"artifact_id": artifact_id, "kind": "pinn_model", "status": "complete", "handoff": {
+            "agent": "model", "operation": None, "inputs": {"pinn_model": artifact_id}, "missing_inputs": [], "missing_config": [],
+            "interface": problem.get("source", {}).get("pinn_signals"), "config_suggestions": {},
+            "is_pinn": report.get("is_pinn"), "training_regime": report.get("training_regime"),
+            "capabilities": {"conditional_trajectory": True, "constant_forcing_only": True,
+                "arbitrary_state_transition": False, "automatic_mpc_pgac_handoff": False},
+            "scope": "Independent bounded time/initial/constant-drive trajectory inference. No verified arbitrary one-step dynamics interface; MPC/PGAC handoff is unavailable."},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)},
+                {"id": problem_id, "metadata_hash": canonical_hash(problem)}]}
+    if metadata["kind"] == "material":
+        descriptor = read_json(root / "material.json")
+        tabular = descriptor["format"] in {"csv", "xlsx"}
+        return {"artifact_id": artifact_id, "kind": "material", "status": "ready", "handoff": {
+            "agent": "model", "operation": "inspect_table" if tabular else "inspect_model_source",
+            "inputs": {"data_path" if tabular else "model_path": str(root / descriptor["primary_file"])},
+            "missing_inputs": [], "missing_config": [], "interface": metadata["interface"], "config_suggestions": {}},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "supervised_dataset":
+        from .contracts import DataInterface
+        interface = DataInterface.parse(metadata["interface"])
+        return {"artifact_id": artifact_id, "kind": "supervised_dataset", "status": "needs_input", "handoff": {
+            "agent": "model", "operation": "train_supervised", "inputs": {"dataset": artifact_id}, "missing_inputs": [],
+            "missing_config": ["Review and confirm the requested network and training summary"],
+            "interface": interface.to_dict(), "config_suggestions": {"input_dim": interface.input_dim, "output_dim": interface.output_dim}},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "supervised_model":
+        from .contracts import DataInterface
+        interface = DataInterface.parse(metadata["interface"])
+        return {"artifact_id": artifact_id, "kind": "supervised_model", "status": "complete", "handoff": {
+            "agent": "model", "operation": None, "inputs": {}, "missing_inputs": [], "missing_config": [],
+            "interface": interface.to_dict(), "config_suggestions": {},
+            "scope": "Standalone supervised inference export. Physical state mapping and an executable dynamics contract are separate prerequisites for optional controller use."},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "external_expert":
+        descriptor = read_json(root / "expert.json")
+        return {"artifact_id":artifact_id,"kind":"external_expert","status":"needs_input","handoff":{
+            "agent":"lightweight","operation":"collect_external_expert","inputs":{"expert":artifact_id,"plant":""},
+            "missing_inputs":["plant"],"missing_config":["Explicit scenarios, initial previous actions and confirmed observation/collection summary"],
+            "interface":metadata["interface"],"expert_adapter":descriptor["adapter_spec"],"config_suggestions":{},
+            "scope":"Choose an explicit compatible plant; do not redesign or invent an internal MPC controller."},
+            "source_versions":[{"id":artifact_id,"metadata_hash":canonical_hash(metadata)}]}
+    if metadata["kind"] == "external_expert_dataset":
+        from .contracts import DataInterface
+        interface = DataInterface.parse(metadata["interface"])
+        return {"artifact_id":artifact_id,"kind":"external_expert_dataset","status":"data_ready","handoff":{
+            "agent":"lightweight","operation":"train_external_imitation","inputs":{"dataset":artifact_id},"missing_inputs":[],
+            "missing_config":["Review and confirm network/training and predeclared action-error metrics"],
+            "interface":interface.to_dict(),"config_suggestions":{"network":{"input_dim":interface.input_dim,"output_dim":interface.output_dim}},
+            "scope":"Causal external expert recordings; network training and physical closed-loop verification are separate stages."},
+            "source_versions":[{"id":artifact_id,"metadata_hash":canonical_hash(metadata)}]}
+    if metadata["kind"] == "external_imitation_policy":
+        from .contracts import DataInterface
+        interface = DataInterface.parse(metadata["interface"])
+        descriptor = read_json(root / "policy.json")
+        dataset_id = descriptor.get("external_expert_dataset")
+        if dataset_id not in {parent["id"] for parent in metadata["parents"]}:
+            raise ContractError("External imitation policy must bind its exact external expert dataset")
+        _, source = workspace.resolve(dataset_id, kind="external_expert_dataset")
+        return {"artifact_id":artifact_id,"kind":"external_imitation_policy","status":"complete","handoff":{
+            "agent":"lightweight","operation":None,"inputs":{"policy":artifact_id},"missing_inputs":[],"missing_config":[],
+            "interface":interface.to_dict(),"config_suggestions":{},
+            "scope":"Requested imitation export is complete. Offline recorded-action error is separate from optional autonomous evaluation; PGAC is not automatic."},
+            "optional_handoffs":[{"agent":"lightweight","operation":"prepare_imitation_evaluation","inputs":{"policy":artifact_id},
+                "missing_inputs":[],"missing_config":[],"config_suggestions":{},
+                "scope":"Read-only preparation resolves concrete independent original-Plant conditions or reports not_applicable; no evaluation runs until reviewed and confirmed."}],
+            "source_versions":[{"id":artifact_id,"metadata_hash":canonical_hash(metadata)},
+                               {"id":dataset_id,"metadata_hash":canonical_hash(source)}]}
+    if metadata["kind"] == "policy_evaluation":
+        policy_id = metadata.get("source", {}).get("policy")
+        if policy_id not in {parent["id"] for parent in metadata["parents"]}:
+            raise ContractError("Policy evaluation must bind the exact evaluated policy")
+        workspace.resolve(policy_id, kind="external_imitation_policy")
+        report = read_json(root / "report.json")
+        return {"artifact_id":artifact_id,"kind":"policy_evaluation","status":"complete","handoff":{
+            "agent":"lightweight","operation":None,"inputs":{"evaluation":artifact_id,"policy":policy_id},"missing_inputs":[],
+            "missing_config":[],"interface":metadata["interface"],"config_suggestions":{},
+            "evaluation_status":report.get("status"),"scope":"Evaluation report only; policy activation is unchanged and no improvement or stability proof is implied."},
+            "source_versions":[{"id":artifact_id,"metadata_hash":canonical_hash(metadata)}]}
+    if metadata["kind"] == "controller_design":
+        design = read_json(root / "design.json")
+        optional = []
+        prediction = design.get("prediction") or {}
+        predictor_id = prediction.get("artifact_id")
+        if design.get("model_instantiated") and predictor_id:
+            if predictor_id not in {parent["id"] for parent in metadata["parents"]}:
+                raise ContractError("Design predictor is not a bound artifact dependency")
+            workspace.resolve(predictor_id)
+            optional.append({"agent":"controller", "operation":"tune_controller",
+                "inputs":{"model":predictor_id,"evaluation_model":""},"missing_inputs":["evaluation_model"],
+                "missing_config":["evaluation","tuning_scenarios","verification_scenarios","test_scenarios"],
+                "config_suggestions":{"parameters":{**design.get("controller_config",{}),**design.get("weights",{})}},
+                "scope":"Optional preference tuning requires a separately selected compatible executable evaluation model and independent conditions."})
+        return {"artifact_id": artifact_id, "kind": "controller_design", "status": "design_complete", "handoff": {
+            "agent": "controller", "operation": None, "inputs": {"design": artifact_id}, "missing_inputs": [],
+            "missing_config": [], "config_suggestions": {}, "interface": metadata["interface"],
+            "scope": "Design delivery only. Parameterization, numerical solve checks and closed-loop evaluation are separate states.",
+            "design_status": design.get("status"), "model_instantiated": design.get("model_instantiated", False)},
+            "optional_handoffs": optional,
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "plant_model":
+        return {"artifact_id": artifact_id, "kind": "plant_model", "status": "ready", "handoff": {
+            "agent": "model", "operation": "recommend_sampling", "inputs": {"model": artifact_id},
+            "missing_inputs": [], "missing_config": [], "interface": metadata["interface"], "config_suggestions": {}},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "sampling_trial":
+        config = read_json(root / "config.json")
+        model = metadata["source"]["model"]
+        if model not in [item["id"] for item in metadata["parents"]]:
+            raise ContractError("Sampling trial does not bind its declared plant")
+        workspace.resolve(model)
+        return {"artifact_id": artifact_id, "kind": "sampling_trial", "status": "ready", "handoff": {
+            "agent": "model", "operation": "sample_model", "inputs": {"model": model},
+            "missing_inputs": [], "missing_config": [], "interface": metadata["interface"],
+            "config_suggestions": {**config, "sampling_run": "full"}},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+    if metadata["kind"] == "sampled_dataset":
+        interface = ModelInterface.parse(metadata["interface"])
+        suggestions = {"network": {"input_dim": interface.nx + interface.nu + interface.nd, "output_dim": interface.nx}}
+        model_id = metadata.get("source", {}).get("model")
+        if model_id not in [row["id"] for row in metadata["parents"]]:
+            raise ContractError("Sampled dataset does not bind its declared plant")
+        model_root, model_meta = workspace.resolve(model_id)
+        C = None
+        if model_meta["kind"] == "plant_model":
+            C = read_json(model_root / "plant.json")["adapter_spec"].get("C")
+        elif "model.json" in model_meta["files"]:
+            C = read_json(model_root / "model.json").get("C")
+        elif "nominal.json" in model_meta["files"]:
+            C = read_json(model_root / "nominal.json").get("C")
+        if C is not None:
+            suggestions["C"] = C
+        return {"artifact_id": artifact_id, "kind": "sampled_dataset", "status": "needs_input", "handoff": {
+            "agent": "model", "operation": "train_predictive_model", "inputs": {"dataset": artifact_id}, "missing_inputs": [],
+            "missing_config": ["Review and confirm the prediction training summary"] + ([] if C is not None else ["Explicit state-only output matrix C consistent with sampled outputs"]),
+            "interface": metadata["interface"], "config_suggestions": suggestions},
+            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
     selected_interface = ModelInterface.parse(metadata["interface"])
     ancestors = {}
 
@@ -52,7 +232,11 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
         if item_id in ancestors:
             return
         item_root, item = workspace.resolve(item_id)
-        selected_interface.compatible(ModelInterface.parse(item["interface"]))
+        # Learned physical models carry supervised datasets and immutable source
+        # materials in their provenance closure. Only physical interfaces share
+        # nx/nu/ny; dimensionless/data interfaces must retain their own meaning.
+        if item["interface"].get("interface_kind") is None:
+            selected_interface.compatible(ModelInterface.parse(item["interface"]))
         ancestors[item_id] = (item_root, item)
         for parent in item["parents"]:
             visit(parent["id"])
@@ -69,6 +253,11 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
         # active reference_model is not evidence about this selected result.
         candidates = set()
         for _, item in ancestors.values():
+            if item["kind"] == "sampled_dataset":
+                original = item.get("source", {}).get("model")
+                if original in ancestors and ancestors[original][1]["kind"] in MODEL_KINDS:
+                    candidates.add(bound(original, MODEL_KINDS))
+                continue
             if item["kind"] != "transition_dataset":
                 continue
             source = item["source"]
@@ -80,11 +269,17 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
         return next(iter(candidates)) if len(candidates) == 1 else None
 
     kind = metadata["kind"]
-    suggestions, missing_config = {}, []
-    if kind in {"nominal_model", "corrected_model", "identified_model"}:
-        agent, operation = "controller", "design_controller"
-        inputs = {"model": artifact_id, "evaluation_model": reference_model()}
-        missing_config = ["tuning_scenarios", "verification_scenarios", "test_scenarios"]
+    suggestions, missing_config, optional_handoffs = {}, [], []
+    if kind in {"nominal_model", "corrected_model", "identified_model", "learned_model"}:
+        agent, operation = "controller", "synthesize_mpc"
+        inputs = {"model": artifact_id}
+        suggestions = {"prediction": {"method": "direct"}}
+        evaluation = reference_model()
+        optional_handoffs.append({"agent": "controller", "operation": "tune_controller",
+            "inputs": {"model": artifact_id, "evaluation_model": evaluation or ""},
+            "missing_inputs": [] if evaluation else ["evaluation_model"],
+            "missing_config": ["evaluation", "tuning_scenarios", "verification_scenarios", "test_scenarios"],
+            "scope": "Optional external-preference tuning; not required for a design-only request"})
     elif kind == "controller":
         agent, operation = "lightweight", "collect_expert"
         descriptor = read_json(root / "controller.json")
@@ -119,7 +314,8 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
                         "inputs": {key: value or "" for key, value in inputs.items()},
                         "missing_inputs": missing, "missing_config": missing_config,
                         "config_suggestions": suggestions, "interface": selected_interface.to_dict()},
-            "source_versions": [{"id": item_id, "metadata_hash": canonical_hash(item)} for item_id, (_, item) in ancestors.items()]}
+            "source_versions": [{"id": item_id, "metadata_hash": canonical_hash(item)} for item_id, (_, item) in ancestors.items()],
+            "optional_handoffs": optional_handoffs}
 
 
 def read_artifact_file(workspace: Workspace, artifact_id: str, name: str, config: dict) -> dict:

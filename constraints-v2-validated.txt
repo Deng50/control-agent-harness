@@ -1,0 +1,8 @@
+# Key Python distributions used by the actual V2 acceptance on Python 3.10.22.
+# torch==2.7.1 also permits the observed 2.7.1+cu128 local build (PEP 440).
+# Runtime/training in this release is CPU float64; this file does not enable CUDA.
+numpy==2.2.6
+scipy==1.15.3
+torch==2.7.1
+openpyxl==3.1.5
+threadpoolctl==3.7.0

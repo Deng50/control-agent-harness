@@ -1,0 +1,150 @@
+{
+  "data_file": "f03-synthetic.csv",
+  "data_config": {
+    "interface": {
+      "schema_version": 1,
+      "interface_kind": "tabular_supervised",
+      "name": "Frozen synthetic F03 static 3in2out; no plant",
+      "task": "static_regression",
+      "sample_time": null,
+      "time_column": null,
+      "trip_column": {
+        "index": 0,
+        "header": "trip_id",
+        "worksheet": null
+      },
+      "signals": [
+        {
+          "name": "f1",
+          "role": "auxiliary",
+          "unit": "1",
+          "column": {
+            "index": 4,
+            "header": "f1",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "observable": true
+        },
+        {
+          "name": "f2",
+          "role": "auxiliary",
+          "unit": "1",
+          "column": {
+            "index": 5,
+            "header": "f2",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "observable": true
+        },
+        {
+          "name": "f3",
+          "role": "auxiliary",
+          "unit": "1",
+          "column": {
+            "index": 6,
+            "header": "f3",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "observable": true
+        },
+        {
+          "name": "target_1",
+          "role": "output",
+          "unit": "1",
+          "column": {
+            "index": 7,
+            "header": "target_1",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "observable": false
+        },
+        {
+          "name": "target_2",
+          "role": "output",
+          "unit": "1",
+          "column": {
+            "index": 8,
+            "header": "target_2",
+            "worksheet": null
+          },
+          "delay_steps": 0,
+          "observable": false
+        }
+      ],
+      "features": [
+        {
+          "signal": "f1",
+          "window": 1,
+          "lag": 0
+        },
+        {
+          "signal": "f2",
+          "window": 1,
+          "lag": 0
+        },
+        {
+          "signal": "f3",
+          "window": 1,
+          "lag": 0
+        }
+      ],
+      "targets": [
+        {
+          "signal": "target_1",
+          "offset": 0
+        },
+        {
+          "signal": "target_2",
+          "offset": 0
+        }
+      ],
+      "input_dim": 3,
+      "output_dim": 2
+    },
+    "split": {
+      "mode": "trip",
+      "train": 0.625,
+      "validation": 0.1875,
+      "test": 0.1875
+    },
+    "scaler": "standard",
+    "source": {
+      "kind": "synthetic",
+      "description": "Frozen mathematical F03 table; not vehicle measurements or a physical Plant"
+    }
+  },
+  "training_config": {
+    "hidden_dims": [
+      24,
+      16
+    ],
+    "activation": "tanh",
+    "input_dim": 3,
+    "output_dim": 2,
+    "epochs": 600,
+    "learning_rate": 0.005,
+    "batch_size": 64,
+    "patience": 80,
+    "seed": 20261120,
+    "weight_decay": 0,
+    "min_delta": 1e-08,
+    "grad_clip": 5,
+    "max_test_nrmse": 0.15
+  },
+  "expected": {
+    "input_dim": 3,
+    "output_dim": 2,
+    "rows": 1024,
+    "split_rows": {
+      "train": 640,
+      "validation": 192,
+      "test": 192
+    },
+    "test_nrmse_max": 0.15,
+    "physical_model_required": false
+  }
+}

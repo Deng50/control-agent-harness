@@ -36,7 +36,9 @@ def main() -> int:
                                deadline=time.monotonic() + args.timeout, cancelled=cancelled.is_set)
     try:
         if args.protocol:
-            request = json.loads(sys.stdin.readline())
+            raw_request = sys.stdin.readline()
+            context.bind_raw_request(raw_request)
+            request = json.loads(raw_request)
 
             def control_reader():
                 for line in sys.stdin:

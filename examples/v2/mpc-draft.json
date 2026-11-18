@@ -1,0 +1,26 @@
+{
+  "description": "质量弹簧阻尼系统，仅设计MPC；状态为位移和速度，力为输入，位移为输出，无额外扰动通道。未知参数保持未实例化。",
+  "draft_config": {
+    "template": "spring_damper",
+    "controller": {
+      "horizon": 5,
+      "max_iterations": 120,
+      "solver_tolerance": 1e-09
+    },
+    "weights": {
+      "q": 1,
+      "r": 0.01,
+      "s": 0.01
+    }
+  },
+  "missing_parameters": [
+    "mass",
+    "damping",
+    "stiffness",
+    "sample_time",
+    "state_bounds",
+    "input_bounds",
+    "output_bounds"
+  ],
+  "model_instantiated": false
+}
