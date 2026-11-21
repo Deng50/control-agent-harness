@@ -37,9 +37,9 @@ $previous = @{}
 foreach ($key in $taskEnvironment.Keys) { $previous[$key]=[Environment]::GetEnvironmentVariable($key,'Process'); [Environment]::SetEnvironmentVariable($key,$taskEnvironment[$key],'Process') }
 try {
   $bootstrapDirectory = (Join-Path $PSScriptRoot 'matlab').Replace("'","''")
-  $matlabCommand = "addpath('$bootstrapDirectory'); bootstrap_control_matlab_session"
+  $matlabCommand = "try, addpath('$bootstrapDirectory'); bootstrap_control_matlab_session; catch fault, disp(getReport(fault,'basic','hyperlinks','off')); exit(1); end"
   # Start-Process preserves one quoted MATLAB -r expression; none contains secrets.
-  $arguments = @('-nosplash','-nodesktop','-logfile',('"'+(Join-Path $sessionRoot 'matlab.log')+'"'),'-r',('"'+$matlabCommand+'"'))
+  $arguments = @('-wait','-nosplash','-nodesktop','-logfile',('"'+(Join-Path $sessionRoot 'matlab.log')+'"'),'-r',('"'+$matlabCommand+'"'))
   $process = Start-Process -FilePath $MatlabExecutable -ArgumentList $arguments -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru
 } finally {
   foreach ($key in $taskEnvironment.Keys) { [Environment]::SetEnvironmentVariable($key,$previous[$key],'Process') }

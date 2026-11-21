@@ -1,0 +1,9 @@
+# 仅由 start-web.ps1 -Matlab -VerifyMatlab 加载。保留上游 webStartup 依赖和网页配置。
+# web-runtime 是固定上游的必需插件；核验失败时启动审计返回失败，网页不会提前打开。
+- id: web-runtime
+  inject: [webStartup, controlMatlabReady]
+- insert:
+    - id: control-matlab-startup-check
+      name: '@control-engineering/harness-bundle/matlab-startup-check'
+      config:
+        identityFile: !!js process.env.CONTROL_MATLAB_IDENTITY_FILE

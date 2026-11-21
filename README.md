@@ -10,6 +10,12 @@
 
 ## 环境与启动
 
+在 **Windows x64 新电脑**上安装并激活 MATLAB 与 Simulink（R2023a 或更新版），将完整仓库解压或克隆至当前用户可写的本地 NTFS 目录，然后双击根目录的 [Start-ControlHarness.cmd](Start-ControlHarness.cmd)。默认浏览器会在终端显示“MATLAB 连接验证通过”后打开。请保留启动窗口。
+
+首次启动会查找 MATLAB，只为缺少的 MCP Server、MATLAB MCP Server Toolbox 和 Simulink Agentic Toolkit 下载并校验 MathWorks 官方固定版本。随后准备 Python 环境、构建固定版本的 Harness 并注册插件。缺少兼容 Python 或 Git 时使用 Windows 的“应用安装程序”（WinGet）进行当前用户安装。首次下载依赖、特别是 PyTorch，需要网络和磁盘空间，后续启动复用已有组件。MATLAB 连通验证无需模型 API Key，之后使用自然语言对话时仍需在网页配置模型服务。
+
+默认使用端口 `5288`，并预检 `workspaces\project-01`。新建工程对话时可选择这个目录，或选择其他已准备的工作区。仅查看缺件可运行 `.\Start-ControlHarness.cmd -CheckOnly`。多版本选择、端口冲突及启动失败的处理见[一键启动与 MATLAB 连接](docs/matlab-existing-session.md)。下文保留手动安装和纯 Python 启动步骤。
+
 要求 Node.js ≥ 24.9、pnpm 11、Python ≥ 3.10，以及 NumPy、SciPy、PyTorch。当前机器使用 Python 3.10.22 / Torch 2.7.1 / SciPy 1.15.3。集成目录的 `.venv` 继承现有 `mpc_light` 环境；复制到另一台机器时需重新建环境，不要复制此虚拟环境。
 
 在当前机器打开 PowerShell：

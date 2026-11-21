@@ -16,9 +16,8 @@ assert(ispc, 'ControlHarness:UnsupportedDiscoveryNamespace', ...
     'This private APPDATA discovery binding is verified on Windows only.');
 assert(isfolder(projectRoot) && isfolder(privateAppData), 'ControlHarness:InvalidDirectory', ...
     'The dedicated project and private session directories must already exist.');
-assert(isfile(fullfile(toolkitRoot, 'satk_initialize.p')) || ...
-    isfile(fullfile(toolkitRoot, 'satk_initialize.m')), 'ControlHarness:MissingToolkit', ...
-    'The installed Simulink Toolkit initialization entry was not found.');
+assert(isfile(fullfile(toolkitRoot, 'tools', 'tools.json')), ...
+    'ControlHarness:MissingToolkit', 'The Simulink extension manifest is missing.');
 assert(isfile(fullfile(toolboxRoot, 'shareMATLABSession.m')), ...
     'ControlHarness:MissingMCPToolbox', 'The installed MATLAB MCP Server Toolbox was not found.');
 originalAppData = getenv('APPDATA');
@@ -33,7 +32,19 @@ addpath(fullfile(projectRoot, 'matlab'));
 % Restore this process environment on success and on every MATLAB exception.
 restoreEnvironment = onCleanup(@() setenv('APPDATA', originalAppData));
 setenv('APPDATA', privateAppData);
-satk_initialize(MCPServerPath=serverExecutable);
+% 旧安装通过 satk_initialize 配置工具路径并分享当前 MATLAB。官方 .mltbx 安装包
+% 由 Add-On 管理器注册工具路径，此时用已安装的 MCP Toolbox 分享同一专用会话。
+if isfile(fullfile(toolkitRoot, 'satk_initialize.p')) || isfile(fullfile(toolkitRoot, 'satk_initialize.m'))
+    satk_initialize(MCPServerPath=serverExecutable);
+else
+    assert(strcmpi(fileparts(which('shareMATLABSession')), toolboxRoot), ...
+        'ControlHarness:UnexpectedConnector', 'The connector resolves outside the selected MCP Toolbox.');
+    shareMATLABSession();
+end
+% 两种布局都要求实际加载所选扩展中的编辑函数，防止只有清单或解析到了其他版本。
+assert(strcmpi(fileparts(which('model_edit')), fullfile(toolkitRoot, 'tools', 'model_edit')), ...
+    'ControlHarness:ToolkitNotRegistered', ...
+    'model_edit does not resolve to the selected toolkit. Enable the Simulink Agentic Toolkit in this MATLAB.');
 detailsPath = fullfile(privateAppData, 'MathWorks', 'MATLAB MCP Server', 'v1', 'sessionDetails.json');
 details = jsondecode(fileread(detailsPath));
 assert(double(details.pid) == feature('getpid'), 'ControlHarness:WrongSession', ...
@@ -46,10 +57,14 @@ marker = struct('schema_version', 1, 'kind', 'control-harness-dedicated-matlab-v
     'toolkit_root', toolkitRoot, 'createdAt', char(datetime('now', 'TimeZone', 'UTC', ...
     'Format', 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z''')));
 markerPath = fullfile(privateAppData, 'control-harness-session.json');
-fid = fopen(markerPath, 'w', 'n', 'UTF-8');
+% 先关闭临时文件再在同一目录发布；轮询就绪文件的启动器只会看到完整 JSON。
+tempMarker = [markerPath '.' sessionId '.tmp'];
+fid = fopen(tempMarker, 'w', 'n', 'UTF-8');
 assert(fid >= 0, 'ControlHarness:MarkerWriteFailed', 'Cannot write dedicated-session marker.');
 closeMarker = onCleanup(@() fclose(fid));
 fprintf(fid, '%s\n', jsonencode(marker, PrettyPrint=true));
 clear closeMarker;
+[published, detail] = movefile(tempMarker, markerPath);
+assert(published, 'ControlHarness:MarkerPublishFailed', 'Cannot publish ready marker: %s', detail);
 fprintf('Dedicated control MATLAB ready. PID=%d release=%s\n', marker.pid, marker.matlab_release);
 end

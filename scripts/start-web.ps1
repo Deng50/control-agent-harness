@@ -8,11 +8,15 @@ param(
   [string]$MatlabResourceDirectory=$env:CONTROL_MATLAB_RESOURCE_DIRECTORY,
   [string[]]$AdditionalPatch=@(),
   [switch]$ValidateOnly,
-  [string]$Workspace
+  [string]$Workspace,
+  [switch]$VerifyMatlab,
+  [string]$HarnessHome
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'windows-paths.ps1')
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+if ($VerifyMatlab -and -not $Matlab) { throw '-VerifyMatlab requires -Matlab.' }
+if ($HarnessHome -and -not (Test-ControlFullyQualifiedWindowsPath $HarnessHome)) { throw '-HarnessHome must be an absolute profile directory.' }
 $harnessRoot = Join-Path $projectRoot 'vendor/deepseek-harness'
 $pythonPath = Join-Path $projectRoot '.venv/Scripts/python.exe'
 $cliPath = Join-Path $harnessRoot 'apps/cli/lib/bin.js'
@@ -25,7 +29,7 @@ if ($Workspace) {
 }
 if (-not (Test-Path -LiteralPath $cliPath)) { throw 'Harness is not built. Run setup-harness.ps1.' }
 if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'harness-plugin/lib/client.js'))) { throw 'Control Web plugin is not built. Run setup-harness.ps1.' }
-$env:DSH_HOME = Join-Path $projectRoot '.dsh'
+$env:DSH_HOME = if ($HarnessHome) { [IO.Path]::GetFullPath($HarnessHome) } else { Join-Path $projectRoot '.dsh' }
 $env:CONTROL_PYTHON = $pythonPath
 $env:CONTROL_CODE_ROOT = $projectRoot
 $overlay = Join-Path $projectRoot 'config/web.overlay.yml'
@@ -85,6 +89,7 @@ foreach ($patch in $AdditionalPatch) {
   if (-not (Test-Path -LiteralPath $patchPath -PathType Leaf)) { throw 'An additional patch file was not found.' }
   $patches += $patchPath
 }
+if ($VerifyMatlab) { $patches += Join-Path $projectRoot 'config/matlab-startup-check.overlay.yml' }
 $launchArgs = @($cliPath, 'web')
 foreach ($patch in $patches) { $launchArgs += @('--patch', $patch) }
 $launchArgs += @('--port', $Port)

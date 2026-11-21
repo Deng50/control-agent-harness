@@ -1,5 +1,24 @@
 # MATLAB 与 Simulink 的可选本机连接
 
+## 在新电脑上一键启动
+
+在 Windows x64 安装并激活 MATLAB 和 Simulink，将仓库完整解压至当前用户可写的本地 NTFS 目录，双击根目录的 `Start-ControlHarness.cmd`。它使用 Windows 自带的 PowerShell。双击入口的脚本执行选项只作用于该进程，单位统一设置的组策略仍然生效。
+
+启动窗口按顺序显示组件检查、项目环境准备、专用 MATLAB 初始化和网页连通验证。缺少连接组件时，启动器从 MathWorks 发布页取得固定版本，核对每个下载文件的 SHA-256，在所选 MATLAB 中安装缺少的附加工具箱。已有的旧式 Toolkit 和新版 Add-On 布局都可以使用。[MATLAB MCP Server 0.16.0](https://github.com/matlab/matlab-mcp-server/releases/tag/v0.16.0) · [Simulink Agentic Toolkit 2026.11.a](https://github.com/matlab/simulink-agentic-toolkit/releases/tag/SATK-2026.11.a)
+
+网页服务启动时会通过自己的 MCP 执行器查询 MATLAB 的发行版、PID、会话标识并计算 `2+3`，同时检查 Simulink 工具是否已注册。收到本次调用的正确回执才会打印“MATLAB 连接验证通过”并提供网页地址。按 Ctrl+C 可以停止前台网页服务。已核验的专用 MATLAB 可在下次启动时复用；首次安装依赖或等待许可证超时，可查看窗口给出的错误、修复后重新运行同一入口。
+
+在项目根目录的 PowerShell 可使用以下命令。第一条只做本机文件与依赖检查。第二条示例显式选择 MATLAB 并指定网页端口，适合安装了多个版本的机器。
+
+```powershell
+.\Start-ControlHarness.cmd -CheckOnly
+.\Start-ControlHarness.cmd -MatlabExecutable 'C:\Program Files\MATLAB\R2024b\bin\matlab.exe' -Port 5290
+```
+
+默认工作区为项目内的 `workspaces\project-01`，可用 `-Workspace` 显式选择其他绝对路径。对于本项目的 `workspaces` 叶目录，入口使用现有工作区准备脚本；外部目录须由其管理者准备。一键入口会遵守已有 MATLAB 资源隔离，隔离恢复方法见下文。若通过公司镜像、离线介质或其他路径预装了依赖，可用 `-MatlabMcpExecutable`、`-SimulinkToolkitRoot`、`-MatlabMcpToolboxRoot` 指定位置。
+
+## 分步配置与连接
+
 当前接法针对 Windows：MATLAB R2024b、官方 MCP Server 0.16.0、Simulink Agentic Toolkit 2026.11.a。复用已有安装，不安装 Engine，不升级，也不改用户 startup.m。
 
 启动脚本兼容 Windows PowerShell 5.1 与 PowerShell 7，无需安装 `pwsh`。绝对路径检查使用兼容实现，同时拒绝 `C:relative` 和 `\root-relative`。可用 `powershell.exe -NoProfile -File .\scripts\test-startup-compatibility.ps1` 检查本机兼容性。复制命令时仅复制代码，不包含 `(base) PS ...>` 或 `>>` 提示符。
