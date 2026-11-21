@@ -403,12 +403,18 @@ def _broker(resource: MatlabResource) -> int:
                 lease.mark_running()
                 emit("started")
             elif kind == "complete":
+                evidence = command.get("evidence")
                 # A cancel racing completion is deliberately quarantined.
                 if stopped.is_set():
                     lease.quarantine("cancelled_after_matlab_dispatch")
                     emit("quarantined")
+                elif (isinstance(evidence, dict) and evidence.get("call_outcome") == "synchronous_parameter_error"
+                      and _alive(lease.owner.get("session") or {}) is not True):
+                    # MATLAB 探针核验会话 ID 和 PID；在释放内核锁前再核对操作系统进程创建标识。
+                    lease.quarantine("bound_session_identity_changed")
+                    emit("quarantined", reason="bound_session_identity_changed")
                 else:
-                    lease.complete(command.get("evidence"))
+                    lease.complete(evidence)
                     emit("completed")
                 return 0
             elif kind == "quarantine":

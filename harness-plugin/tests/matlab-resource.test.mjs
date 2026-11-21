@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { installMatlabResource, dispatchMatlabTaskBatch } from '../src/matlab-resource.mjs';
+import { createMatlabTerminalVerifier } from '../src/matlab-terminal.mjs';
 
 const project = resolve(import.meta.dirname, '../..');
 const upstream = resolve(project, 'vendor/deepseek-harness');
@@ -38,8 +39,8 @@ async function context(directory, options = {}) {
   return { ctx, resource, register };
 }
 
-async function execute(ctx, name, signal = new AbortController().signal) {
-  const result = await ctx.tools.execute({ calls: [{ type: 'tool_call', id: `call-${Math.random()}`, name, arguments: '{}' }], signal });
+async function execute(ctx, name, signal = new AbortController().signal, args = {}) {
+  const result = await ctx.tools.execute({ calls: [{ type: 'tool_call', id: `call-${Math.random()}`, name, arguments: JSON.stringify(args) }], signal });
   return result.results[0].result;
 }
 
@@ -51,6 +52,80 @@ async function fixture(callback) {
 
 const state = directory => readFile(join(directory, 'resource.json'), 'utf8').then(JSON.parse);
 const mcpSuccess = text => ({ content: [{ type: 'text', text }] });
+
+// 重放真实会话中 Inport/Value 的 MCP 响应。仅 MATLAB 服务端用替身，原生工具桥、
+// 权限检查、固定探针解析和 Python 资源代理均使用项目的真实实现。
+for (const fault of ['none', 'english', 'multiline', 'busy', 'different-session', 'cancel-during-probe', 'timeout', 'transport', 'owner-exited']) {
+  test(`Inport Value diagnostic, terminal condition: ${fault}`, async () => fixture(async directory => {
+    const identityFile = join(directory, 'identity.json'), sessionId = randomUUID();
+    const bound = spawnSync(python, ['-m', 'control_harness.matlab_resource', 'bind-session',
+      '--directory', directory, '--pid', String(process.pid), '--session-id', sessionId],
+    { cwd: project, env: {...process.env, PYTHONPATH:resolve(project,'src')}, encoding:'utf8', windowsHide:true });
+    assert.equal(bound.status, 0, bound.stderr);
+    if (fault === 'owner-exited') {
+      const initial = await state(directory);
+      initial.session.identity = 'stale-process-birth-identity';
+      await writeFile(join(directory,'resource.json'), JSON.stringify(initial));
+    }
+    await writeFile(identityFile, JSON.stringify({ schema_version:1, kind:'control-harness-dedicated-matlab-v1',
+      status:'ready', project_root:project, matlab_pid:process.pid, session_id:sessionId }));
+    const abort = new AbortController(), evalTool = 'mcp__matlab__evaluate_matlab_code';
+    let ctx, requested = 0, probes = 0, permissions = 0;
+    const verify = args => createMatlabTerminalVerifier(ctx, {identityFile, codeRoot:project})(args);
+    const mounted = await context(directory, {verifyBeforeDispatch:verify, verifyTerminal:verify});
+    ctx = mounted.ctx;
+    const invalid = {code:"set_param('MassSpringDamper/u_force','Value','1');"};
+    const corrected = {code:"set_param('MassSpringDamper/u_force','Port','1');"};
+    const errorText = fault === 'english' ? "matlab error: Inport block does not have a parameter named 'Value'."
+      : fault === 'multiline' ? "matlab error: Inport block 没有名为 'Value' 的参数\nSDK request deadline elapsed"
+      : "matlab error: Inport block 没有名为 'Value' 的参数\n \n";
+    const qualified = !['timeout','transport','multiline'].includes(fault);
+    const retryable = fault === 'none' || fault === 'english';
+    try {
+      ctx.tools.guard(()=>{ permissions++; });
+      mounted.register(evalTool, async ({code}) => {
+        const nonce = code.match(/CONTROL_HARNESS_PROBE_([a-f0-9-]{36}):/)?.[1];
+        if (nonce) {
+          probes++;
+          assert.ok(code.includes(resolve(project,'matlab/control_harness_terminal_probe.m')));
+          if (probes === 2 && fault === 'cancel-during-probe') abort.abort();
+          return mcpSuccess(`CONTROL_HARNESS_PROBE_${nonce}:` + JSON.stringify({
+            nonce, schema_version:1, matlab_pid:process.pid,
+            session_id:probes === 2 && fault === 'different-session' ? randomUUID() : sessionId,
+            helper_file:resolve(project,'matlab/control_harness_terminal_probe'), idle:true, busy_models:[],
+            background_futures:0, parallel_futures:0, running_timers:probes === 2 && fault === 'busy' ? 1 : 0,
+          }));
+        }
+        requested++;
+        if (fault === 'timeout') throw new Error('SDK request deadline elapsed');
+        if (fault === 'transport') throw new Error('MCP transport disconnected');
+        if (code === invalid.code) return {isError:true, content:[{type:'text',text:errorText}]};
+        assert.equal(code, corrected.code);
+        return mcpSuccess('corrected parameter');
+      });
+      const failed = await execute(ctx,evalTool,abort.signal,invalid);
+      assert.equal(failed.isError,true);
+      if (qualified) {
+        assert.equal(failed.error.message.trim(),errorText.trim());
+        assert.equal(failed.meta.matlab_parameter_retryable,retryable);
+      }
+      const ledger = await state(directory);
+      if (retryable) {
+        assert.match(failed.content.at(-1).text,/修正参数/);
+        assert.equal(ledger.owner,null); assert.equal(ledger.quarantine,null);
+        assert.equal(ledger.last_completion.evidence.call_outcome,'synchronous_parameter_error');
+        assert.equal(ledger.last_completion.evidence.matlab_pid,process.pid);
+        assert.equal((await execute(ctx,evalTool,undefined,corrected)).isError,false);
+        assert.equal(requested,2); assert.equal(probes,4); assert.equal(permissions,6);
+      } else {
+        assert.ok(ledger.quarantine,fault);
+        assert.equal(probes,qualified?2:1);
+        assert.equal((await execute(ctx,evalTool,undefined,corrected)).isError,true);
+        assert.equal(requested,1);
+      }
+    } finally {await ctx.fiber.dispose();}
+  }));
+}
 
 test('a scoped task batches the two signed identity probes under one native permission and one broker lease',async()=>fixture(async directory=>{
   // The bound PID is this test process. A fixture MCP callback substitutes for MATLAB.

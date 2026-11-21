@@ -50,7 +50,9 @@ $env:PYTHONPATH = "$PWD\src"
 
 每个 MATLAB 工具调用先经过原生权限检查，再进入共享 FIFO。持锁后，由 Host 固定代码通过同一个原生工具执行器调用 `matlab/control_harness_terminal_probe.m`，核对专用会话 UUID、实际 PID、辅助函数位置及 MATLAB 管理的忙状态；主调用结束后再次检查。内部探针同样经过原生权限检查，不能由模型参数或普通工具输出中的 `idle=true` 代替。正常同步调用自动释放资源。
 
-探针覆盖已加载 Simulink 模型的运行状态、本地 background/parallel futures 和正在运行的 timers；它不是任意脱离进程的 OS/远程计算的停止证明。当前适配器面向同步 MATLAB/Simulink 批任务；需要异步数值作业时，应由拥有该作业句柄的可信适配器管理终态，不能把启动成功作为完成。取消、超时、传输失败或无法取得可信终态时，资源持久隔离，后续请求会被拒绝。本版本对 MCP 错误也采取该保守策略。
+探针检查已加载 Simulink 模型的运行状态、本地 background/parallel futures 和正在运行的 timers。脱离 MATLAB 进程的 OS 或远程计算需要由拥有作业句柄的适配器确认终态。
+
+若原生 `evaluate_matlab_code` 同步返回已识别的 Simulink 块参数错误（例如给 Inport 设置 `Value`），Host 保留工具的原始错误，并在持锁期间核验同一专用会话的身份和空闲状态。只有复核通过才释放资源，允许用户提交纠正后的操作。超时、取消、传输失败、未知异常或探针失败仍会隔离资源。保存文件和运行仿真请分开执行。[SLX 保存与仿真验收](matlab-model-save.md)
 
 恢复属于本机管理操作，没有提供给 LLM 的解锁工具。先检查共享目录的 `resource.json`，核实隔离记录及其专用 PID 的归属；只停止本项目拥有的专用 MATLAB，不按进程名批量终止。随后执行下列命令；它会核对绑定进程的 OS 创建身份和真实退出状态，活进程或未知状态都不能恢复：
 

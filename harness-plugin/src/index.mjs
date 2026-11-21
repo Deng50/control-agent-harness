@@ -8,6 +8,7 @@ import { agents } from './roles.mjs';
 import { operationHelp, operations } from './catalog.mjs';
 import { installMatlabResource } from './matlab-resource.mjs';
 import { createMatlabTerminalVerifier } from './matlab-terminal.mjs';
+import { saveSessionSlx } from './simulink-save.mjs';
 import { MatlabTaskGrants } from './matlab-task-grants.mjs';
 import { preflightWorkspace } from './workspace-preflight.mjs';
 import { installCasePlans } from './case-plans.mjs';
@@ -42,12 +43,21 @@ export function apply(ctx, config) {
     throw new Error('Control engineering pythonPath and codeRoot must be absolute paths');
   }
   const verifyMatlab = config.matlabResource?.identityFile
-    ? createMatlabTerminalVerifier(ctx, { identityFile: config.matlabResource.identityFile }) : undefined;
+    ? createMatlabTerminalVerifier(ctx, { identityFile: config.matlabResource.identityFile, codeRoot:config.codeRoot }) : undefined;
   installMatlabResource(ctx, config, { verifyBeforeDispatch: verifyMatlab, verifyTerminal: verifyMatlab });
   // Propose all scopes in one Python transaction. Reviews have their own
   // bounded slot so a long training job cannot block a user trying to review.
   const reviewSlots = new WorkerSlots(1);
   const preflight = options => preflightWorkspace({ctx,config,...options});
+  if (verifyMatlab) {
+    ctx.tools.register(defineTool({
+      name:'control_save_simulink_model',
+      description:'Save one loaded top-level Simulink model to this conversation workspace. Returns its verified absolute .slx path and byte count. Request simulation separately after saving.',
+      parameters:{model:{type:'string',required:true,description:'Loaded model name, without a path or .slx extension'}},
+      output:{schema:{type:'object',additionalProperties:true},render:(_args,value)=>[{type:'text',text:JSON.stringify(value)}]},
+      execute:(args,execution)=>saveSessionSlx(ctx,config,args,execution,preflight),
+    }));
+  }
   const matlabGrants = new MatlabTaskGrants(config);
   const proposeBatch = async ({request, intent_id, requirements, agent, signal, retire_scopes = []}) => {
     const timeout = AbortSignal.timeout(30000);

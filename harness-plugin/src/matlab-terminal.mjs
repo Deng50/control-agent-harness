@@ -27,24 +27,28 @@ export function parseMatlabTerminalProbe(value, { nonce, identity, session, help
     matlab_pid: probe.matlab_pid, nonce, probe_scope: probe.probe_scope };
 }
 
-export function createMatlabTerminalVerifier(ctx, { identityFile }) {
+export function createMatlabTerminalVerifier(ctx, { identityFile, codeRoot }) {
   if (!isAbsolute(identityFile)) throw new Error('MATLAB identityFile must be absolute');
+  if (typeof codeRoot !== 'string' || !isAbsolute(codeRoot)) throw new Error('MATLAB probe needs the Host installation directory');
+  const helperFile = resolve(codeRoot, 'matlab/control_harness_terminal_probe.m');
   return async ({ exec, lease }) => {
     const identity = JSON.parse(await readFile(identityFile, 'utf8'));
     if (identity.schema_version !== 1 || identity.kind !== 'control-harness-dedicated-matlab-v1'
       || identity.status !== 'ready' || !Number.isSafeInteger(identity.matlab_pid)
-      || !/^[a-f0-9-]{36}$/i.test(identity.session_id ?? '') || !isAbsolute(identity.project_root ?? '')) {
+      || !/^[a-f0-9-]{36}$/i.test(identity.session_id ?? '') || !isAbsolute(identity.project_root ?? '')
+      || normalized(identity.project_root) !== normalized(codeRoot)) {
       throw new Error('Dedicated MATLAB ready marker is invalid');
     }
     const nonce = randomUUID();
     // A fixed local function and Host-generated UUID only. No caller code, cwd,
     // credentials, model arguments, or claimed idle flags enter this expression.
-    const code = `fprintf('CONTROL_HARNESS_PROBE_${nonce}:%s\\n',jsonencode(control_harness_terminal_probe('${nonce}')));`;
+    // 在调用前核对安装路径。工作区同名函数不能充当身份及空闲证明的签发方。
+    const code = `assert(strcmpi(which('control_harness_terminal_probe'),'${helperFile.replaceAll("'", "''")}')); `
+      + `fprintf('CONTROL_HARNESS_PROBE_${nonce}:%s\\n',jsonencode(control_harness_terminal_probe('${nonce}')));`;
     const batch = await ctx.tools.execute({ agent: exec.agent, signal: exec.signal,
       calls: [{ type: 'tool_call', id: `matlab-probe-${nonce}`, name: TOOL, arguments: JSON.stringify({ code }) }] });
     const result = batch.results[0]?.result;
     if (!result || result.isError) throw new Error('Fixed MATLAB probe was denied or failed');
-    return parseMatlabTerminalProbe(result.value, { nonce, identity, session: lease.session,
-      helperFile: resolve(identity.project_root, 'matlab/control_harness_terminal_probe.m') });
+    return parseMatlabTerminalProbe(result.value, { nonce, identity, session: lease.session, helperFile });
   };
 }

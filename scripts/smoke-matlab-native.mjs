@@ -343,7 +343,8 @@ async function runSimulink({ directory, evidence, call, evaluate }) {
   assert.equal(satkStatus(edited), 'ok', 'Copy edit did not complete; inspect read/check evidence');
   assertHealthyCheck(editCheck);
   const editedOutput = resolve(directory, 'edited-simulation.json');
-  const variant = markerJSON(await evaluate(`save_system(${mq(editedName)}); s02_result=simulate_f01(${mq(editedName)},${mq(referencePath)},${mq(editedOutput)},jsondecode(${stateIds})); disp(['CONTROL_S02_JSON:' jsonencode(s02_result)]);`));
+  await evaluate(`save_system(${mq(editedName)},${mq(editedPath)});`);
+  const variant = markerJSON(await evaluate(`s02_result=simulate_f01(${mq(editedName)},${mq(referencePath)},${mq(editedOutput)},jsondecode(${stateIds})); disp(['CONTROL_S02_JSON:' jsonencode(s02_result)]);`));
   assertNear(variant.time, reference.time, reference.tolerance, 'edited time');
   const editedError = { states: assertNear(variant.states, reference.edited.states, reference.tolerance, 'edited states'),
     outputs: assertNear(variant.outputs, reference.edited.outputs, reference.tolerance, 'edited outputs') };

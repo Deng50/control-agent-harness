@@ -74,6 +74,8 @@ Windows ACL 沙箱使用本地 NTFS。Host 需要会话根目录上的有效 `WR
 
 ## 使用方式
 
+在对话中生成 Simulink 模型时，可直接要求“保存到本次对话的工作区，然后验证仿真”。插件从当前会话取得目录，保存完成后返回 `.slx` 的绝对路径和文件大小，再独立执行仿真。根级 Inport 输入配置有误时，可凭已返回的路径保留模型，按资源核验结果纠正输入并重试。[Simulink 保存与仿真验收](docs/matlab-model-save.md)
+
 已登记的 `python_callable` 对象可先完整采样，经 `convert_plant_predictor` 核验显式方程或辨识有界仿射模型，再交给 MPC 角色。`verify_design_delivery` 按指定工况检查独立 Python 包，合格的工作区控制器可以交给轻量化角色，在绑定的原对象上采集。复现所需的材料、工况和通过标准见 [B03 原生跨角色交付回归](harness-plugin/tests/plant-mpc-delivery.test.mjs)。
 
 三个控制角色保留固定上游 standard 的原生工具、技能、规划、压缩、子智能体和工作流组合，领域角色只替换 persona 并保留 quiet 作业通知。角色入口分别加载 `train-object-model`、`design-and-tune-mpc`、`distill-controller`，按用户材料和交付停止点规划，不要求每个请求都运行八阶段。已实现的适配合同、数值分支和限制见 [V2 支持矩阵](docs/v2-delivery.md)；操作字段以当前 `control_help` 为准，实际验收状态见 [acceptance.md](docs/acceptance.md)。

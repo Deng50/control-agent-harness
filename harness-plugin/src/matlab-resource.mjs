@@ -3,6 +3,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { parseMatlabTerminalProbe } from './matlab-terminal.mjs';
+import { checkInteractiveModelSave } from './simulink-save-routing.mjs';
 
 // Only trusted Host code obtains a lease. No model arguments or public tool
 // names can create this re-entry capability for the fixed terminal probe.
@@ -231,7 +232,11 @@ class MatlabLease {
     }
     this.closed = true;
     const event = await this.broker.finish({ command: 'complete', evidence }, 'completed', 'quarantined');
-    if (event.event !== 'completed') throw new MatlabResourceError('MATLAB 终态与取消同时发生，资源已隔离。');
+    if (event.event !== 'completed') {
+      throw new MatlabResourceError(event.reason === 'bound_session_identity_changed'
+        ? '专用 MATLAB 的进程身份复核失败，资源已隔离。'
+        : 'MATLAB 终态与取消同时发生，资源已隔离。');
+    }
   }
 
   async quarantine(reason) {
@@ -241,14 +246,51 @@ class MatlabLease {
   }
 }
 
-/**
- * Wrap the existing native around-dispatch waterfall. Pre-execute permission
- * and scoped visibility remain native; every matching call delegates to next.
- * Ordinary MCP values have no trustworthy MATLAB-quiescence proof. Success is
- * preserved for the caller, but the resource is quarantined until its dedicated
- * session is stopped/recreated. A future trusted adapter may supply a verifier
- * directly in code; model arguments/structuredContent never authorize release.
- */
+// 固定上游的 MCP bridge 把服务端工具错误压成文本。这里仅选择可进行终态复核的错误；
+// 只有完整匹配的一行明确块参数诊断才触发探针。中文/英文参数名和块类型均不写死。
+function synchronousParameterError(exec, result) {
+  if (exec.name !== 'mcp__matlab__evaluate_matlab_code' || !result.isError || result.error?.info) return false;
+  const diagnostic = result.error?.message?.trim() ?? '';
+  if (diagnostic.length > 1024 || /[\r\n]/u.test(diagnostic)) return false;
+  const missing = /^matlab error: ['"]?[\w /()-]+['"]? block (?:没有名为 ['"][\w.]+['"] 的参数|does not have a parameter named ['"][\w.]+['"])[.。]?$/iu;
+  const invalid = /^matlab error: Invalid setting in '[^']+' for parameter '[\w.]+'[.]?$/iu;
+  return missing.test(diagnostic) || invalid.test(diagnostic);
+}
+
+// 错误结果仍原样返回；记录的是专用资源可以承接下一次独立调用，而非本次任务成功。
+function recoveredParameterError(before, after, session) {
+  if (!session?.identity || !session.session_id || !Number.isSafeInteger(session.pid)) return false;
+  return [before, after].every(probe => probe?.kind === 'synchronous_adapter_return'
+    && probe.producer === 'control_harness_terminal_probe-v1' && probe.session_id === session.session_id
+    && probe.matlab_pid === session.pid && /^[a-f0-9-]{36}$/i.test(probe.nonce ?? ''))
+    && before.nonce !== after.nonce;
+}
+
+async function finishParameterError({ exec, result, before, verifyTerminal, resource, lease }) {
+  let retryable = false;
+  try {
+    // 留在同一租约内重新发出独立 nonce 的受信探针，避免其他任务在两次证明之间进入。
+    const after = !exec.signal.aborted && verifyTerminal
+      ? await resource.withInternalProbe(lease, () => verifyTerminal({exec, result, lease})) : undefined;
+    if (!exec.signal.aborted && recoveredParameterError(before, after, lease.session)) {
+      await lease.complete({...after, call_outcome:'synchronous_parameter_error'});
+      retryable = true;
+    }
+  } catch (error) {
+    // 保留触发本次核验的原始 MATLAB 错误；探针拒绝、忙或 broker 拒绝完成时不允许重试。
+    resource.logger?.warn(`MATLAB parameter error could not be certified terminal: ${error.message}`);
+  } finally {
+    if (!lease.closed) {
+      await lease.quarantine(exec.signal.aborted ? 'mcp_cancelled_state_unknown' : 'mcp_parameter_error_identity_or_idle_unverified');
+    }
+  }
+  const text = retryable ? '已核验专用 MATLAB 会话身份和空闲状态，可修正参数后单独重试此操作。'
+    : '专用 MATLAB 终态复核未完成。请检查隔离状态后恢复专用会话。';
+  return {...result, content:[...result.content,{type:'text',text}],
+    meta:{...result.meta, matlab_parameter_retryable:retryable}};
+}
+
+/** Native permissions and the shared broker lease cover the original call and its terminal probe. */
 export function installMatlabResource(ctx, config, { verifyBeforeDispatch, verifyTerminal } = {}) {
   if (config.matlabResource === undefined) return undefined;
   const resource = new MatlabResource({ subprocess: ctx.subprocess, pythonPath: config.pythonPath,
@@ -257,6 +299,8 @@ export function installMatlabResource(ctx, config, { verifyBeforeDispatch, verif
     if (!resource.matches(exec.name)) return next();
     const probe = internalProbe.getStore();
     if (probe?.resource === resource && !probe.lease.closed && probe.lease.started) return next();
+    const scoped = scopedDispatch.getStore();
+    if (!scoped) checkInteractiveModelSave(exec);
     let lease;
     try { lease = await resource.acquire(`${exec.name}:${exec.callId}`, exec.signal); }
     catch (error) {
@@ -267,7 +311,6 @@ export function installMatlabResource(ctx, config, { verifyBeforeDispatch, verif
     }
     let result;
     try {
-      const scoped = scopedDispatch.getStore();
       if (scoped) {
         if (scoped.callId !== exec.callId || scoped.agent !== exec.agent || exec.name !== scoped.grant.scope.native_tool
             || exec.arguments?.code !== scoped.params.code || exec.arguments?.project_path !== scoped.params.project_path
@@ -297,8 +340,9 @@ export function installMatlabResource(ctx, config, { verifyBeforeDispatch, verif
       }
       exec.signal.throwIfAborted();
       result = await next();
-      // A failed/cancelled SDK call can leave MATLAB computing. An untrusted
-      // success can have started async work. Neither is a terminal certificate.
+      if (synchronousParameterError(exec, result)) {
+        return await finishParameterError({exec, result, before, verifyTerminal, resource, lease});
+      }
       const proof = !result.isError && !exec.signal.aborted && verifyTerminal
         ? await resource.withInternalProbe(lease, () => verifyTerminal({ exec, result, lease })) : undefined;
       if (proof && !exec.signal.aborted) await lease.complete(proof);
