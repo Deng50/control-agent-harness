@@ -11,7 +11,8 @@ $appData = Join-Path $directory 'appdata'
 [void][IO.Directory]::CreateDirectory($resource)
 $started = (Get-Process -Id $PID).StartTime
 $sessionId = [guid]::NewGuid().ToString()
-$components = @{ MatlabExecutable='C:\fixture\bin\matlab.exe'; SimulinkToolkitRoot='C:\fixture\toolkit' }
+$components = @{ MatlabExecutable='C:\fixture\bin\matlab.exe'; SimulinkToolkitRoot='C:\fixture\toolkit'
+    MatlabMcpExecutable='C:\fixture\mcp.exe'; MatlabMcpToolboxRoot='C:\fixture\toolbox' }
 $launch = @{kind='control-harness-matlab-launch-v1';session_id=$sessionId;project_root=$project;private_appdata=$appData;matlab_executable=$components.MatlabExecutable}
 $marker = @{kind='control-harness-dedicated-matlab-v1';status='ready';session_id=$sessionId;project_root=$project;private_appdata=$appData;matlab_pid=$PID;toolkit_root=$components.SimulinkToolkitRoot;createdAt=[datetime]::UtcNow.ToString('o')}
 $binding = @{host=[Environment]::MachineName;pid=$PID;session_id=$sessionId;identity=('win32:{0:x16}' -f $started.ToUniversalTime().ToFileTimeUtc())}
@@ -37,8 +38,47 @@ $marker.session_id = [guid]::NewGuid().ToString()
 Write-TestJson (Join-Path $appData 'control-harness-session.json') $marker
 try { Get-ControlSessionAppData @request; throw 'Foreign session was accepted' }
 catch { if ($_.Exception.Message -notmatch '未找到匹配的启动记录') { throw } }
-$state.quarantine = @{reason='fixture'}
+$marker.session_id = $sessionId
+Write-TestJson (Join-Path $appData 'control-harness-session.json') $marker
+
+function Assert-QuarantinePreserved([string]$Diagnostic) {
+    Write-TestJson $stateFile $state
+    try { Get-ControlSessionAppData @request; throw 'Quarantined resource was accepted' }
+    catch { if ($_.Exception.Message -notmatch $Diagnostic) { throw } }
+    $after = Get-Content -LiteralPath $stateFile -Encoding UTF8 -Raw | ConvertFrom-Json
+    if (-not $after.quarantine -or (Test-Path (Join-Path $resource 'recoveries'))) { throw 'Quarantine was cleared or recovery evidence was fabricated' }
+}
+$ticket = [guid]::NewGuid().ToString('N')
+$state.quarantine = @{reason='fixture';token=$ticket;owner=@{session=$binding.Clone()}}
+# broker 核对实际运行中的测试 PowerShell 进程。启动器不得关闭它或解除隔离。
+Assert-QuarantinePreserved "PID $PID 仍在运行"
+$state.queue = @($binding)
+Assert-QuarantinePreserved '排队任务'
+$state.queue = @()
+$state.quarantine.owner.session.session_id = 'another-session'
+Assert-QuarantinePreserved '绑定记录不一致'
+$state.quarantine.owner.session.session_id = $sessionId
+$state.quarantine.owner.session.host = 'other-machine'
+Assert-QuarantinePreserved '原电脑'
+$state.quarantine.owner.session.Remove('identity')
+Assert-QuarantinePreserved '不完整'
+
+# 临时 Python 子进程报告自己的 OS 创建标识后正常退出，用以验证真实 broker 的归档和锁释放。
+$previousPythonPath = $env:PYTHONPATH
+try {
+    $env:PYTHONPATH = Join-Path $project 'src'
+    $python = Join-Path $project '.venv\Scripts\python.exe'
+    $exited = & $python -c 'import os; from control_harness.matlab_resource import process_identity; print(os.getpid(), process_identity(os.getpid()))'
+    if ($LASTEXITCODE -ne 0) { throw 'Could not create the exited process fixture' }
+} finally { $env:PYTHONPATH = $previousPythonPath }
+$childPid,$identity = $exited.Split(' ')
+$oldBinding = @{host=[Environment]::MachineName;pid=[int]$childPid;session_id=[guid]::NewGuid().ToString();identity=$identity}
+$state.session = $oldBinding
+$state.quarantine.owner.session = $oldBinding
 Write-TestJson $stateFile $state
-try { Get-ControlSessionAppData @request; throw 'Quarantined resource was accepted' }
-catch { if ($_.Exception.Message -notmatch '已隔离') { throw } }
-Write-Output 'PASS: bound session reuse, mismatched Toolkit, foreign identity, quarantine'
+if ((Get-ControlSessionAppData @request) -ne $appData) { throw 'Startup did not continue after verified exit' }
+$after = Get-Content -LiteralPath $stateFile -Encoding UTF8 -Raw | ConvertFrom-Json
+if ($after.quarantine -or $after.session -or $after.last_recovery -ne (Join-Path $resource "recoveries\$ticket.json")) { throw 'Recovery state incorrect' }
+$proof = Get-Content -LiteralPath $after.last_recovery -Encoding UTF8 -Raw | ConvertFrom-Json
+if ($proof.kind -ne 'os_verified_bound_session_exit' -or $proof.session.identity -ne $identity -or $proof.token -ne $ticket) { throw 'Incorrect recovery evidence' }
+Write-Output 'PASS: bound session reuse, version and identity conflicts, live/queued/unknown quarantine, verified exit recovery'

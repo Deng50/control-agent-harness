@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import socket
 import sys
 import threading
@@ -84,6 +85,41 @@ def _alive(record: dict) -> bool | None:
     if actual is not None:
         return False if actual != record.get("identity") else live
     return None
+
+
+def _recovery_binding(quarantine: dict, current: dict | None) -> dict:
+    """恢复前确认原始绑定完整，再用它判断进程是否退出或 PID 是否被复用。"""
+    owner = quarantine.get("owner")
+    if owner is not None and not isinstance(owner, dict):
+        raise MatlabResourceError("Invalid quarantined owner record; resource remains quarantined")
+    original = (owner or {}).get("session")
+    # 兼容只在资源顶层保留绑定的旧记录。损坏的隔离快照不能退回使用另一份绑定。
+    binding = current if original is None else original
+    if binding is None:
+        raise MatlabResourceError("No dedicated MATLAB process was bound; automatic recovery is unavailable")
+    if not isinstance(binding, dict) or binding.get("host") != socket.gethostname():
+        raise MatlabResourceError("Bound MATLAB host is missing or different; resource remains quarantined")
+    pid = binding.get("pid")
+    identity = binding.get("identity")
+    session_id = binding.get("session_id")
+    # 只接受 process_identity 在本平台生成的规范形式。残缺或大小写异常的字符串
+    # 如果拿去直接比较，会把仍在运行的同一个进程错误认作已复用的 PID。
+    if os.name == "nt":
+        identity_pattern = r"win32:(?!0{16}$)[0-9a-f]{16}"
+        max_pid = 0xffffffff
+    else:
+        identity_pattern = r"linux:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}:(?:0|[1-9][0-9]*)"
+        max_pid = 0x7fffffff
+    if (type(pid) is not int or not 0 < pid <= max_pid
+            or not isinstance(identity, str) or not re.fullmatch(identity_pattern, identity)
+            or not isinstance(session_id, str) or not session_id.strip()):
+        raise MatlabResourceError("Incomplete or invalid bound MATLAB process identity; resource remains quarantined")
+    if original is not None and current is not None:
+        fields = ("host", "pid", "identity", "session_id")
+        if (not isinstance(current, dict) or type(current.get("pid")) is not int
+                or any(current.get(key) != binding[key] for key in fields)):
+            raise MatlabResourceError("Quarantined and current MATLAB session bindings disagree; resource remains quarantined")
+    return binding
 
 
 def _process_record(pid: int) -> dict:
@@ -269,9 +305,7 @@ class MatlabResource:
             quarantine = state["quarantine"]
             if not quarantine or quarantine.get("token") != token:
                 raise MatlabResourceError("Quarantine token mismatch; inspect current resource state")
-            binding = (quarantine.get("owner") or {}).get("session") or state.get("session")
-            if not binding:
-                raise MatlabResourceError("No dedicated MATLAB process was bound; automatic recovery is unavailable")
+            binding = _recovery_binding(quarantine, state.get("session"))
             if _alive(binding) is not False:
                 raise MatlabResourceError("Bound MATLAB process has not been proven exited; resource remains quarantined")
             execution = kernel_mutex(self.directory / "execution.mutex")

@@ -7,24 +7,72 @@ function Get-ControlLiveProcess([int]$ProcessId) {
     }
 }
 
+function Read-ControlStartupResource([string]$Python, [string]$ResourceDirectory) {
+    $snapshot = & $Python -m control_harness.matlab_resource inspect --directory $ResourceDirectory
+    if ($LASTEXITCODE -ne 0) { throw "无法检查 MATLAB 资源状态，请检查 $ResourceDirectory。" }
+    return ($snapshot | ConvertFrom-Json)
+}
+
 function Get-ControlSessionAppData {
     param([string]$ProjectRoot, [string]$SessionRoot, [string]$ResourceDirectory,
           [hashtable]$Components, [int]$TimeoutSeconds = 180)
 
     $boundSession = $null
+    $retiredSessionId = $null
     $resourceState = Join-Path $ResourceDirectory 'resource.json'
     if (Test-Path -LiteralPath $resourceState) {
         $python = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
         $previousPythonPath = $env:PYTHONPATH
         try {
             $env:PYTHONPATH = Join-Path $ProjectRoot 'src'
-            $snapshot = & $python -m control_harness.matlab_resource inspect --directory $ResourceDirectory
-            if ($LASTEXITCODE -ne 0) { throw "无法检查 MATLAB 资源状态，请检查 $ResourceDirectory。" }
-            $state = $snapshot | ConvertFrom-Json
+            $state = Read-ControlStartupResource $python $ResourceDirectory
+            if ($state.quarantine) {
+                if ($state.owner -or $state.queue) { throw '专用 MATLAB 已隔离，仍有占用者或排队任务。请等待现有任务结束后重试。' }
+                $ticket = $state.quarantine.token
+                $binding = $state.quarantine.owner.session
+                if ($null -eq $binding) { $binding = $state.session }
+                if ($ticket -notmatch '^[0-9a-f]{32}$' -or [string]::IsNullOrWhiteSpace($binding.session_id) -or
+                    -not $binding.host -or ($binding.pid -isnot [long] -and $binding.pid -isnot [int]) -or
+                    $binding.pid -le 0 -or $binding.pid -gt [int]::MaxValue -or
+                    $binding.identity -notmatch '^win32:[a-f0-9]{16}$') {
+                    throw '专用 MATLAB 已隔离，旧会话的绑定或隔离记录不完整。请按 docs/matlab-existing-session.md 核对资源记录。'
+                }
+                if ($binding.host -ne [Environment]::MachineName) { throw '专用 MATLAB 已隔离。请在原电脑核实其进程并恢复该资源。' }
+                if ($state.session -and ($state.session.host -cne $binding.host -or
+                    $state.session.pid -ne $binding.pid -or $state.session.identity -cne $binding.identity -or
+                    $state.session.session_id -cne $binding.session_id)) {
+                    throw '专用 MATLAB 已隔离，两份会话绑定记录不一致。请先核对原会话的归属再恢复。'
+                }
+                # 恢复权限始终由 broker 决定。它在锁内复核本机进程创建标识、隔离票据及执行互斥锁并归档证据。
+                # PS 5.1 会将原生命令 stderr 包装成 ErrorRecord；此处只使用退出码，再读当前状态决定下一步。
+                $recoveryExit = & {
+                    $ErrorActionPreference = 'Continue'
+                    $PSNativeCommandUseErrorActionPreference = $false
+                    & $python -m control_harness.matlab_resource recover-after-session-exit --directory $ResourceDirectory --token $ticket 2>$null | Out-Null
+                    return $LASTEXITCODE
+                }
+                $state = Read-ControlStartupResource $python $ResourceDirectory
+                if ($state.quarantine) {
+                    if ($state.quarantine.token -ne $ticket) { throw '专用 MATLAB 的隔离记录已更新，请重新运行启动入口以核对新记录。' }
+                    $sameProcess = $false
+                    try {
+                        $process = Get-ControlLiveProcess $binding.pid
+                        if ($process -and $process.ProcessName -eq 'MATLAB') {
+                            $sameProcess = ('win32:{0:x16}' -f $process.StartTime.ToUniversalTime().ToFileTimeUtc()) -eq $binding.identity
+                        }
+                    } catch { $sameProcess = $false }
+                    if ($sameProcess) {
+                        throw "专用 MATLAB 已隔离，原进程 PID $($binding.pid) 仍在运行。请先保存该实例中的模型并关闭该实例，再重新运行一键启动。"
+                    }
+                    throw "专用 MATLAB 已隔离。系统尚不能确认 PID $($binding.pid) 对应的原进程已退出且执行锁已释放。请用原启动账户核实后重试，详见 docs/matlab-existing-session.md。"
+                }
+                if ($recoveryExit -ne 0) {
+                    throw '恢复期间资源记录已发生变化。请重新运行一键启动，以当前绑定重新核验。'
+                }
+                $retiredSessionId = $binding.session_id
+                Write-Host "已核实原专用 MATLAB（PID $($binding.pid)）已退出，隔离恢复证据已归档。"
+            }
         } finally { $env:PYTHONPATH = $previousPythonPath }
-        if ($state.quarantine) {
-            throw "专用 MATLAB 已隔离。请按 docs/matlab-existing-session.md 检查并恢复资源后重新启动。资源目录：$ResourceDirectory"
-        }
         if ($state.owner -or $state.queue) { throw '专用 MATLAB 正在处理任务。请使用当前网页，或在队列清空后重试。' }
         if ($state.session) {
             if ($state.session.host -ne [Environment]::MachineName) { throw '资源记录属于另一台电脑。请使用本机的 Harness 数据目录。' }
@@ -45,6 +93,7 @@ function Get-ControlSessionAppData {
             $launchFile = Join-Path $directory.FullName 'launch.json'
             if (-not (Test-Path -LiteralPath $launchFile -PathType Leaf)) { continue }
             $launch = Get-Content -LiteralPath $launchFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($retiredSessionId -and $launch.session_id -eq $retiredSessionId) { continue }
             if ($boundSession -and $launch.session_id -ne $boundSession.session_id) { continue }
             $appData = Join-Path $directory.FullName 'appdata'
             if ($launch.kind -ne 'control-harness-matlab-launch-v1' -or

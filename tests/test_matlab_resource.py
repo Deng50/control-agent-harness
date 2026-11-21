@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from control_harness.matlab_resource import (MatlabResource, MatlabResourceError,
     MatlabResourceQuarantined, MatlabResourceWaitTimeout, process_identity)
@@ -124,6 +125,60 @@ os._exit(73)
         token = self.resource.snapshot()["quarantine"]["token"]
         with self.assertRaisesRegex(MatlabResourceError, "No dedicated MATLAB process"):
             self.resource.recover_after_session_exit(token)
+
+    def quarantined_process_fixture(self):
+        self.resource.bind_session(os.getpid(), "legacy-non-uuid-session")
+        with self.resource.acquire("host-fixture") as lease:
+            lease.mark_running()
+        return self.resource.snapshot()
+
+    def test_invalid_or_conflicting_bindings_never_prove_exit(self):
+        state = self.quarantined_process_fixture()
+        token = state["quarantine"]["token"]
+        good = state["session"]
+        for changes in ({"identity": None}, {"identity": ""}, {"identity": "invalid"},
+                        {"identity": "win32:0000000000000000"}, {"pid": True}, {"pid": 2**32},
+                        {"host": "foreign-host.invalid"}, {"session_id": "  "},
+                        {"session_id": "valid-but-different"}):
+            with self.subTest(changes=changes):
+                invalid = {**good, **changes}
+                if invalid["identity"] is None:
+                    del invalid["identity"]
+                state["quarantine"]["owner"]["session"] = invalid
+                state["session"] = good if changes.get("session_id") == "valid-but-different" else invalid
+                self.resource.state_path.write_text(json.dumps(state), encoding="utf-8")
+                # 即使操作系统报告 PID 不存在，也必须先有有效的、属于本机的完整绑定。
+                with patch("control_harness.matlab_resource.process_alive", return_value=False) as check:
+                    with self.assertRaises(MatlabResourceError):
+                        self.resource.recover_after_session_exit(token)
+                    check.assert_not_called()
+                self.assertEqual(self.resource.snapshot()["quarantine"]["token"], token)
+                self.assertFalse((self.path / "recoveries").exists())
+
+    def test_unreadable_os_identity_does_not_release_quarantine(self):
+        state = self.quarantined_process_fixture()
+        token = state["quarantine"]["token"]
+        with patch("control_harness.matlab_resource.process_alive", return_value=None), \
+                patch("control_harness.matlab_resource.process_identity", return_value=None):
+            with self.assertRaisesRegex(MatlabResourceError, "not been proven exited"):
+                self.resource.recover_after_session_exit(token)
+        self.assertEqual(self.resource.snapshot()["quarantine"]["token"], token)
+        self.assertFalse((self.path / "recoveries").exists())
+
+    def test_reused_pid_is_proof_of_originating_process_exit(self):
+        state = self.quarantined_process_fixture()
+        token = state["quarantine"]["token"]
+        # 合成旧绑定，当前 PID 来自测试进程；实际核验读取 OS 提供的创建身份。
+        prefix, value = state["session"]["identity"].rsplit(":", 1)
+        previous = f"{int(value, 16) - 1:016x}" if os.name == "nt" else str(max(1, int(value) - 1))
+        original = {**state["session"], "identity": f"{prefix}:{previous}"}
+        self.assertNotEqual(original["identity"], process_identity(os.getpid()))
+        state["session"] = state["quarantine"]["owner"]["session"] = original
+        self.resource.state_path.write_text(json.dumps(state), encoding="utf-8")
+        evidence = self.resource.recover_after_session_exit(token)
+        self.assertEqual(evidence["session"], original)
+        self.assertEqual(evidence["kind"], "os_verified_bound_session_exit")
+        self.assertIsNone(self.resource.snapshot()["quarantine"])
 
     def test_live_dedicated_session_cannot_be_silently_rebound(self):
         first = self.resource.bind_session(os.getpid(), "first-session")
