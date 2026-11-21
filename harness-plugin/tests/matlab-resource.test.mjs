@@ -1,11 +1,12 @@
 /** Real OS processes and native Cordis dispatch; remote-work flags are explicit failure-boundary fixtures. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { installMatlabResource } from '../src/matlab-resource.mjs';
+import { installMatlabResource, dispatchMatlabTaskBatch } from '../src/matlab-resource.mjs';
 
 const project = resolve(import.meta.dirname, '../..');
 const upstream = resolve(project, 'vendor/deepseek-harness');
@@ -50,6 +51,53 @@ async function fixture(callback) {
 
 const state = directory => readFile(join(directory, 'resource.json'), 'utf8').then(JSON.parse);
 const mcpSuccess = text => ({ content: [{ type: 'text', text }] });
+
+test('a scoped task batches the two signed identity probes under one native permission and one broker lease',async()=>fixture(async directory=>{
+  // The bound PID is this test process. A fixture MCP callback substitutes for MATLAB.
+  const identity=randomUUID();
+  const bound=spawnSync(python,['-m','control_harness.matlab_resource','bind-session','--directory',directory,'--pid',String(process.pid),'--session-id',identity],
+    {cwd:project,env:{...process.env,PYTHONPATH:resolve(project,'src')},windowsHide:true,encoding:'utf8'});
+  assert.equal(bound.status,0,bound.stderr);
+  const binding=JSON.parse(bound.stdout), scope={helper:'control_harness_collect_batch',native_tool:'mcp__matlab__evaluate_matlab_code',dedicated_session:binding};
+  const {ctx,register}=await context(directory,{verifyTerminal:async()=>assert.fail('no separate probe')});
+  const root=resolve(project,'matlab'), helper=resolve(root,'control_harness_terminal_probe');
+  let permissions=0,dispatched=0,allow=true,omitPost=false;
+  try {
+    ctx.tools.guard(()=>{permissions++;return allow?undefined:'Fixture native denial';});
+    register(scope.native_tool,async ({code,project_path})=>{
+      assert.equal(project_path,root);
+      const [nonce,session,before,after]=[...code.matchAll(/'([a-f0-9-]{36})'/g)].map(match=>match[1]);
+      assert.equal(session,identity);assert.ok(nonce);
+      return mcpSuccess((omitPost?[before]:[before,after]).map(token=>'CONTROL_HARNESS_PROBE_'+token+':'+JSON.stringify({
+        schema_version:1,nonce:token,session_id:identity,matlab_pid:process.pid,helper_file:helper,
+        busy_models:[],background_futures:0,parallel_futures:0,running_timers:0,idle:true})).join('\n'));
+    });
+    const dispatch=()=>dispatchMatlabTaskBatch({ctx,grant:{scope,validate:async lease=>assert.deepEqual(lease,binding)},
+      onDispatch(){dispatched++;},signal:new AbortController().signal,manifestPath:resolve(directory,'manifest.json'),
+      manifestSha:'a'.repeat(64),nonce:randomUUID(),helperRoot:root});
+    allow=false;assert.equal((await dispatch()).results[0].result.isError,true);
+    assert.equal(dispatched,0);assert.equal((await state(directory)).quarantine,null);
+    allow=true;assert.equal((await dispatch()).results[0].result.isError,false);
+    assert.equal(dispatched,1);assert.equal(permissions,2);
+    assert.equal((await state(directory)).quarantine,null);
+    // 即便卡片和 broker 文件一致，也要重新向 OS 核对创建时间。
+    const healthy=await state(directory);
+    const stale={...binding,identity:'stale-process-creation-fixture'};
+    await writeFile(resolve(directory,'resource.json'),JSON.stringify({...healthy,session:stale}));
+    scope.dedicated_session=stale;
+    const refused=await dispatchMatlabTaskBatch({ctx,grant:{scope,validate:async lease=>assert.deepEqual(lease,stale)},
+      onDispatch(){assert.fail('No dispatch to stale PID');},signal:new AbortController().signal,manifestPath:resolve(directory,'manifest.json'),
+      manifestSha:'a'.repeat(64),nonce:randomUUID(),helperRoot:root});
+    assert.equal(refused.results[0].result.isError,true);
+    assert.equal((await state(directory)).owner,null);
+    assert.equal((await state(directory)).quarantine,null);
+    await writeFile(resolve(directory,'resource.json'),JSON.stringify(healthy));
+    scope.dedicated_session=binding;
+    omitPost=true;assert.equal((await dispatch()).results[0].result.isError,true);
+    assert.equal(dispatched,2);assert.equal(permissions,4);
+    assert.ok((await state(directory)).quarantine);
+  } finally {await ctx.fiber.dispose();}
+}));
 
 test('native permissions reject before admission; unconfigured Python-only mode adds no MATLAB hook', async () => fixture(async directory => {
   const { ctx, register } = await context(directory);

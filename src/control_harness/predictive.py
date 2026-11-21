@@ -17,6 +17,7 @@ import numpy as np
 import torch
 
 from .artifacts import Workspace, atomic_json, confined, read_json
+from .checkpoints import checkpoint_fields, current_checkpoint
 from .contracts import ContractError, DataInterface, ModelInterface, canonical_hash
 from .runtime import OperationContext
 from .supervised import _read_data, _resolved, train_supervised
@@ -273,7 +274,7 @@ def train_predictive_model(workspace: Workspace, sampled_dataset_id: str, config
         # The numerical stage has published and renamed its staging directory.
         # Record its real checkpoint before any cancellation/calibration check.
         context.emit({"event": "progress", "stage": "predictive_training", "supervised_model": supervised_id,
-            "epoch": nn_report["trained_epochs"], "checkpoint": str(supervised_root / "latest.pt"), "checkpoint_status": "published"})
+            **checkpoint_fields(current_checkpoint(supervised_root), "published")})
         context.check()
         if supervised_meta["validation"]["status"] != "verified":
             raise ContractError(f"Supervised NN failed its predeclared acceptance; inspect {supervised_id}")

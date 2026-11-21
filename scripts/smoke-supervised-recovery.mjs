@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { access, readFile, readdir } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import { confirmationRequirements } from '../harness-plugin/src/case-requirements.mjs';
 import { command, connectHarness, project, writeSmokeEvidence } from './harness-rpc.mjs';
@@ -61,7 +61,8 @@ def digest(state):
         elif isinstance(value,torch.Tensor): h.update(str(value.dtype).encode());h.update(str(list(value.shape)).encode());h.update(value.detach().cpu().contiguous().numpy().tobytes())
         else: h.update(repr(value).encode())
     return h.hexdigest()
-sidecar=json.loads(p.with_name('latest.checkpoint.json').read_text(encoding='utf-8'))
+sidecar_path=p.with_name('latest.checkpoint.json') if p.name=='latest.pt' else p.with_suffix('.json')
+sidecar=json.loads(sidecar_path.read_text(encoding='utf-8'))
 actual=hashlib.sha256(p.read_bytes()).hexdigest();assert sidecar['sha256']==actual
 print(json.dumps({'sha256':actual,'epoch':c['epoch'],'updates':c['updates'],'training_signature':c['training_signature'],
     'model_sha256':digest(c['model_state']),'optimizer_sha256':digest(c['optimizer_state']),
@@ -171,7 +172,7 @@ try {
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   assert.ok(killed.checkpoint);
   const checkpoint = resolve(killed.checkpoint), checkpointRelative = relative(workspace, checkpoint);
-  assert.ok(checkpointRelative.startsWith(`failed${sep}`) && checkpoint.endsWith(`${sep}latest.pt`));
+  assert.ok(checkpointRelative.startsWith(`failed${sep}`) && /^(latest|checkpoint-[0-9a-f]{32})\.pt$/.test(basename(checkpoint)));
   const before = JSON.parse(runPython(checkpointInfo, [checkpoint]));
   assert.ok(before.epoch >= 2 && before.epoch < trainingConfig.epochs);
   assert.ok(before.optimizer_steps.every(step => step === before.updates));

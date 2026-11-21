@@ -214,8 +214,9 @@ export async function freezeAudit(path,e,evidencePath,label){
 export const checkpointInspect=String.raw`import hashlib,json,sys,torch
 from pathlib import Path
 from control_harness.locking import process_alive
+from control_harness.checkpoints import checkpoint_sidecar
 p=Path(sys.argv[1]);c=torch.load(p,map_location='cpu',weights_only=True)
-side=json.loads(p.with_name('latest.checkpoint.json').read_text(encoding='utf-8'));sha=hashlib.sha256(p.read_bytes()).hexdigest();assert sha==side['sha256']
+side=json.loads(checkpoint_sidecar(p).read_text(encoding='utf-8'));sha=hashlib.sha256(p.read_bytes()).hexdigest();assert sha==side['sha256']
 intent=json.loads(p.with_name('stage.intent.json').read_text(encoding='utf-8'));assert side['stage_intent_sha256']==hashlib.sha256(p.with_name('stage.intent.json').read_bytes()).hexdigest()
 def digest(v):
  h=hashlib.sha256()

@@ -2,17 +2,18 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './panel.css';
 import { ArtifactReport } from './report.jsx';
 import { ParameterFields } from './form-fields.jsx';
-import { applySummary, initialDraft as newDraft, inputLabel, labels, normalizedResult, operationDefaults, operationGroups, operations, parseObject, reportReadOperation, requestSignature, roles as roleMetadata, setPath, signature, trainingOps, uploadAccept, workspaceKey } from './form-schema.mjs';
+import { ConfirmationCard } from './confirmation-card.jsx';
+import { initialDraft as newDraft, inputLabel, labels, normalizedResult, operationDefaults, operationGroups, operations, parseObject, reportReadOperation, requestSignature, roles as roleMetadata, setPath, signature, summaryConfig, trainingOps, uploadAccept, workspaceKey } from './form-schema.mjs';
 
 const roles = roleMetadata.map(role => ({ ...role, operations: [...operationGroups(role.id).flatMap(group => group.names).map(name => [name, labels[name] ?? name]), ['plan_workflow','预检显式工作流'], ['run_workflow','执行已审阅工作流'],['demo','完整仿真演示（需摘要确认）']] }));
 const storageKey = 'control-engineering.v1';
-const handoffs = Object.fromEntries(['transition_dataset','nominal_model','corrected_model','identified_model','learned_model','controller','controller_design','expert_dataset','imitation_policy','supervised_dataset','supervised_model','plant_model','sampled_dataset','external_expert','external_expert_dataset','external_imitation_policy','conditional_ode_problem','pinn_model','differentiable_validation','external_pgac_candidate','external_optimized_policy'].map(kind => [kind,true]));
+const handoffs = Object.fromEntries(['material','transition_dataset','nominal_model','reference_model','corrected_model','identified_model','learned_model','controller','controller_design','delivery_validation','expert_dataset','imitation_policy','supervised_dataset','supervised_model','plant_model','sampling_trial','sampled_dataset','external_expert','external_expert_dataset','external_imitation_policy','policy_evaluation','conditional_ode_problem','pinn_model','differentiable_validation','external_pgac_candidate','external_optimized_policy'].map(kind => [kind,true]));
 const initialDraft = newDraft;
 const defaults = new Proxy({}, { get: (_,name) => operationDefaults(name) });
 const requestAgent = (role,operation) => ['plan_workflow','run_workflow','demo'].includes(operation) ? 'workflow' : role;
 function useScopedState(key,initial) {
   const [values,setValues] = useState({});
-  return [Object.hasOwn(values,key) ? values[key] : initial, next => setValues(previous => ({ ...previous, [key]: typeof next === 'function' ? next(Object.hasOwn(previous,key) ? previous[key] : initial) : next }))];
+  return [Object.hasOwn(values,key) ? values[key] : initial, (next,target=key) => setValues(previous => ({ ...previous, [target]: typeof next === 'function' ? next(Object.hasOwn(previous,target) ? previous[target] : initial) : next }))];
 }
 function load() {
   try { const saved = JSON.parse(localStorage.getItem(storageKey)); if (saved?.version === 1) return { ...saved, projects: Object.fromEntries(Object.entries(saved.projects ?? {}).map(([key,value]) => { const index=key.lastIndexOf('::'); return [workspaceKey(key.slice(0,index),key.slice(index+2)),{...initialDraft(),...value}]; })) }; } catch { /* A malformed browser draft cannot become a task. */ }
@@ -21,11 +22,14 @@ function load() {
 const json = parseObject;
 function events(text) { return text.split('\n').flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } }); }
 const pretty = value => JSON.stringify(value, null, 2);
+const recoverySignature = ({operation, inputs, config}) => signature({operation,inputs:inputs??{},config:summaryConfig(config??{})});
+const canRecover = record => !record.recoveryBlocked && (record.outcome?.cleanupVerified===true ||
+  record.state==='interrupted' && record.authority==='ownership_lost');
 
 export function ControlIcon({ size = 20 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 18h18M5 15l4-8 5 5 5-9"/><circle cx="9" cy="7" r="2"/><circle cx="14" cy="12" r="2"/></svg>; }
 
 /** Keeps only form drafts in browser storage; authoritative tasks live in Harness. */
-export function ControlPanel({ createSession, openSession, listDirectory, submit, review, confirm, planStatus, status, history, recover, upload, download, downloadVerifiedFile, prompt, watchJobs, observeJob, cancel, useJobs }) {
+export function ControlPanel({ createSession, openSession, listDirectory, submit, review, prepareCard, cardStatus, confirmCard, planStatus, status, history, recover, upload, download, downloadVerifiedFile, prompt, watchJobs, observeJob, cancel, useJobs }) {
   const [state, renderState] = useState(load);
   const stateRef=useRef(state),persistenceError=useRef(''),sessionCache=useRef(new Map()),sessionPending=useRef(new Map()),artifactSelection=useRef(new Map()),artifactEpoch=useRef(new Map()),previewEpoch=useRef(new Map()),tableEpoch=useRef(new Map());
   const role = roles.find(item => item.id === state.role) ?? roles[0];
@@ -36,7 +40,8 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
   const [uploadProgress,setUploadProgress] = useScopedState(key,''), [uploadController,setUploadController] = useScopedState(key,null);
   const [directory,setDirectory] = useScopedState(key,null), [attempts,setAttempts] = useScopedState(key,[]), [selectedAttempt,setSelectedAttempt] = useScopedState(key,null);
   const [reportResult,setReportResult] = useScopedState(key,null), [filePreview,setFilePreview] = useScopedState(key,null), [downloaded,setDownloaded] = useScopedState(key,null);
-  const [fieldErrors,setFieldErrors] = useScopedState(key,{}), [summaryEdits,setSummaryEdits] = useScopedState(key,{}), [supportProgress,setSupportProgress] = useScopedState(key,'');
+  const [fieldErrors,setFieldErrors] = useScopedState(key,{}), [supportProgress,setSupportProgress] = useScopedState(key,'');
+  const [liveCard,setLiveCard] = useScopedState(key,null);
   const [handoffResult,setHandoffResult]=useScopedState(key,null),[artifactOptions,setArtifactOptions]=useScopedState(key,{});
   const [tablePreview,setTablePreview]=useScopedState(key,null);
   useEffect(()=>setFieldErrors({}),[key,draft.operation]);
@@ -79,6 +84,17 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     return () => { current = false; };
   }, [observed?.error, draft.attemptId, draft.sessionId, key, history]);
   async function action(fn) { setBusy(true); setError(''); try { await fn(); } catch (failure) { setError(failure.message ?? String(failure)); } finally { setBusy(false); } }
+  async function createOrAttach(forceNew=false) {
+    const saved = stateRef.current.projects[key]?.pendingSessionId;
+    try {
+      const id = await createSession(state.workspace.trim(),`${role.title} · ${state.workspace.trim().split(/[\\/]/).at(-1)}`,role.id,forceNew?undefined:saved);
+      if (saved) patch({pendingSessionId:null});
+      return id;
+    } catch (failure) {
+      if (failure.pendingSessionId) patch({pendingSessionId:failure.pendingSessionId});
+      throw failure;
+    }
+  }
   async function session(forWork = false) {
     if (!state.workspace.trim()) throw new Error('请先填写绝对工作目录');
     const current=stateRef.current.projects[key]??draft;
@@ -86,7 +102,7 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     const existing=current.roleSessionId??sessionCache.current.get(key);
     if (existing) { patch({ sessionId:existing });if(persistenceError.current)throw new Error(persistenceError.current);return existing; }
     if(sessionPending.current.has(key))return sessionPending.current.get(key);
-    const pending=(async()=>{const id=await createSession(state.workspace.trim(),`${role.title} · ${state.workspace.trim().split(/[\\/]/).at(-1)}`,role.id);
+    const pending=(async()=>{const id=await createOrAttach();
       sessionCache.current.set(key,id);const latest=stateRef.current.projects[key]??draft;
       const legacySessionIds=[...new Set([...(latest.legacySessionIds??[]),latest.sessionId].filter(value=>value&&value!==id))];patch({sessionId:id,roleSessionId:id,legacySessionIds,jobId:'',attemptId:''});if(persistenceError.current)throw new Error(persistenceError.current);return id;})();
     sessionPending.current.set(key,pending);try{return await pending;}finally{sessionPending.current.delete(key);}
@@ -95,7 +111,7 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     if(!state.workspace.trim())throw new Error('请先填写绝对工作目录');
     if(sessionPending.current.has(key))throw new Error('当前角色会话正在创建，请等待原请求结束');
     const pending=(async()=>{
-      const id=await createSession(state.workspace.trim(),`${role.title} · ${state.workspace.trim().split(/[\\/]/).at(-1)}`,role.id);
+      const id=await createOrAttach(true);
       const latest=stateRef.current.projects[key]??draft;
       const legacySessionIds=[...new Set([...(latest.legacySessionIds??[]),latest.roleSessionId,latest.sessionId].filter(value=>value&&value!==id))];
       let configText=latest.config;try{const stripRefs=value=>Array.isArray(value)?value.map(stripRefs):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).filter(([name])=>name!=='plan_refs').map(([name,item])=>[name,stripRefs(item)])):value;configText=pretty(stripRefs(json(configText)));}catch{/* Invalid drafts stay editable and cannot run. */}
@@ -108,7 +124,8 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
   }
   function selectOperation(operation) {
     const preset = defaults[operation] ?? { inputs: {}, config: {} };
-    editRequest({ operation, inputs: pretty(preset.inputs), config: pretty(preset.config) });setFieldErrors({});
+    const continuation=operation==='train_supervised' && draft.trainingReview;
+    editRequest({ operation, inputs: pretty(preset.inputs), config: pretty(continuation?.config ?? preset.config) });setFieldErrors({});
   }
   const currentRequest = () => ({ agent: requestAgent(role.id,draft.operation), operation:draft.operation, workspace:state.workspace.trim(), inputs:json(draft.inputs), config:json(draft.config) });
   async function support(operation,inputs={},config={}) {
@@ -125,37 +142,64 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
       }
     } finally { setSupportProgress(''); }
   }
+  const nextTrainingConfig = draft.nextTrainingConfig ?? operationDefaults('train_supervised').config;
+  async function reviewSession() {
+    if(!draft.recoveryDraft) return session(true);
+    if(draft.sessionId!==draft.recoveryDraft.sessionId) throw new Error('请在原任务所属会话中重新载入请求');
+    return draft.sessionId;
+  }
   async function prepareReview() {
-    const request=currentRequest(),sessionId=await session(true),actual=await review(sessionId,request),refs={},statuses={};
-    const snapshot={sessionId,requestSignature:requestSignature(request),requirements:actual.requirements,refs:{},statuses:{}};
-    patch({review:snapshot});
-    for(const row of actual.requirements) {
-      const plan=await support('propose_case_plan',{}, {scope:row.scope,payload:row.expectedPayload,bindings:row.bindings,dependencies:structuredClone(refs)});
-      refs[row.scope]={plan_id:plan.plan_id,version_hash:plan.version_hash};statuses[row.scope]=await planStatus(sessionId,state.workspace.trim(),refs[row.scope]);
-      patch({review:{...snapshot,refs:structuredClone(refs),statuses:structuredClone(statuses)}});
-    }
-    patch({config:pretty({...request.config,plan_refs:refs}),review:{...snapshot,refs,statuses}});
+    const request=currentRequest(), sessionId=await reviewSession();
+    if(draft.recoveryDraft && recoverySignature(request)!==draft.recoveryDraft.signature)
+      throw new Error('待恢复请求的参数已改变。请重新载入原请求，或开始独立任务。');
+    const settings={...request,config:{...request.config}};
+    delete settings.config.plan_refs;
+    if(draft.intentId) settings.intent_id=draft.intentId;
+    const includeTraining=request.operation==='prepare_supervised_dataset' && draft.includeTraining;
+    if(includeTraining) settings.next_training={config:nextTrainingConfig};
+    const card=await prepareCard(sessionId,settings);
+    // Persist the handle only. The signed scope content and status shown to the user always come from the Host.
+    const snapshot={sessionId,card_id:card.card_id,requestSignature:requestSignature(request),
+      recoverySignature:recoverySignature(request),workspace:card.workspace};
+    patch({intentId:card.intent_id??draft.intentId, review:snapshot,
+      trainingReview:includeTraining ? {...snapshot,config:nextTrainingConfig} : null});
+    setLiveCard(card);
   }
-  async function confirmReview() {
-    const snapshot=draft.review,request=currentRequest(),sessionId=await session(true),statuses={};
-    if(!snapshot||snapshot.requestSignature!==requestSignature(request)||snapshot.sessionId!==sessionId) throw new Error('请求或会话已改变，请重新生成实际摘要');
-    for(const row of snapshot.requirements) { const value=await planStatus(sessionId,state.workspace.trim(),snapshot.refs[row.scope]);
-      statuses[row.scope]=value.confirmation_state==='confirmed'?value:{...await confirm(sessionId,state.workspace.trim(),snapshot.refs[row.scope]),confirmation_state:'confirmed'}; }
-    patch({review:{...snapshot,statuses}});
+  async function updateReview(confirm) {
+    const saved=draft.review, sessionId=await reviewSession();
+    if(!saved?.card_id || saved.sessionId!==sessionId || saved.requestSignature!==requestSignature(currentRequest()))
+      throw new Error('请求或会话已改变，请重新生成实际摘要');
+    try {
+      const card=await (confirm ? confirmCard : cardStatus)(sessionId,saved);
+      if(card.card_id!==saved.card_id) throw new Error('收到的确认卡与当前版本不匹配');
+      setLiveCard(card);
+    } catch(error) { setLiveCard(null);throw error; }
   }
-  async function refreshReview() { const snapshot=draft.review;if(!snapshot)return;const sessionId=await session(true),statuses={};
-    for(const row of snapshot.requirements) statuses[row.scope]=await planStatus(sessionId,state.workspace.trim(),snapshot.refs[row.scope]);patch({review:{...snapshot,statuses}}); }
   async function run(request) {
     if(Object.values(fieldErrors).some(Boolean)) throw new Error('请先完成结构化字段中的 JSON');
     const target=request??currentRequest();
     if(target.operation==='inspect_table'){tableEpoch.current.set(key,(tableEpoch.current.get(key)??0)+1);setTablePreview(null);}
-    const sessionId=await session(true),actual=await review(sessionId,target),snapshot=draft.review;
-    if(actual.requirements.length) {
-      if(!snapshot||snapshot.sessionId!==sessionId||snapshot.requestSignature!==requestSignature(target)||signature(snapshot.requirements)!==signature(actual.requirements)) throw new Error('请先审阅并确认本次实际摘要；尚未派发计算。');
-      for(const row of actual.requirements) if((await planStatus(sessionId,state.workspace.trim(),snapshot.refs[row.scope])).confirmation_state!=='confirmed') throw new Error('当前版本尚未确认；尚未派发计算。');
-      target.config.plan_refs=snapshot.refs;
+    const sessionId=await session(true),snapshot=draft.review;
+    const current=snapshot?.sessionId===sessionId && snapshot.requestSignature===requestSignature(target);
+    const continuation=target.operation==='train_supervised' && draft.trainingReview?.sessionId===sessionId
+      && signature(summaryConfig(target.config??{}))===signature(draft.trainingReview.config) ? draft.trainingReview : null;
+    const card=(current && snapshot.card_id ? snapshot : continuation);
+    const submission={...target,config:{...target.config}};
+    if(card) {
+      delete submission.config.plan_refs;
+      submission.card_id=card.card_id;
+    } else {
+      const actual=await review(sessionId,target);
+      if(actual.requirements.length) {
+        // Authentic old confirmations can still run through their original v1 gate.
+        if(!current || !snapshot.refs || signature(snapshot.requirements)!==signature(actual.requirements))
+          throw new Error('请先生成并确认本次工程摘要。');
+        for(const row of actual.requirements) if((await planStatus(sessionId,state.workspace.trim(),snapshot.refs[row.scope])).confirmation_state!=='confirmed')
+          throw new Error('旧版摘要尚未确认。请生成当前确认卡。');
+        submission.config.plan_refs=snapshot.refs;
+      }
     }
-    const started=await submit(sessionId,target);setSelectedAttempt(null);patch({sessionId,jobId:started.jobId,attemptId:started.attemptId});
+    const started=await submit(sessionId,submission);setSelectedAttempt(null);patch({sessionId,jobId:started.jobId,attemptId:started.attemptId});
   }
   async function inspectArtifact(id) { const token=(artifactEpoch.current.get(key)??0)+1;artifactEpoch.current.set(key,token);artifactSelection.current.set(key,id);setFilePreview(null);setDownloaded(null);setHandoffResult(null);
     const value=await support('inspect_artifact',{artifact_id:id});if(artifactEpoch.current.get(key)===token){setReportResult(value);patch({artifactId:id});}return value; }
@@ -171,27 +215,83 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
   }
   function editRequest(change) { let next={...change};try {const config=json(next.config??draft.config),inputs=json(next.inputs??draft.inputs),operation=next.operation??draft.operation;
       const unchanged=requestSignature({agent:requestAgent(role.id,operation),operation,workspace:state.workspace.trim(),inputs,config})===requestSignature(currentRequest());
-      if(!unchanged){delete config.plan_refs;next={...next,config:pretty(config),review:null};}else if(draft.review?.refs)next.config=pretty({...config,plan_refs:draft.review.refs});
+      if(!unchanged){
+        delete config.plan_refs;next={...next,config:pretty(config),review:null};
+        if(draft.operation==='prepare_supervised_dataset'&&operation===draft.operation)next.trainingReview=null;
+      }else if(draft.review?.refs)next.config=pretty({...config,plan_refs:draft.review.refs});
     }catch {next.review=null;}patch(next); }
-  async function recoverAttempt(record, mode) {
-    const sessionId = await session();
-    if(record.owner!==sessionId||record.recoveryBlocked||record.outcome?.cleanupVerified!==true) throw new Error('原会话归属或资源退出尚未核实，不能恢复');
-    const started = await recover(sessionId, state.workspace.trim(), record.attemptId, mode);
+  async function archiveCheckpoint(record) {
+    const sessionId=await session();
+    if (record.owner!==sessionId || !canRecover(record) || !record.unpublishedStageId) throw new Error('请在原会话核验未发布的检查点。');
+    const started=await submit(sessionId,{agent:record.agentName,operation:'recover_interrupted_stage',
+      workspace:record.workspace,inputs:{stage_id:record.unpublishedStageId},config:{}});
     setSelectedAttempt(null);
-    patch({ sessionId, jobId: started.jobId, attemptId: started.attemptId });
+    patch({sessionId,jobId:started.jobId,attemptId:started.attemptId});
+  }
+  async function recoverAttempt(record, mode, checkpoint) {
+    const sessionId = await session();
+    if(record.owner!==sessionId||!canRecover(record)) throw new Error('原会话归属或资源退出尚未核实，不能恢复');
+    let cardId;
+    // No migration choice means the Host reads the original refs, including v1.
+    if(draft.recoveryDraft?.attemptId===record.attemptId) {
+      const original=recoverySignature(record.request), saved=draft.review;
+      if(draft.recoveryDraft.sessionId!==sessionId || saved?.sessionId!==sessionId || saved.recoverySignature!==original ||
+         recoverySignature(currentRequest())!==original) throw new Error('请先载入原请求并审阅完全相同的阶段、输入与配置。');
+      if(saved.card_id) {
+        const card=await cardStatus(sessionId,saved);
+        if(card.card_id!==saved.card_id || card.operation!==record.request.operation || !card.requirements?.length ||
+          !card.requirements.every(row=>card.statuses?.[row.scope]?.confirmation_state==='confirmed')) throw new Error('原任务的当前确认卡尚未签署。');
+        cardId=saved.card_id;
+      }
+    }
+    const started = await recover(sessionId, state.workspace.trim(), record.attemptId, mode, cardId, checkpoint);
+    setSelectedAttempt(null);
+    patch({ sessionId, jobId: started.jobId, attemptId: started.attemptId, recoveryDraft:null });
+  }
+  function loadRecoveryDraft(record) {
+    if(record.owner!==draft.sessionId || !canRecover(record) || record.agentName!==requestAgent(role.id,record.request.operation))
+      throw new Error('请在原任务所属角色和会话中载入可恢复请求。');
+    const {operation,inputs}=record.request, config={...record.request.config};
+    delete config.plan_refs;
+    patch({operation,inputs:pretty(inputs??{}),config:pretty(config),review:null,intentId:null,trainingReview:null,
+      includeTraining:false,recoveryDraft:{attemptId:record.attemptId,sessionId:record.owner,signature:recoverySignature(record.request),
+        resumable:Boolean(record.checkpoint||record.workflowRun||record.collectionCheckpoint)}});
+    setLiveCard(null);setFieldErrors({});
+  }
+  async function recoverLoaded(mode) {
+    const {sessionId,attemptId}=draft.recoveryDraft;
+    const {record}=await status(sessionId,state.workspace.trim(),attemptId);
+    await recoverAttempt(record,mode);
   }
   function parameter(name,value) { try { editRequest({ config:pretty(setPath(json(draft.config),name,value)) }); } catch(failure) {setError(failure.message);} }
   let config = {}; try { config = json(draft.config); } catch { /* JSON editor keeps incomplete input until submission. */ }
-  function adoptHandoff(plan) {
-    const { agent: next, operation, inputs, config_suggestions } = plan.handoff;
+  function adoptHandoff(route, workspace=state.workspace) {
+    const { agent: next, operation, inputs, config_suggestions } = route;
     if(!operation) return;
-    const destination = workspaceKey(state.workspace,next);
+    const destination = workspaceKey(workspace,next);
     const preset = defaults[operation];
-    setState(value => ({ ...value, role: next, projects: { ...value.projects, [destination]: { ...(value.projects[destination] ?? initialDraft()), operation,
-      inputs: pretty(inputs), config: pretty({ ...preset.config, ...config_suggestions }),review:null } } }));
-    setSelectedAttempt(null);
+    const continuation=destination===key && operation==='train_supervised' && draft.trainingReview?.sessionId===draft.roleSessionId && draft.trainingReview;
+    const nextConfig=summaryConfig(continuation ? continuation.config :
+      (operation==='sample_model'&&config_suggestions?.sampling ? config_suggestions : {...preset.config,...config_suggestions}));
+    const sameCard=destination===key && operation==='sample_model' && draft.review?.card_id &&
+      draft.review.sessionId===draft.roleSessionId && draft.review.requestSignature===requestSignature({agent:next,operation,workspace:workspace.trim(),inputs,config:nextConfig});
+    setState(value => {
+      const saved=value.projects[destination]??initialDraft();
+      return {...value,workspace,role:next,projects:{...value.projects,[destination]:{...saved,operation,
+        sessionId:saved.roleSessionId??'',jobId:'',attemptId:'',artifactId:null,
+        inputs:pretty(inputs),config:pretty(nextConfig),review:sameCard?draft.review:null,recoveryDraft:null,
+        ...(continuation?{}:{intentId:sameCard?draft.intentId:null,trainingReview:null,includeTraining:false,nextTrainingConfig:null})}}};
+    });
+    artifactSelection.current.delete(destination);
+    for(const epoch of [artifactEpoch,previewEpoch,tableEpoch])epoch.current.set(destination,(epoch.current.get(destination)??0)+1);
+    setSelectedAttempt(null,destination);if(!sameCard)setLiveCard(null,destination);setHandoffResult(null,destination);
+    setReportResult(null,destination);setFilePreview(null,destination);setDownloaded(null,destination);setTablePreview(null,destination);
   }
-  function handoff(artifactId) { return action(async()=>setHandoffResult(await support('prepare_handoff',{artifact_id:artifactId}))); }
+  function handoff(artifactId) {
+    const token=(artifactEpoch.current.get(key)??0)+1;artifactEpoch.current.set(key,token);setHandoffResult(null);
+    return action(async()=>{const plan=await support('prepare_handoff',{artifact_id:artifactId});
+      if(artifactEpoch.current.get(key)===token)setHandoffResult(plan);});
+  }
   const handoffPlan=handoffResult??result;
   useEffect(()=>{if(!draft.artifactId||!draft.roleSessionId||reportResult)return;let active=true;
     inspectArtifact(draft.artifactId).catch(failure=>{if(active)setError(`报告恢复失败：${failure.message}`);});return()=>{active=false;};},[key,draft.artifactId,draft.roleSessionId]);
@@ -199,11 +299,21 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     const poll=async()=>{try{const value=await status(draft.sessionId,state.workspace.trim(),draft.attemptId);if(!active)return;setSelectedAttempt(value.record);
       if(['completed','failed','killed'].includes(value.record.state)&&value.record.outcome?.cleanupVerified===true||value.record.state==='interrupted')return;
     }catch(failure){if(active)setError(`持久任务读取失败：${failure.message}`);}if(active)timer=setTimeout(poll,1200);};void poll();return()=>{active=false;clearTimeout(timer);};},[key,draft.sessionId,draft.attemptId]);
-  useEffect(()=>{if(!draft.review?.requirements?.length||!draft.roleSessionId)return;let active=true;const saved=draft.review;
-    Promise.all(saved.requirements.map(async row=>[row.scope,await planStatus(saved.sessionId,state.workspace.trim(),saved.refs[row.scope])])).then(rows=>{if(active)patch({review:{...saved,statuses:Object.fromEntries(rows)}});}).catch(failure=>{if(active){patch({review:{...saved,statuses:{}}});setError(`确认版本需重新审阅：${failure.message}`);}});return()=>{active=false;};},[key,draft.roleSessionId,draft.review?.requestSignature]);
+  useEffect(()=>{
+    const saved=draft.review;
+    if(!saved?.card_id || saved.sessionId!==(draft.recoveryDraft?.sessionId??draft.roleSessionId) || liveCard?.card_id===saved.card_id) return;
+    let active=true;
+    cardStatus(saved.sessionId,saved).then(card=>{
+      if(active && card.card_id===saved.card_id)setLiveCard(card);
+    }).catch(failure=>{if(active)setError(`确认卡需要重新读取：${failure.message}`);});
+    return()=>{active=false;};
+  },[key,draft.roleSessionId,draft.review?.card_id]);
+  const pendingReview=draft.review?.card_id && (draft.review.card_id!==liveCard?.card_id ||
+    liveCard.requirements.some(row=>liveCard.statuses?.[row.scope]?.confirmation_state!=='confirmed') ||
+    liveCard.matlab_scope && liveCard.matlab_grant?.state!=='active');
   return <div className="control-panel">
     <header><p className="control-kicker">CONTROL ENGINEERING / HARNESS</p><h1>模型、控制器与轻量化</h1><p>按所需阶段开始或结束。三个角色各自使用原生会话，计算由 Harness 后台作业执行。</p></header>
-    <label className="control-workspace">项目工作目录<input placeholder="D:\projects\control-agent-harness\workspaces\project-01" value={state.workspace} onChange={event => setState(value => ({ ...value, workspace: event.target.value }))}/><small>Windows 工作区需由当前用户拥有并授予其完全控制，供 Harness 配置沙箱。路径改变会切换该项目的会话与草稿。</small></label>
+    <label className="control-workspace">项目工作目录<input placeholder="D:\projects\control-agent-harness\workspaces\project-01" value={state.workspace} onChange={event => setState(value => ({ ...value, workspace: event.target.value }))}/><small>选择本机任务目录。打开会话和开始计算前会检查主机与数值进程的实际读写、替换和清理权限。路径改变会切换会话与草稿。</small></label>
     <button disabled={busy} onClick={() => action(async () => setDirectory(await listDirectory(state.workspace.trim() || undefined)))}>浏览工作目录</button>
     {directory && <section className="control-card" aria-label="工作目录浏览"><div className="control-row">{directory.crumbs.map(crumb => <button key={crumb.path} onClick={() => action(async () => setDirectory(await listDirectory(crumb.path)))}>{crumb.name}</button>)}</div><div className="control-directory">{directory.entries.map(entry => <button key={entry.path} onClick={() => action(async () => setDirectory(await listDirectory(entry.path)))}>{entry.name}</button>)}</div>{directory.truncated && <small>目录过多，当前仅显示前一部分。</small>}<div className="control-row"><button onClick={() => { setState(value => ({ ...value, workspace: directory.path })); setDirectory(null); }}>选择此目录</button><button onClick={() => setDirectory(null)}>关闭浏览</button></div></section>}
     <nav className="control-stages">{roles.map((item,index) => <button key={item.id} aria-pressed={role.id === item.id} onClick={() => setState(value => ({ ...value, role: item.id }))}><span>0{index+1}</span><strong>{item.title}</strong><small>{item.sub}</small></button>)}</nav>
@@ -221,19 +331,58 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
       <fieldset disabled={busy}><ParameterFields operation={draft.operation} config={config} set={parameter} onInvalid={(name,value)=>setFieldErrors(previous=>({...previous,[name]:value}))}/></fieldset>
       <details open={draft.mode==='expert'}><summary>高级配置 JSON · 与普通表单共用</summary><label>阶段配置<textarea disabled={busy} aria-label="阶段配置" rows={9} spellCheck={false} value={draft.config} onChange={event => editRequest({ config: event.target.value })}/></label></details>
       {trainingOps.has(draft.operation) && <label>训练检查点（留空从头训练）<input value={config.resume_checkpoint ?? ''} placeholder="failed/.../latest.pt 或产物内的检查点" onChange={event => { const next = { ...config }; delete next.resume_checkpoint_sha256; if (event.target.value.trim()) next.resume_checkpoint = event.target.value.trim(); else delete next.resume_checkpoint; patch({ config: pretty(next) }); }}/><small>训练轮数是总目标。恢复会核对依赖、配置、优化器和随机状态。</small></label>}
-      <section className="control-review" aria-label="实际摘要与原生确认"><h3>执行前审阅</h3><button disabled={busy||!state.workspace.trim()||Object.values(fieldErrors).some(Boolean)} onClick={()=>action(prepareReview)}>生成 / 更新实际摘要</button>
-      {draft.review&&<><p>{draft.review.requirements.length ? `本阶段需要 ${draft.review.requirements.length} 项摘要确认。` : '此操作没有工程确认范围，可直接执行。'}</p>{draft.review.requirements.map(row=><details key={row.scope} open><summary>{{signals:'信号与来源',sampling:'采样 / 仿真工况',training:'训练 / 数值配置'}[row.scope]} · {draft.review.statuses[row.scope]?.confirmation_state??'提案中'}</summary><small>{draft.review.refs[row.scope]?.plan_id} · {draft.review.refs[row.scope]?.version_hash}</small><pre className="control-summary">{pretty(row.expectedPayload)}</pre>
-      {row.scope!=='signals'&&<details><summary>编辑实际配置摘要</summary><textarea rows={8} value={summaryEdits[row.scope]??pretty(row.expectedPayload)} onChange={event=>setSummaryEdits(previous=>({...previous,[row.scope]:event.target.value}))}/><button disabled={busy} onClick={()=>action(async()=>editRequest({config:pretty(applySummary(config,summaryEdits[row.scope]??row.expectedPayload))}))}>应用到同一配置并重新审阅</button></details>}
-      {row.scope==='signals'&&<small>信号来自本次输入及其确切版本；需要修改时编辑接口 / 映射或重新登记材料，再更新摘要。</small>}<details><summary>材料 / 数据 / 依赖版本</summary><pre className="control-summary">{pretty(row.bindings)}</pre></details></details>)}
-      {draft.review.requirements.length>0&&<div className="control-row"><button disabled={busy||draft.review.requirements.some(row=>!draft.review.refs[row.scope])||draft.review.requirements.every(row=>draft.review.statuses[row.scope]?.confirmation_state==='confirmed')} onClick={()=>action(confirmReview)}>确认以上摘要</button><button disabled={busy} onClick={()=>action(refreshReview)}>读取原生确认状态</button></div>}</>}
+      <section className="control-review" aria-label="实际摘要与原生确认"><h3>执行前审阅</h3>
+      {draft.operation==='prepare_supervised_dataset'&&!draft.recoveryDraft&&<fieldset disabled={busy}><legend>本次任务范围</legend>
+        <select aria-label="本次任务范围" value={draft.includeTraining?'training':'dataset'} onChange={event=>{
+          patch({includeTraining:event.target.value==='training',review:null,trainingReview:null});
+          setFieldErrors(previous=>Object.fromEntries(Object.entries(previous).filter(([name])=>!name.startsWith('next.'))));
+        }}>
+          <option value="dataset">仅准备数据</option><option value="training">准备数据，同时审阅网络训练方案</option>
+        </select>
+        {draft.includeTraining&&<details><summary>调整本次一并确认的网络参数</summary>
+          <ParameterFields operation="train_supervised" config={nextTrainingConfig}
+            set={(name,value)=>patch({nextTrainingConfig:setPath(nextTrainingConfig,name,value),review:null,trainingReview:null})}
+            onInvalid={(name,value)=>setFieldErrors(previous=>({...previous,['next.'+name]:value}))}/>
+        </details>}
+      </fieldset>}
+      <div className="control-row"><button disabled={busy||!state.workspace.trim()||Object.values(fieldErrors).some(Boolean)} onClick={()=>action(prepareReview)}>生成 / 更新实际摘要</button>
+        {(draft.intentId||draft.recoveryDraft)&&<button disabled={busy} onClick={()=>{const next={...config};delete next.plan_refs;patch({config:pretty(next),intentId:crypto.randomUUID(),review:null,trainingReview:null,recoveryDraft:null});setLiveCard(null);}}>开始独立任务</button>}</div>
+      {draft.review && liveCard && liveCard.card_id===draft.review.card_id &&
+        <ConfirmationCard card={liveCard} disabled={busy} recovery={Boolean(draft.recoveryDraft)} onConfirm={()=>action(()=>updateReview(true))} onRefresh={()=>action(()=>updateReview(false))}/>}
+      {draft.review?.refs && !draft.review.card_id && <p>已保留旧版摘要。可使用原会话已签署的版本执行，或生成当前确认卡。</p>}
+      {draft.operation==='train_supervised' && !draft.review && draft.trainingReview && <p>已载入准备数据时一并审阅的训练配置。执行时将核对所选数据集的来源和本会话的确认记录。</p>}
       </section>{Object.values(fieldErrors).some(Boolean)&&<p className="control-error">结构化 JSON 尚未完整，请先修正再执行。</p>}{supportProgress&&<small>{supportProgress}</small>}
-      <div className="control-row"><button className="control-primary" disabled={busy||Object.values(fieldErrors).some(Boolean)} onClick={() => action(() => run())}>{busy ? '提交中…' : '执行阶段'}</button><button disabled={busy} onClick={() => action(() => run({ agent: role.id, operation: 'inspect_workspace', workspace: state.workspace.trim() }))}>刷新产物</button></div>
+      {draft.recoveryDraft&&<p>正在审阅原任务 {draft.recoveryDraft.attemptId}。确认后可重试，已有检查点或工作流记录时也可续接。</p>}
+      <div className="control-row">{draft.recoveryDraft?<><button disabled={busy||pendingReview||!draft.review} onClick={()=>action(()=>recoverLoaded('retry'))}>按已审阅请求重试</button>
+        {draft.recoveryDraft.resumable&&<button disabled={busy||pendingReview||!draft.review} onClick={()=>action(()=>recoverLoaded('resume'))}>按已审阅请求续接</button>}</>
+        :<button className="control-primary" disabled={busy||pendingReview||Object.values(fieldErrors).some(Boolean)} onClick={() => action(() => run())}>{busy ? '提交中…' : '执行阶段'}</button>}
+        <button disabled={busy} onClick={() => action(() => run({ agent: role.id, operation: 'inspect_workspace', workspace: state.workspace.trim() }))}>刷新产物</button></div>
       <details><summary>用对话调整任务</summary><textarea rows={3} value={draft.chat} placeholder="说明目标和希望修改的参数…" onChange={event => patch({ chat: event.target.value })}/><button disabled={busy || !draft.chat.trim()} onClick={() => action(async () => { const id = await session(true); await prompt(id, `当前角色：${role.title}。工作目录：${state.workspace.trim()}。\n当前请求：${pretty({ operation: draft.operation, inputs: json(draft.inputs), config: json(draft.config) })}\n用户要求：${draft.chat}\n使用 control_${role.id} 工具读取必要产物并执行；维度不一致时先解释并确认，不能默默截断或补零。`); })}>提交到 Harness 对话</button><small>使用 Harness 设置中的模型和凭据。</small></details>
       <details><summary>用户项目串联工作流</summary><p>选择含 steps 的流程 JSON。阶段通过 {`{"stage":"前一步ID"}`} 接力，也可直接填写已有产物 ID。先预检，再运行。</p><label>流程文件路径<input aria-label="流程文件路径" value={draft.workflowPath ?? ''} onChange={event => patch({ workflowPath: event.target.value })} placeholder="D:\project\workflow.json"/></label><div className="control-row">{[['plan_workflow','检查前置条件'],['run_workflow','载入流程请求以审阅']].map(([operation,label]) => <button key={operation} disabled={busy || !draft.workflowPath?.trim()} onClick={() => operation==='run_workflow' ? editRequest({operation,inputs:pretty({workflow_path:draft.workflowPath.trim()}),config:'{}'}) : action(() => run({ agent:'workflow',operation,workspace:state.workspace.trim(),inputs:{workflow_path:draft.workflowPath.trim()},config:{} }))}>{label}</button>)}</div><small>已完成阶段会保存产物。中断后在任务记录中选择续接；输入改变时须新建运行。</small></details>
       <details><summary>完整流程演示（明确的仿真对象）</summary><p>使用全新工作目录，串联残差训练、MPC 调参、专家采集和策略优化。演示数据不是实测数据。</p>{['linear','nonlinear'].map(name => <button key={name} disabled={busy} onClick={() => editRequest({operation:'demo',inputs:'{}',config:pretty({case:name})})}>{name === 'linear' ? '线性 4 状态 / 2 控制' : '非线性 2 状态 / 1 控制'}</button>)}</details>
     </section><section className="control-card"><h2>作业与结果</h2>
       {draft.legacySessionIds?.length > 0 && <label>查看会话任务<select aria-label="查看会话任务" value={draft.sessionId} onChange={event => { patch({ sessionId: event.target.value, jobId: '' }); setAttempts([]); setSelectedAttempt(null); }}><option value={draft.roleSessionId}>当前角色会话</option>{draft.legacySessionIds.map(id => <option key={id} value={id}>旧会话 · {id}</option>)}</select><small>旧会话及其任务记录仍可读取；新任务使用当前角色配置。</small></label>}
-      <details><summary>持久任务记录与恢复</summary><button disabled={busy} onClick={() => action(async () => { const value = await history(await session(), state.workspace.trim()); setAttempts(value.attempts); })}>刷新任务记录</button><p>记录属于当前角色会话。重试按原请求重新执行；续训恢复检查点，流程续接复用已核验阶段。</p>{attempts.slice(0,20).map(record => <div className="control-artifact" key={record.attemptId}><strong>{record.request.operation} · {record.state}</strong><code>{record.attemptId}</code><small>{record.detail}</small><button onClick={() => { setSelectedAttempt(record); patch({ jobId: record.authority === 'native_job' ? record.nativeJobId : '', attemptId:record.attemptId }); }}>查看记录结果</button>{['failed','killed','interrupted'].includes(record.state) && <><button disabled={busy || !!record.recoveryBlocked || record.outcome?.cleanupVerified!==true} onClick={() => action(() => recoverAttempt(record, 'retry'))}>按原请求重试</button>{(record.checkpoint || record.workflowRun) && <button disabled={busy || !!record.recoveryBlocked || record.outcome?.cleanupVerified!==true} onClick={() => action(() => recoverAttempt(record, 'resume'))}>{record.workflowRun ? '从已完成阶段续接' : '从检查点续训'}</button>}</>}{record.recoveryBlocked && <small>{record.recoveryBlocked}</small>}</div>)}</details>
+      <details><summary>持久任务记录与恢复</summary>
+        <button disabled={busy} onClick={() => action(async () => {const value=await history(await session(),state.workspace.trim());setAttempts(value.attempts);})}>刷新任务记录</button>
+        <p>重试会重新执行原请求。续接会新建作业，核验并复用已提交的训练状态、独立轨迹或工作流阶段。</p>
+        {attempts.slice(0,20).map(record => <div className="control-artifact" key={record.attemptId}>
+          <strong>{record.request.operation} · {record.state}</strong><code>{record.attemptId}</code><small>{record.detail}</small>
+          {record.limits && <small>数值排队 {record.limits.workerQueueSeconds} 秒，Python 协作截止 {record.limits.workerSeconds} 秒{record.limits.matlabSeconds && `，MATLAB 调用及排队 ${record.limits.matlabSeconds} 秒`}。辅助任务的网页观察窗口为 30 分钟。</small>}
+          {record.checkpoints?.[0] && <small>最近提交第 {record.checkpoints[0].epoch ?? '未知'} 轮，目标 {record.checkpoints[0].target ?? '未知'} 轮 · 优化器已更新 {record.checkpoints[0].updates ?? '未知'} 次。续训前重新核验文件。</small>}
+          {record.collectionCheckpoint && <small>已有 {record.collectionCheckpoint.completed} 条独立轨迹提交。续接会逐条核验，重新执行中断的轨迹。</small>}
+          {record.errorCode && <small>{record.errorCode} · {record.ioFailure?.operation} · {record.ioFailure?.path}</small>}
+          {record.checkpointFallbackReason && <small>已核验并选用保留的上一代。原因：{record.checkpointFallbackReason}</small>}
+          {record.stageFailure && <small>阶段目录 {record.stageFailure.retained_path} · {record.stageFailure.archive_state}。{record.stageFailure.archive_errors?.join('；')}</small>}
+          <button onClick={() => {setSelectedAttempt(record);patch({jobId:record.authority==='native_job'?record.nativeJobId:'',attemptId:record.attemptId});}}>查看记录结果</button>
+          {['failed','killed','interrupted'].includes(record.state) && <>
+            <button disabled={busy||!canRecover(record)} onClick={()=>action(()=>loadRecoveryDraft(record))}>载入原请求以审阅</button>
+            <button disabled={busy||!canRecover(record)} onClick={()=>action(()=>recoverAttempt(record,'retry'))}>按原请求重试</button>
+            {record.unpublishedStageId && <button disabled={busy||!canRecover(record)} onClick={()=>action(()=>archiveCheckpoint(record))}>校验并归档未发布检查点</button>}
+            {(record.checkpoint||record.workflowRun||record.collectionCheckpoint) && <button disabled={busy||!canRecover(record)||Boolean(record.unpublishedStageId)} onClick={()=>action(()=>recoverAttempt(record,'resume'))}>{record.workflowRun?'从已完成阶段续接':record.collectionCheckpoint?'从完整轨迹续接':'从检查点续训'}</button>}
+            {record.checkpoints?.[1]?.sha256 && record.checkpoints[1].epoch < record.checkpoints[0].epoch && <button disabled={busy||!canRecover(record)} onClick={()=>action(()=>recoverAttempt(record,'resume',record.checkpoints[1].path))}>选用上一代（第 {record.checkpoints[1].epoch} 轮）续训</button>}
+          </>}
+          {record.recoveryBlocked && <small>{record.recoveryBlocked}</small>}
+        </div>)}</details>
       <select aria-label="选择作业" value={draft.jobId} onChange={event => { patch({ jobId:event.target.value,attemptId:'' });setSelectedAttempt(null); }}><option value="">选择作业</option>{rows.map(item => <option key={item.id} value={item.id}>{item.label} · {item.status}</option>)}</select>
       {job && <div className="control-status"><strong>{job.status}</strong><span>{job.progress}</span>{!terminal && <button onClick={() => action(() => cancel(draft.sessionId, job.id))}>取消作业</button>}{terminal && job.status !== 'completed' && <small>读取原任务记录后显式重试 / 恢复；不自动重复派发。</small>}<small>{job.detail}</small></div>}
       {(observed?.error || observed?.gapBefore) && <p className="control-error">{observed.error ?? '较早日志已超出显示窗口，请查看工作区文件。'}</p>}
@@ -246,11 +395,13 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
       {result?.sampling&&<div className="control-handoff"><h3>采样建议已生成，尚未执行源对象</h3><small>{result.scope}</small><button disabled={busy} onClick={()=>editRequest({operation:'sample_model',inputs:pretty({model:result.model}),config:pretty({...operationDefaults('sample_model').config,sampling:result.sampling})})}>采用完整计划为采样草稿</button></div>}
       {result?.stages && <div><h3>流程前置条件：{result.status === 'ready' ? '通过' : '待修正'}</h3><small>{result.validation_scope}</small>{result.stages.map(stage => <p key={stage.id}>{stage.id} → {stage.output_kind} · {stage.status}</p>)}{result.errors?.map((item,index) => <p className="control-error" key={index}>{item.id}: {item.message}</p>)}</div>}
       {result?.workflow_run && <div><h3>流程运行</h3><code>{result.workflow_run}</code><pre className="control-logs">{pretty(result.steps)}</pre></div>}
-      {handoffPlan?.handoff && <div className="control-handoff"><h3>{handoffPlan.handoff.operation?'已校验的阶段接力':'已校验的产物与后续选择'}</h3>{handoffPlan.handoff.operation?<p>{handoffPlan.handoff.agent} → {handoffPlan.handoff.operation}</p>:<p>当前没有自动接续的阶段，可在此结束。后续任务需明确选择。</p>}<pre className="control-logs">{pretty(handoffPlan.handoff.inputs)}</pre>{handoffPlan.handoff.missing_inputs?.length > 0 && <p>待补充输入：{handoffPlan.handoff.missing_inputs.join('、')}</p>}{handoffPlan.handoff.missing_config?.length > 0 && <p>待设置工况：{handoffPlan.handoff.missing_config.join('、')}</p>}{handoffPlan.handoff.operation&&<><small>接力依赖选中产物及其确切版本。采用后请检查工况配置，再执行阶段。</small><button disabled={busy} onClick={() => adoptHandoff(handoffPlan)}>采用配置并切换</button></>}</div>}
+      {handoffPlan?.handoff && <HandoffOptions key={key+handoffPlan.artifact_id} plan={handoffPlan} busy={busy} onAdopt={adoptHandoff}/>}
       <details><summary>强制中断后的未发布检查点</summary><p>输入日志中记录的 .staging 阶段目录名。仅在操作系统确认原进程已退出、检查点及依赖校验通过后归档。</p><label>未发布阶段 ID<input value={draft.interruptedStage ?? ''} placeholder="corrected_model-12位十六进制ID" onChange={event => patch({ interruptedStage: event.target.value })}/></label><button disabled={busy || !draft.interruptedStage?.trim()} onClick={() => action(() => run({ agent: role.id, operation: 'recover_interrupted_stage', workspace: state.workspace.trim(), inputs: { stage_id: draft.interruptedStage.trim() } }))}>校验并归档检查点</button></details>
       {result?.status === 'archived' && result.checkpoint && <div><h3>检查点已归档</h3><p>已训练 {result.epoch} 轮。归档未启动训练。</p><code>{result.checkpoint}</code><small>SHA-256 {result.checkpoint_sha256}</small><button onClick={() => action(async () => { const operation = {residual_training:'train_residual',expert_imitation:'train_imitation',physical_policy_optimization:'optimize_policy',supervised_training:result.checkpoint_kind==='supervised_model'?'train_supervised':'train_external_imitation',conditional_ode_pinn:'train_pinn',external_physical_policy_optimization:'optimize_external_policy'}[result.algorithm]; if (draft.operation !== operation) throw new Error(`请先选择 ${operation} 并恢复原训练输入与配置，再采用此检查点`); patch({ config: pretty({ ...json(draft.config), resume_checkpoint: result.checkpoint, resume_checkpoint_sha256: result.checkpoint_sha256 }) }); })}>填入当前训练配置</button></div>}
       {result?.artifact_id && <div><h3>阶段产物</h3><code>{result.artifact_id}</code><p>{result.artifact_path}</p><p>状态：{result.status}</p>{result.status === 'verified' && handoffs[result.kind] && <button onClick={() => handoff(result.artifact_id, result.kind)}>交给下一阶段</button>}<button onClick={() => action(() => inspectArtifact(result.artifact_id))}>校验并查看报告</button></div>}
+      {result?.delivery && (!selectedReport?.delivery || result.artifact_id!==selectedReport.artifact_id) && <DeliveryEvidence delivery={result.delivery} busy={busy} onDownload={id=>action(()=>downloadBundle(id))}/>}
       {selectedReport&&<section aria-label="所选产物报告"><h3>所选报告 · {selectedReport.kind} · {selectedReport.status}</h3><code>{selectedReport.artifact_id}</code><small>{selectedReport.artifact_path}</small>
+      {selectedReport.delivery&&<DeliveryEvidence delivery={selectedReport.delivery} busy={busy} onDownload={id=>action(()=>downloadBundle(id))}/>}
       <button disabled={busy} onClick={()=>action(()=>downloadBundle(selectedReport.artifact_id))}>下载已校验导出 ZIP</button>{downloaded&&<small>{downloaded.filename} · {downloaded.bytes} 字节 · SHA-256 {downloaded.sha256}</small>}
       {selectedReport.report&&<><ArtifactReport key={selectedReport.artifact_id} report={selectedReport.report} modelInterface={selectedReport.metadata?.interface} artifact={selectedReport} onReadFile={(name,config)=>readFile(selectedReport.artifact_id,name,config)} onDownloadBundle={()=>downloadBundle(selectedReport.artifact_id)}/><details><summary>有界报告预览 JSON（完整 report.json 见文件下载）</summary><pre className="control-logs">{pretty(selectedReport.report)}</pre></details></>}
       <details><summary>已校验文件与接口</summary>{selectedReport.files?.map(file=><div key={file.name} className="control-artifact"><code>{file.name}</code><small>{file.path}</small><button disabled={busy} onClick={()=>action(()=>readFile(selectedReport.artifact_id,file.name))}>预览此文件</button><button disabled={busy||!selectedReport.metadata?.files?.[file.name]} onClick={()=>action(()=>downloadFile(selectedReport,file))}>下载完整文件 · {file.name}</button></div>)}<pre className="control-logs">{pretty(selectedReport.metadata?.interface)}</pre></details></section>}
@@ -260,6 +411,62 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     </section></div>
   </div>;
 }
+function HandoffOptions({plan,busy,onAdopt}) {
+  const [destination,setDestination]=useState(''), [targetRole,setTargetRole]=useState(plan.handoff.agent);
+  const [datasetChoices,setDatasetChoices]=useState({});
+  const routes=[plan.handoff,...(plan.optional_handoffs??[])], transfer=plan.transfer;
+  const methodNames={sampled_affine:'在采样范围内辨识仿射模型',declared_equations:'用采样轨迹核验已登记方程',linearize:'指定工作点局部线性化',
+    standalone_python:'独立 Python 运行',workspace_controller:'登记工作区可执行控制器'};
+  const path=destination.trim();
+  const validDestination=(/^[A-Za-z]:[\\/]/.test(path)||/^\/(?!\/)/.test(path)) &&
+    !path.split(/[\\/]/).includes('..') && workspaceKey(path,targetRole)!==workspaceKey(transfer?.workspace,targetRole);
+  return <section className="control-handoff" aria-label="产物交接"><h3>产物交接</h3>
+    {routes.map((route,index)=>{
+      const title=labels[route.operation]??route.operation, variant=methodNames[route.config_suggestions?.method??route.config_suggestions?.prediction?.method??route.config_suggestions?.target];
+      const selected=route.candidate_datasets?.includes(datasetChoices[index])?datasetChoices[index]:null;
+      const missing=route.missing_inputs?.filter(name=>!(name==='dataset'&&selected));
+      const prepared=selected?{...route,inputs:{...route.inputs,dataset:selected}}:route;
+      return <div key={index}><strong>{route.operation?[title,variant].filter(Boolean).join(' · '):'当前阶段可以结束'}</strong>
+        {route.scope&&<p>{route.scope}</p>}
+        {route.applicability&&<details><summary>预测器适用工况与物理范围</summary><pre className="control-logs">{pretty(route.applicability)}</pre></details>}
+        {missing?.length>0&&<p>待补充输入：{missing.map(inputLabel).join('、')}</p>}
+        {route.missing_config?.length>0&&<p>待明确：{route.missing_config.join('、')}</p>}
+        {route.candidate_datasets?.length>0&&<label>同源采样数据<select value={selected??''} onChange={event=>setDatasetChoices({...datasetChoices,[index]:event.target.value})}>
+          <option value="">请选择采样版本</option>{route.candidate_datasets.map(id=><option key={id} value={id}>{id}</option>)}</select></label>}
+        {route.operation&&<><details><summary>输入与建议配置</summary><pre className="control-logs">{pretty({inputs:prepared.inputs,config:route.config_suggestions})}</pre></details>
+          <button disabled={busy||!!route.blocked} onClick={()=>onAdopt(prepared)}>{index===0?'采用配置并切换':`准备${variant??title}草稿`}</button></>}
+      </div>;
+    })}
+    {plan.source_versions?.length>0&&<details><summary>来源工作区与已校验版本</summary><p>{transfer?.workspace}</p>
+      {plan.source_versions.map(row=><p key={row.id}><code>{row.id}</code> · SHA-256 {row.metadata_hash}</p>)}</details>}
+    {transfer?.mode==='explicit_artifact_closure'&&<details><summary>交给其他工作区</summary>
+      <p>从来源目录导入选中版本及父依赖，在目标角色会话中审阅后执行。</p>
+      <label>目标工作区绝对路径<input value={destination} onChange={event=>setDestination(event.target.value)}/></label>
+      <label>目标角色<select value={targetRole} onChange={event=>setTargetRole(event.target.value)}>
+        {roles.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+      <button disabled={busy||!validDestination} onClick={()=>onAdopt({agent:targetRole,operation:'import_artifact',inputs:{
+        artifact_path:transfer.artifact_path,expected_artifact_id:transfer.artifact_id,expected_metadata_hash:transfer.metadata_hash,
+        expected_project_id:transfer.project_id}},destination.trim())}>在目标工作区准备导入</button></details>}
+  </section>;
+}
+
+function DeliveryEvidence({delivery,busy,onDownload}) {
+  const checks={files:'文件与哈希',load:'加载',single_point:'指定单点',standalone:'独立运行',closed_loop:'闭环工况',
+    workspace_controller:'工作区可执行控制器',matlab:'MATLAB',simulink:'Simulink'};
+  const states={artifact_ready:'产物已就绪',partial:'部分完成',failed:'失败',not_run:'尚未运行',not_applicable:'不适用',passed:'通过'};
+  const targets={published_artifact:'原产物（未指定本次验收目标）',standalone_python:'独立 Python 运行',workspace_controller:'工作区可执行控制器'};
+  const label=value=>states[value]??value;
+  return <section aria-label="交付验收证据"><h3>交付验收 · {label(delivery.status)}</h3>
+    <p>目标：{targets[delivery.target]??delivery.target??targets.published_artifact} · 用户要求：{delivery.request_satisfied===true?'已满足':delivery.request_satisfied===false?'尚未满足':'待核实'}</p>
+    <ul>{Object.entries(delivery.checks??{}).map(([name,value])=><li key={name}>{checks[name]??name} · {label(value)}</li>)}</ul>
+    {delivery.missing_requirements?.length>0&&<p>待补充：{delivery.missing_requirements.map(name=>checks[name]??({expected_action:'期望控制量',bundle_manifest:'设计包清单',current_dependencies:'当前依赖版本'}[name])??name).join('、')}</p>}
+    {delivery.details&&<p>{typeof delivery.details==='string'?delivery.details:pretty(delivery.details)}</p>}
+    <details><summary>验收记录与来源</summary><code>{delivery.artifact_id}</code><p>{delivery.source_artifact}</p>
+      {delivery.manifest_sha256&&<p>SHA-256 {delivery.manifest_sha256}</p>}{delivery.report_file&&<p>{delivery.report_file}</p>}</details>
+    {delivery.bundle_artifact&&<button disabled={busy} onClick={()=>onDownload(delivery.bundle_artifact)}>下载本次验收的设计包</button>}
+  </section>;
+}
+
 function LossChart({ values }) {
   const lastStage = values.findLast(row => Number.isFinite(row.validation_loss))?.stage;
   const rows = values.filter(row => row.stage === lastStage && Number.isFinite(row.validation_loss));

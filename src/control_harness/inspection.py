@@ -43,8 +43,118 @@ def report_preview(path: Path) -> dict:
     return preview
 
 
+def artifact_capabilities(workspace: Workspace, artifact_id: str, *, _closure=None) -> dict:
+    """从选中分支的描述和文件推导可选入口；不运行上传代码，也不产生运行证明。"""
+    closure = _closure if _closure is not None else workspace.resolve_closure(artifact_id)
+    root, meta = closure[artifact_id]
+    kind, members = meta["kind"], meta["files"]
+    representation, backend, missing = None, None, []
+    prediction = False
+    if kind in MODEL_KINDS:
+        required = {"nominal_model": ["model.json"], "reference_model": ["model.json"], "identified_model": ["model.json"],
+                    "corrected_model": ["nominal.json", "network.json", "scalers.json", "model.pt"],
+                    "learned_model": ["learned.json", "model.pt", "features.json", "scaler.json", "network_config.json", "data_interface.json"]}[kind]
+        if "model.json" in members:
+            representation = read_json(root / "model.json").get("representation")
+            if representation in {"python_torch_derivative", "python_torch_transition"}:
+                required = [*required, "source.py", "python-validation.json"]
+            if representation in {"continuous_polynomial", "python_torch_derivative"}:
+                required = [*required, "transition_adapter.json"]
+        else:
+            representation = {"corrected_model": "residual", "learned_model": "learned_state_transition"}.get(kind)
+        missing = [name for name in required if name not in members]
+        prediction = not missing and representation in {"discrete_polynomial", "continuous_polynomial", "python_torch_transition",
+                                                         "python_torch_derivative", "residual", "learned_state_transition"}
+    if kind == "plant_model":
+        if "plant.json" in members:
+            from .plants import validate_plant_spec
+            definition = read_json(root / "plant.json")
+            spec = validate_plant_spec(definition["adapter_spec"])
+            ModelInterface.parse(meta["interface"]).compatible(ModelInterface.parse(spec["interface"]))
+            material_id = definition.get("material")
+            if material_id not in {parent["id"] for parent in meta["parents"]} or closure[material_id][1]["kind"] != "material":
+                raise ContractError("对象描述中的来源材料与已验证的父产物不一致")
+            material_root, material = closure[material_id]
+            if (spec["source_file"] not in material["files"] or
+                    read_json(material_root / "material.json")["content_hash"] != definition.get("material_content_hash")):
+                raise ContractError("对象适配器与原材料快照的内容版本不一致")
+            backend = spec["backend"]
+        else:
+            missing = ["plant.json"]
+    descriptor = read_json(root / "controller.json") if kind == "controller" and "controller.json" in members else {}
+    if kind == "controller_design":
+        missing = [name for name in ("design.json", "bundle/bundle_manifest.json") if name not in members]
+    if kind == "controller" and not descriptor:
+        missing = ["controller.json"]
+    design = kind == "controller_design" and not missing
+    for field in ("prediction_model", "evaluation_model"):
+        bound = descriptor.get(field)
+        if bound is not None and (not isinstance(bound, str) or bound not in closure or closure[bound][1]["kind"] not in MODEL_KINDS):
+            raise ContractError(f"控制器的 {field} 未绑定可追溯的预测模型版本")
+    predictor = descriptor.get("prediction_model")
+    executable = (kind == "controller" and isinstance(descriptor.get("parameters"), dict) and bool(predictor)
+                  and artifact_capabilities(workspace, predictor, _closure=closure)["capabilities"]["prediction"])
+    from .plants import LEGACY_MODELS
+    capabilities = {"sampling": bool(backend) or (prediction and kind in LEGACY_MODELS), "prediction": prediction,
+                    "original_plant": bool(backend), "reference_dynamics": prediction and kind == "reference_model",
+                    "controller_design": design, "executable_controller": executable,
+                    "expert_dataset": (kind == "external_expert_dataset" and "expert.npz" in members) or
+                                     (kind == "expert_dataset" and "expert.npz" in members)}
+    return {"artifact_id": artifact_id, "kind": kind, "workspace": str(workspace.path),
+            "project_id": workspace.manifest["project_id"], "capabilities": capabilities,
+            "evidence": "verified_files_and_descriptor", "load_check": "not_run",
+            "backend": backend, "representation": representation, "missing_files": missing, "interface": meta["interface"],
+            "source_versions": [{"id": item["id"], "kind": item["kind"], "metadata_hash": canonical_hash(item)}
+                                for _, item in closure.values()]}
+
+
 def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
-    root, metadata = workspace.resolve(artifact_id)
+    """交接只返回精确版本和下一步草案；迁入工作区与下一角色仍要经过各自会话的门禁。"""
+    closure = workspace.resolve_closure(artifact_id)
+    root, metadata = closure[artifact_id]
+    info = artifact_capabilities(workspace, artifact_id, _closure=closure)
+    result = _handoff_routes(workspace, artifact_id, root, metadata, closure, info)
+    result.update(source_versions=info["source_versions"], artifact_capabilities=info["capabilities"],
+                  transfer={"mode": "explicit_artifact_closure", "workspace": str(workspace.path),
+                            "project_id": info["project_id"], "artifact_path": str(root),
+                            "artifact_id": artifact_id, "metadata_hash": canonical_hash(metadata),
+                            "target_session_review": "required_for_confirmed_operations"})
+    return result
+
+
+def _conversion_routes(plant_id, adapter, dataset_id=None, candidates=()):
+    """按不可变来源给出转换草案；从对象出发时所有数据集都由用户显式选择。"""
+    if adapter["backend"] != "python_callable":
+        return []
+    routes = []
+    for method in ("declared_equations", "sampled_affine"):
+        inputs = {"plant": plant_id, "dataset": dataset_id or ""}
+        missing = [] if dataset_id else ["dataset"]
+        if method == "declared_equations":
+            inputs["equations"] = ""
+            missing.append("equations")
+            scope = "选择已登记且单位、采样周期、输出定义相符的方程，用原对象独立轨迹核验。"
+        else:
+            scope = "仅在确认采样覆盖范围内可用仿射近似时选择。独立轨迹检验单步和多步预测，保留原对象。"
+        questions = [] if dataset_id else ["选择此对象版本的完整采样数据（含状态、动作、独立验证和测试轨迹）"]
+        if method == "sampled_affine" and adapter.get("C") is None:
+            questions.append("缺少输出矩阵 C。请补充状态到输出的已知线性映射并重新登记采样，或提供明确方程。")
+        routes.append({"agent": "model", "operation": "convert_plant_predictor", "inputs": inputs,
+                       "missing_inputs": missing, "missing_config": questions, "config_suggestions": {"method": method},
+                       "candidate_datasets": list(candidates), "scope": scope,
+                       "blocked": method == "sampled_affine" and adapter.get("C") is None})
+    return routes
+
+
+def _handoff_routes(workspace, artifact_id, root, metadata, closure, info):
+    kind = metadata["kind"]
+    needed = "prediction" if kind in MODEL_KINDS else {
+        "controller": "executable_controller", "plant_model": "sampling", "controller_design": "controller_design"}.get(kind)
+    if needed and not info["capabilities"][needed]:
+        missing = info["missing_files"] or ["核对描述文件中的表示、模型来源及执行参数"]
+        return {"artifact_id": artifact_id, "kind": kind, "status": "unsupported", "handoff": {
+            "agent": "controller" if kind.startswith("controller") else "model", "operation": None, "inputs": {},
+            "missing_inputs": [], "missing_config": missing, "scope": "该版本缺少对应执行接口的证据。"}}
     if metadata["kind"] == "differentiable_validation":
         from .differentiable_validation import read_differentiable_validation
         report = read_differentiable_validation(workspace, artifact_id)
@@ -175,26 +285,46 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
         if design.get("model_instantiated") and predictor_id:
             if predictor_id not in {parent["id"] for parent in metadata["parents"]}:
                 raise ContractError("Design predictor is not a bound artifact dependency")
-            workspace.resolve(predictor_id)
             optional.append({"agent":"controller", "operation":"tune_controller",
                 "inputs":{"model":predictor_id,"evaluation_model":""},"missing_inputs":["evaluation_model"],
                 "missing_config":["evaluation","tuning_scenarios","verification_scenarios","test_scenarios"],
                 "config_suggestions":{"parameters":{**design.get("controller_config",{}),**design.get("weights",{})}},
                 "scope":"Optional preference tuning requires a separately selected compatible executable evaluation model and independent conditions."})
+        spec = prediction.get("spec") or {}
+        portable = spec.get("representation") in {"continuous_polynomial", "discrete_polynomial"}
+        if design.get("model_instantiated") and portable:
+            physical = ModelInterface.parse(design["physical_interface"])
+            parent_ok = predictor_id and closure[predictor_id][1]["kind"] in {"nominal_model", "reference_model", "identified_model"}
+            targets = ["standalone_python"] + (["workspace_controller"] if parent_ok else [])
+            for target in targets:
+                optional.append({"agent": "controller", "operation": "verify_design_delivery",
+                    "inputs": {"design": artifact_id}, "missing_inputs": [],
+                    "missing_config": ["case.x", "case.reference"] + (["case.disturbance"] if physical.nd else []),
+                    "config_suggestions": {"target": target, "case": {}},
+                    "scope": "请填写验收工况和用户要求的证据层级，可指定期望控制量与容差。"})
         return {"artifact_id": artifact_id, "kind": "controller_design", "status": "design_complete", "handoff": {
             "agent": "controller", "operation": None, "inputs": {"design": artifact_id}, "missing_inputs": [],
-            "missing_config": [], "config_suggestions": {}, "interface": metadata["interface"],
+            "missing_config": design.get("required_parameters", []) + (["当前交付验收器支持声明式离散或连续多项式方程；此表示需要相应的运行校验器。"]
+                                if design.get("model_instantiated") and not portable else []),
+            "config_suggestions": {}, "interface": metadata["interface"],
             "scope": "Design delivery only. Parameterization, numerical solve checks and closed-loop evaluation are separate states.",
             "design_status": design.get("status"), "model_instantiated": design.get("model_instantiated", False)},
             "optional_handoffs": optional,
             "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
     if metadata["kind"] == "plant_model":
+        adapter = read_json(root / "plant.json")["adapter_spec"]
+        # 清单中的候选仅用于导航。选择后重新验证完整闭包；从单个对象不能推出唯一采集工况。
+        candidates = [item_id for item_id, row in workspace.manifest["artifacts"].items()
+                      if row["status"] == "verified" and row["kind"] == "sampled_dataset" and row["parents"] == [artifact_id]]
         return {"artifact_id": artifact_id, "kind": "plant_model", "status": "ready", "handoff": {
             "agent": "model", "operation": "recommend_sampling", "inputs": {"model": artifact_id},
             "missing_inputs": [], "missing_config": [], "interface": metadata["interface"], "config_suggestions": {}},
-            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+            "optional_handoffs": _conversion_routes(artifact_id, adapter, candidates=sorted(candidates))}
     if metadata["kind"] == "sampling_trial":
         config = read_json(root / "config.json")
+        # 试采的确认和恢复句柄属于原会话。新工作区/角色要自行准备完整计划。
+        config = {key: value for key, value in config.items() if key not in
+                  {"plan_refs", "resume_run", "resume_checkpoint", "resume_checkpoint_sha256"}}
         model = metadata["source"]["model"]
         if model not in [item["id"] for item in metadata["parents"]]:
             raise ContractError("Sampling trial does not bind its declared plant")
@@ -212,8 +342,15 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
             raise ContractError("Sampled dataset does not bind its declared plant")
         model_root, model_meta = workspace.resolve(model_id)
         C = None
+        conversion = []
         if model_meta["kind"] == "plant_model":
-            C = read_json(model_root / "plant.json")["adapter_spec"].get("C")
+            adapter = read_json(model_root / "plant.json")["adapter_spec"]
+            C = adapter.get("C")
+            if ([parent["id"] for parent in metadata["parents"]] == [model_id]
+                    and metadata["source"].get("kind") == "plant_simulator"
+                    and metadata["source"].get("backend") == adapter["backend"]
+                    and {"transitions.npz", "split.json"}.issubset(metadata["files"])):
+                conversion = _conversion_routes(model_id, adapter, dataset_id=artifact_id)
         elif "model.json" in model_meta["files"]:
             C = read_json(model_root / "model.json").get("C")
         elif "nominal.json" in model_meta["files"]:
@@ -224,28 +361,20 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
             "agent": "model", "operation": "train_predictive_model", "inputs": {"dataset": artifact_id}, "missing_inputs": [],
             "missing_config": ["Review and confirm the prediction training summary"] + ([] if C is not None else ["Explicit state-only output matrix C consistent with sampled outputs"]),
             "interface": metadata["interface"], "config_suggestions": suggestions},
-            "source_versions": [{"id": artifact_id, "metadata_hash": canonical_hash(metadata)}]}
+            "optional_handoffs": conversion}
+    if metadata["kind"] == "delivery_validation":
+        return {"artifact_id": artifact_id, "kind": kind, "status": "complete", "handoff": {
+            "agent": "controller", "operation": None, "inputs": {"validation": artifact_id},
+            "missing_inputs": [], "missing_config": [], "scope": "验收记录的逐项结果见交付报告。"}}
     selected_interface = ModelInterface.parse(metadata["interface"])
-    ancestors = {}
-
-    def visit(item_id):
-        if item_id in ancestors:
-            return
-        item_root, item = workspace.resolve(item_id)
-        # Learned physical models carry supervised datasets and immutable source
-        # materials in their provenance closure. Only physical interfaces share
-        # nx/nu/ny; dimensionless/data interfaces must retain their own meaning.
-        if item["interface"].get("interface_kind") is None:
-            selected_interface.compatible(ModelInterface.parse(item["interface"]))
-        ancestors[item_id] = (item_root, item)
-        for parent in item["parents"]:
-            visit(parent["id"])
-
-    visit(artifact_id)
+    ancestors = closure
 
     def bound(value, kinds):
         if value not in ancestors or ancestors[value][1]["kind"] not in kinds:
             raise ContractError("Selected artifact descriptor refers to an incompatible or unbound dependency")
+        # 只对要一起执行的输入核对物理接口。局部线性化后的状态范围可以严于原对象，
+        # 数据集和材料又使用其他接口；祖先作为来源不等于它们都可直接参与当前运算。
+        selected_interface.compatible(ModelInterface.parse(ancestors[value][1]["interface"]))
         return value
 
     def reference_model():
@@ -255,7 +384,8 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
         for _, item in ancestors.values():
             if item["kind"] == "sampled_dataset":
                 original = item.get("source", {}).get("model")
-                if original in ancestors and ancestors[original][1]["kind"] in MODEL_KINDS:
+                if (original in ancestors and ancestors[original][1]["kind"] in MODEL_KINDS and
+                        ModelInterface.parse(ancestors[original][1]["interface"]).fingerprint == selected_interface.fingerprint):
                     candidates.add(bound(original, MODEL_KINDS))
                 continue
             if item["kind"] != "transition_dataset":
@@ -263,40 +393,64 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
             source = item["source"]
             if source.get("kind") == "reference_simulator":
                 if source.get("reference_artifact"):
-                    candidates.add(bound(source["reference_artifact"], MODEL_KINDS))
+                    candidate = source["reference_artifact"]
+                    if candidate not in ancestors:
+                        raise ContractError("Reference simulator is missing from the selected data branch")
+                    if ModelInterface.parse(ancestors[candidate][1]["interface"]).fingerprint == selected_interface.fingerprint:
+                        candidates.add(bound(candidate, MODEL_KINDS))
                 else:
-                    candidates.update(p["id"] for p in item["parents"] if ancestors[p["id"]][1]["kind"] == "reference_model")
+                    candidates.update(p["id"] for p in item["parents"] if ancestors[p["id"]][1]["kind"] == "reference_model"
+                                      and ModelInterface.parse(ancestors[p["id"]][1]["interface"]).fingerprint == selected_interface.fingerprint)
         return next(iter(candidates)) if len(candidates) == 1 else None
 
     kind = metadata["kind"]
     suggestions, missing_config, optional_handoffs = {}, [], []
-    if kind in {"nominal_model", "corrected_model", "identified_model", "learned_model"}:
+    scope = None
+    applicability = metadata.get("source", {}).get("applicability")
+    if kind in MODEL_KINDS:
         agent, operation = "controller", "synthesize_mpc"
         inputs = {"model": artifact_id}
         suggestions = {"prediction": {"method": "direct"}}
+        if applicability:
+            scope = "预测能力仅在转换报告记录的工况及误差门限内核验。"
         evaluation = reference_model()
         optional_handoffs.append({"agent": "controller", "operation": "tune_controller",
             "inputs": {"model": artifact_id, "evaluation_model": evaluation or ""},
             "missing_inputs": [] if evaluation else ["evaluation_model"],
             "missing_config": ["evaluation", "tuning_scenarios", "verification_scenarios", "test_scenarios"],
             "scope": "Optional external-preference tuning; not required for a design-only request"})
+        optional_handoffs.append({"agent": "controller", "operation": "synthesize_mpc", "inputs": inputs,
+            "missing_inputs": [], "missing_config": ["prediction.operating_point", "prediction.validity_bounds"],
+            "config_suggestions": {"prediction": {"method": "linearize"}},
+            "scope": "需要局部线性 MPC 时，指定实际平衡点或工作点及有效范围。保留原非线性预测器和线性化依据。"})
     elif kind == "controller":
         agent, operation = "lightweight", "collect_expert"
         descriptor = read_json(root / "controller.json")
-        inputs = {"controller": artifact_id, "evaluation_model": bound(descriptor["evaluation_model"], MODEL_KINDS)}
-        missing_config = ["scenarios (at least five independent conditions)"]
+        evaluation = descriptor.get("evaluation_model")
+        from .plants import controller_callable_source
+        original = controller_callable_source(artifact_id, closure)
+        inputs = {"controller": artifact_id,
+                  "evaluation_model": original or (bound(evaluation, MODEL_KINDS) if evaluation else None)}
+        missing_config = ["至少五个独立采集工况（初始状态、参考目标、扰动、步数）"]
+        scope = ("使用转换时直接绑定的原 python_callable 对象闭环采集；每条轨迹从其声明的初态重新开始。"
+                 if original else "选择接口相符的评价对象。登记方程产生的仿真按该方程评价，原对象实测需另行验证。")
+        applicability = descriptor.get("applicability")
     elif kind == "expert_dataset":
         agent, operation = "lightweight", "train_imitation"
         inputs = {"dataset": artifact_id}
         input_dim, output_dim = validate_network_dimensions(selected_interface, {}, residual=False)
         suggestions = {"architecture": "mlp", "input_dim": input_dim, "output_dim": output_dim}
     elif kind == "imitation_policy":
-        agent, operation = "lightweight", "optimize_policy"
+        agent, operation = "lightweight", None
         descriptor = read_json(root / "policy.json")
         controller_id = bound(descriptor["expert_controller"], {"controller"})
         controller_root = ancestors[controller_id][0]
         controller = read_json(controller_root / "controller.json")
-        inputs = {"policy": artifact_id, "model": bound(controller["prediction_model"], MODEL_KINDS)}
+        inputs = {"policy": artifact_id}
+        optional_handoffs.append({"agent": agent, "operation": "optimize_policy",
+            "inputs": {"policy": artifact_id, "model": bound(controller["prediction_model"], MODEL_KINDS)},
+            "missing_inputs": [], "missing_config": ["确认优化目标、训练预算与独立评价工况"],
+            "scope": "模仿学习交付可以结束，只有进一步优化的任务才启动此阶段。"})
     elif kind == "transition_dataset":
         agent, operation = "model", "train_residual"
         nominal = [p["id"] for p in metadata["parents"] if ancestors[p["id"]][1]["kind"] == "nominal_model"]
@@ -313,6 +467,8 @@ def prepare_handoff(workspace: Workspace, artifact_id: str) -> dict:
             "handoff": {"agent": agent, "operation": operation,
                         "inputs": {key: value or "" for key, value in inputs.items()},
                         "missing_inputs": missing, "missing_config": missing_config,
+                        **({"applicability": applicability} if applicability else {}),
+                        **({"scope": scope} if scope else {}),
                         "config_suggestions": suggestions, "interface": selected_interface.to_dict()},
             "source_versions": [{"id": item_id, "metadata_hash": canonical_hash(item)} for item_id, (_, item) in ancestors.items()],
             "optional_handoffs": optional_handoffs}

@@ -17,3 +17,6 @@ control-worker = "control_harness.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+control_harness = ["stage_contracts.json"]

@@ -10,7 +10,7 @@ export const project = resolve(import.meta.dirname, '../..');
 const upstream = resolve(project, 'vendor/deepseek-harness');
 const built = async path => import(pathToFileURL(resolve(upstream, path)));
 
-export async function createHost(workspace, owner = 'durable-test-session', { confirmFixturePlans = true } = {}) {
+export async function createHost(workspace, owner = 'durable-test-session', { confirmFixturePlans = true, policy, pythonPath } = {}) {
   const { Context } = await built('vendor/cordis/lib/index.js');
   const { Session } = await built('packages/core/session/lib/index.js');
   const { default: Projection } = await built('packages/session/session-projection/lib/index.js');
@@ -25,7 +25,9 @@ export async function createHost(workspace, owner = 'durable-test-session', { co
   }
   ctx.jobs.attachController('durable-history-test');
   const agentFiber = ctx.plugin(() => {});
-  const agent = { id: owner, session: Session.create(owner), ctx: agentFiber.ctx, status: 'idle', options: {},
+  const initial = Session.create(owner);
+  const session = policy ? Session.create(owner, undefined, {...initial.header, cwd:workspace}) : initial;
+  const agent = { id: owner, session, ctx: agentFiber.ctx, status: 'idle', options: {},
     model: {}, inbox: {}, send() {}, followup() {}, inject() {}, cancel() {}, whenIdle: async () => {},
     runMaintenance: fn => fn(new AbortController().signal) };
   const unregister = await ctx.agents.register(agent);
@@ -33,8 +35,8 @@ export async function createHost(workspace, owner = 'durable-test-session', { co
   // Only the unused model-facing tool registry is captured in this job fixture.
   apply({ jobs: ctx.jobs, subprocess: ctx.subprocess, logger: ctx.logger, on: ctx.on.bind(ctx), provide: ctx.provide.bind(ctx),
     commands: ctx.commands, sessionProjections: ctx.sessionProjections, tools: { register() {} }, attachments: {}, sandbox: {},
-    sandboxPolicy: { resolve: () => ({ mode: 'danger-full-access', workspaceRoot: workspace }) },
-  }, { codeRoot: project, pythonPath: resolve(project, process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python'),
+    sandboxPolicy: { resolve: policy ?? (() => ({ mode: 'danger-full-access', workspaceRoot: workspace })) },
+  }, { codeRoot: project, pythonPath: pythonPath ?? resolve(project, process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python'),
     timeoutSeconds: 120, cancellationGraceMs: 5000, maxConcurrentWorkers: 1 });
 
   const nativeCommand = async (name, args) => {

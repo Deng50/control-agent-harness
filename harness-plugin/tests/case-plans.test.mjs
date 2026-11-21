@@ -62,6 +62,77 @@ test('pending plans and forged request flags cannot obtain a Host worker receipt
   await assert.rejects(authority.authorizeRequest({ request: candidate, agent }), PendingPlanConfirmation);
 }));
 
+test('native command distinguishes unquoted keys (#565) and pasted commands (#480) and accepts one multiline JSON value', async () => fixture(async ({ ctx, agent, workspace, plan }) => {
+  const execute = raw => ctx.commands.execute(agent, `/control-confirm ${raw}`, [], new AbortController().signal);
+  const args = { workspace, ...ref(plan) };
+  const unquoted = JSON.stringify(args).replace('"workspace":','workspace:');
+  const invalid = await execute(unquoted);
+  assert.equal(invalid.result.kind,'error'); assert.match(invalid.result.text,/INVALID_CONFIRM_JSON/);
+  const pasted = await execute(`${JSON.stringify(args)}\r\n/control-confirm ${JSON.stringify(args)}`);
+  assert.equal(pasted.result.kind,'error'); assert.match(pasted.result.text,/ONE_COMMAND_PER_SUBMISSION/);
+  const multiline = await execute(JSON.stringify(args,null,2).replaceAll('\n','\r\n'));
+  assert.equal(multiline.result.kind,'success',multiline.result.text);
+}));
+
+test('one authentic card click signs its exact scopes atomically; task revisions, roles and Sessions stay isolated', async () => fixture(async ({ctx, authority, agent, workspace, Session}) => {
+  authority.proposeBatch = ({intent_id,requirements}) => {
+    const result = spawnSync(python,['-c','import json,sys;from control_harness.case_plans import propose_plan_batch;print(json.dumps(propose_plan_batch(**json.load(sys.stdin))))'],
+      {input:JSON.stringify({workspace,intent_id,requirements}),encoding:'utf8',windowsHide:true,env:environment});
+    assert.equal(result.status,0,result.stderr);
+    return JSON.parse(result.stdout).plans;
+  };
+  const rows = [{scope:'signals',reviewPayload:{observations:['position','velocity'],units:['m','m/s']},reviewBindings:binding,bindings:binding},
+    {scope:'training',reviewPayload:{horizon:25},reviewBindings:binding,bindings:binding}];
+  let requirements = rows;
+  authority.resolveRequirements = () => requirements;
+  const request = {workspace,operation:'design_controller',inputs:{model:'model-example'},config:{}};
+  const prepare = (role='controller',intent_id) => authority.prepareCard({request,agent,role,intent_id,requirements});
+  const card = await prepare();
+  const otherRole = await prepare('model');
+  assert.notEqual(authority.intentFor({role:'controller',agent}),card.intent_id);
+  assert.notEqual(card.intent_id,otherRole.intent_id);
+  assert.notEqual(card.plan_refs.signals.plan_id,otherRole.plan_refs.signals.plan_id);
+  assert.equal(card.statuses.training.confirmation_state,'pending');
+  const candidate = {...request,config:{plan_refs:card.plan_refs}};
+  const authorize = (extra={}) => authority.authorizeRequest({request:candidate,agent,role:'controller',...extra});
+  await assert.rejects(authorize(),/pending/);
+  const args = {workspace,card_id:card.card_id};
+  await assert.rejects(authority.confirmPlan({agent,commandId:'agent-made-it-up',rawInput:JSON.stringify(args),args}),/source/);
+  const command = async (name,args,owner=agent) => (await ctx.commands.execute(owner,`/${name} ${JSON.stringify(args)}`,[],new AbortController().signal)).result;
+  const individual = await command('control-confirm',{workspace,...card.plan_refs.training});
+  assert.equal(individual.kind,'error'); assert.match(individual.text,/完整卡片/);
+  await assert.rejects(authorize(),/pending/);
+  const submitted = await Promise.all([command('control-confirm',args),command('control-confirm',args)]);
+  for (const result of submitted) assert.equal(result.kind,'success',result.text);
+  const clicks = submitted.map(result => JSON.parse(result.text));
+  assert.deepEqual(clicks.map(click => click.reused).sort(),[false,true]);
+  assert.deepEqual(clicks[0].source,clicks[1].source);
+  const accepted=clicks[0];
+  assert.equal(accepted.confirmation_source,'test_fixture');
+  assert.equal(accepted.statuses.training.source.command_id,accepted.statuses.signals.source.command_id);
+  const next=JSON.parse((await command('control-confirm',args)).text);
+  assert.equal(next.reused,true); assert.deepEqual(next.source,accepted.source);
+  const fresh=JSON.parse((await command('control-card-status',args)).text);
+  assert.equal(fresh.operation,request.operation); assert.equal(fresh.statuses.training.confirmation_state,'confirmed');
+  const receipt = await authorize();
+  assert.deepEqual(JSON.parse(receipt.env.CONTROL_CASE_RECEIPT_BODY).execution_bindings,rows.map(({scope,bindings})=>({scope,bindings})));
+  await assert.rejects(authorize({role:'model'}),/role or Session/);
+  const mixed={signals:card.plan_refs.signals,training:otherRole.plan_refs.training};
+  await assert.rejects(authorize({request:{...candidate,config:{plan_refs:mixed}}}),/different engineering tasks/);
+  const foreign={id:'other-card-session',session:Session.create('other-card-session')};
+  assert.equal((await command('control-confirm',args,foreign)).kind,'error');
+  requirements=[rows[0],{...rows[1],reviewPayload:{horizon:35}}];
+  await assert.rejects(authorize(),/differs from the reviewed/);
+  const revised=await prepare('controller',card.intent_id);
+  assert.equal(revised.statuses.signals.confirmation_state,'confirmed');
+  assert.equal(revised.statuses.training.confirmation_state,'pending');
+  assert.deepEqual(revised.changes.training,[{path:'parameters.horizon',before:25,after:35}]);
+  assert.equal((await command('control-confirm',args)).kind,'error');
+  assert.equal((await authority.cardStatus({workspace,agent,card_id:otherRole.card_id})).statuses.training.confirmation_state,'pending');
+  const document=JSON.parse(await readFile(join(workspace,'.case-plans/plans.json'),'utf8'));
+  assert.equal(document.plans[card.plan_refs.training.plan_id].payload.horizon,25);
+}));
+
 test('confirmation requires an actual native command and is reused only in the same Session/version', async () => fixture(async ({ authority, agent, plan, workspace, request, confirm, Session, ctx }) => {
   const args = { workspace, ...ref(plan) };
   const before = await ctx.commands.execute(agent, `/control-plan-status ${JSON.stringify(args)}`, [], new AbortController().signal);

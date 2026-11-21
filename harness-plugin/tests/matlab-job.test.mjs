@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { assertMatlabBatchAvailable, matlabCollectionJob, requiresMatlabBatch } from '../src/matlab-job.mjs';
+import { assertMatlabBatchAvailable, matlabCollectionJob, requiresMatlabBatch, taskHelpers } from '../src/matlab-job.mjs';
 
 const root = resolve(import.meta.dirname, '../../test-output/matlab-job-tests');
 await mkdir(root, { recursive: true });
@@ -17,7 +17,9 @@ async function fixture(t) {
   const rawRequest = JSON.stringify(request);
   const config = { codeRoot: resolve(import.meta.dirname, '../..'), matlabResource: { directory: resolve(workspace, 'resource'), identityFile: resolve(workspace, 'identity.json') } };
   const job = { updateProgress() {}, append() {} };
-  return { workspace, request, confirmation: { rawRequest, env: {} }, config, job, policy: { mode: 'workspace-write' }, agent: { id: 'test-session' }, slots: {}, phases: [] };
+  const grant = {get scope(){return {helper:taskHelpers[request.operation],dispatch_timeout_seconds:300};},
+    deadline:Date.now()+1800000,signal:new AbortController().signal,revoke(){},finish(){}};
+  return { workspace, request, grant, confirmation: { rawRequest, env: {} }, config, job, policy: { mode: 'workspace-write' }, agent: { id: 'test-session' }, slots: {}, phases: [] };
 }
 function protocol(f, { finalStatus = 'completed', toolError = false, hold = false, wrongKind = false } = {}) {
   let release, enteredResolve;
@@ -72,7 +74,12 @@ function protocol(f, { finalStatus = 'completed', toolError = false, hold = fals
         text: `CONTROL_MATLAB_BATCH_${manifest.nonce}:${JSON.stringify({ nonce: manifest.nonce, status: 'completed', result_path: resultPath })}` }] } } }] };
     },
   } };
-  return { ctx, numerical, entered, release };
+  // Stand in only for the separate native resource/guard fixture. Both worker
+  // phases still see the original exact request and exchange paths.
+  const dispatch = ({ctx,agent,grant,signal,manifestPath,nonce,onDispatch}) => { onDispatch(); return ctx.tools.execute({agent,signal,calls:[{
+    name:'mcp__matlab__evaluate_matlab_code',id:'fixture-'+nonce,
+    arguments:JSON.stringify({code:grant.scope.helper, project_path:resolve(manifestPath,'..')})}]}); };
+  return { ctx, numerical, entered, release, dispatch };
 }
 
 test('prepare result never settles the native job before MCP and finalization', async t => {

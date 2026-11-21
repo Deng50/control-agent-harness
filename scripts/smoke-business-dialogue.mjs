@@ -14,7 +14,7 @@ assert.ok(offered?.length,'Configure the official DeepSeek provider first');
 const model=offered.find(item=>item.id===catalog.default.model)?.id??offered[0].id;
 const workspace=resolve(project,'test-output',`harness-business-dialogue-${randomUUID()}`);
 await mkdir(workspace,{recursive:true});
-if(process.platform==='win32')execFileSync('pwsh.exe',['-NoProfile','-File',resolve(project,'scripts/prepare-workspace.ps1'),'-Workspace',workspace]);
+if(process.platform==='win32')execFileSync('pwsh.exe',['-NoProfile','-File',resolve(project,'scripts/prepare-workspace.ps1'),'-Prepare', '-Workspace',workspace]);
 const workflowPath=resolve(project,'examples/python-tensor/workflow.json');
 const created=await rpc('session/create',{request:{cwd:workspace,agentPreset:'control-model'}});
 const sessionId=created.sessionId;

@@ -11,7 +11,7 @@ const evidence = { checkedAt: new Date().toISOString(), scope: 'Real native form
 for (const role of ['model', 'controller', 'lightweight']) {
   const workspace = resolve(project, 'test-output', `quiet-form-${role}-${randomUUID()}`);
   await mkdir(workspace, { recursive: true });
-  if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'), '-Workspace', workspace]);
+  if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'), '-Prepare', '-Workspace', workspace]);
   const { sessionId } = await rpc('session/create', { request: { cwd: workspace, agentPreset: `control-${role}` } });
   const started = await runStage(rpc, sessionId, { agent: role, operation: 'inspect_workspace', workspace });
   const page = await rpc('session/events', { request: { address: { kind: 'session', sessionId }, maxMessages: 100 } });

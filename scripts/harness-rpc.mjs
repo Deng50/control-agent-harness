@@ -56,8 +56,10 @@ export async function prepareSmokeWorkspace(directory) {
   assert.ok(physicalAncestor === physicalProject || inside(physicalProject, physicalAncestor), 'Project-local workspace ancestor resolves outside the project; no directory or permissions changed.');
   await mkdir(workspace, { recursive: true });
   assert.ok(inside(physicalProject, await realpath(workspace)), 'Project-local workspace resolves outside the project; no permissions changed.');
-  if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'), '-Workspace', workspace], { windowsHide: true });
-  return { workspace, projectLocal: true, aclPrepared: process.platform === 'win32' };
+  const prepareNew = ancestor !== workspace;
+  if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'),
+    ...(prepareNew ? ['-Prepare'] : []), '-Workspace', workspace], { windowsHide: true });
+  return { workspace, projectLocal: true, aclPrepared: process.platform === 'win32' && prepareNew };
 }
 
 export async function writeSmokeEvidence(path, value) {

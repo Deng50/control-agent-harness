@@ -12,7 +12,7 @@ const manifest=JSON.parse(await readFile(resolve(source,'manifest.json'),'utf8')
 const dataset=manifest.active.transition_dataset, nominal=manifest.active.nominal_model;
 const workspace=resolve(project,'test-output',`harness-coverage-${randomUUID()}`);
 await mkdir(workspace,{recursive:true});
-if(process.platform==='win32')execFileSync('pwsh.exe',['-NoProfile','-File',resolve(project,'scripts/prepare-workspace.ps1'),'-Workspace',workspace]);
+if(process.platform==='win32')execFileSync('pwsh.exe',['-NoProfile','-File',resolve(project,'scripts/prepare-workspace.ps1'),'-Prepare', '-Workspace',workspace]);
 const created=await rpc('session/create',{request:{cwd:workspace,agentPreset:'control-model'}});
 const imported=await runStage(rpc,created.sessionId,{agent:'model',operation:'import_artifact',workspace,inputs:{artifact_path:resolve(source,manifest.artifacts[dataset].path)}});
 assert.equal(imported.result.artifact_id,dataset);

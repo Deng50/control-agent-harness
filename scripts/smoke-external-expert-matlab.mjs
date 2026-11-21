@@ -6,7 +6,6 @@ import {constants} from 'node:fs';
 import {copyFile,mkdir,readFile,readdir} from 'node:fs/promises';
 import {isAbsolute,relative,resolve,sep} from 'node:path';
 import {parseArgs} from 'node:util';
-import {confirmationRequirements} from '../harness-plugin/src/case-requirements.mjs';
 import {command,connectHarness,prepareSmokeWorkspace,project,writeSmokeEvidence} from './harness-rpc.mjs';
 
 const {values}=parseArgs({options:{'workspace-root':{type:'string'},evidence:{type:'string'},fixtures:{type:'string'},'mcp-audit':{type:'string'},
@@ -21,7 +20,7 @@ const manifestBytes=await readFile(resolve(fixtures,'fixture-manifest.json')),fi
 assert.deepEqual(fixture.cases.map(item=>item.key).sort(),['f01-simulink','f02-matlab']);assert.deepEqual(fixture.tolerances,{atol:1e-6,rtol:1e-5});
 const preRegistered={fixture_manifest_sha256:hash(manifestBytes),options_probe_sha256:fixture.options_probe_sha256,cases:fixture.cases.map(item=>({key:item.key,
   collection:item.collection,expert_adapter:item.expert_adapter,expert_source_sha256:item.expert_source_sha256,expected_samples:item.expected_samples,reference_sha256:item.independent_reference_sha256})),
-  tolerances:fixture.tolerances,mcp:{business_batch:1,fixed_identity_idle_probes:2,total_actual_tool_calls:3},
+  tolerances:fixture.tolerances,mcp:{business_batch:1,embedded_identity_idle_checks:2,total_actual_tool_calls:1},
   scope:'External expert and declared plant collection only; no internal controller synthesis, training, Engine, cross-backend bridge or structural model edit.'};
 let evidence=values.resume?await json(evidencePath):{schema_version:1,stage:'S09',test:'L02',status:'RUNNING',destination,auditPath,preRegistered,
   started_at:new Date().toISOString(),confirmation_source:'test_fixture',sessions:{},jobs:{},admissions:[],confirmations:[],rejections:[],checks:[]};
@@ -33,14 +32,14 @@ const auditRows=async sessionId=>{
   return text.split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line)).filter(row=>row.source==='trusted_test_observer'&&row.sessionId===sessionId);
 };
 function auditCalls(rows){
-  const starts=rows.filter(row=>row.event==='started'),returns=rows.filter(row=>row.event==='returned');assert.equal(starts.length,3,'Expected 1 business batch and 2 fixed guard probes');assert.equal(returns.length,3);assert.equal(rows.length,6,'No hidden retries/pointwise calls or thrown native tools');
+  const starts=rows.filter(row=>row.event==='started'),returns=rows.filter(row=>row.event==='returned');assert.equal(starts.length,1,'Expected one native batch containing two managed identity probes');assert.equal(returns.length,1);assert.equal(rows.length,2,'No hidden retries/pointwise calls or thrown native tools');
   const ids=new Set();let batches=0,probes=0;
   for(const row of starts){const id=row.callId??row.rootCallId;assert.ok(id&&!ids.has(id));ids.add(id);assert.equal(row.name,'mcp__matlab__evaluate_matlab_code');
     const returned=returns.filter(other=>(other.callId??other.rootCallId)===id);assert.equal(returned.length,1);assert.equal(returned[0].isError,false);
-    const classified=[row.callId,row.rootCallId].find(value=>value?.startsWith('matlab-batch-')||value?.startsWith('matlab-probe-'));
-    if(classified?.startsWith('matlab-batch-'))batches++;else if(classified?.startsWith('matlab-probe-'))probes++;else assert.fail('Unexpected native tool identity '+id);
+    const classified=[row.callId,row.rootCallId].find(value=>value?.startsWith('matlab-task-')||value?.startsWith('matlab-probe-'));
+    if(classified?.startsWith('matlab-task-'))batches++;else if(classified?.startsWith('matlab-probe-'))probes++;else assert.fail('Unexpected native tool identity '+id);
   }
-  assert.equal(batches,1);assert.equal(probes,2);return{business_batch_calls:batches,fixed_guard_probe_calls:probes,total_actual_mcp_calls:starts.length,
+  assert.equal(batches,1);assert.equal(probes,0);return{business_batch_calls:batches,fixed_guard_probe_calls:probes,total_actual_mcp_calls:starts.length,
     calls:starts.map(row=>({name:row.name,callId:row.callId,rootCallId:row.rootCallId,sessionId:row.sessionId})),source:'trusted optional around-execute observer; actual next() returned without isError, not inferred from job count'};
 }
 const independentAudit=String.raw`import hashlib,json,sys,numpy as np
@@ -97,10 +96,10 @@ try{
       const history=await command(rpc,sessionId,`/control-history ${JSON.stringify({workspace})}`),records=await events();return{attempts,history:history.attempts.map(row=>row.attemptId).sort(),jobs:records.filter(row=>row.event.type==='job/registered').map(row=>row.event.data.jobId),mcp:(await auditRows(sessionId)).length};};
     const deny=async(label,request)=>{if(evidence.rejections.some(row=>row.label===label))return;const before=await snapshot();
       const response=await rpc('commands/execute',{agentId:sessionId,line:`/control ${JSON.stringify({agent:'lightweight',...request})}`,submittedAttachments:[]});
-      assert.equal(response.result.kind,'error');assert.match(response.result.text,/confirm|plan|version|review/i);const after=await snapshot();assert.deepEqual(after,before);
+      assert.equal(response.result.kind,'error');assert.match(response.result.text,/confirm|plan|version|review|确认|复核|版本|授权|审阅/i);const after=await snapshot();assert.deepEqual(after,before);
       evidence.rejections.push({label,status:'PASS_ZERO_ADMISSION',message:response.result.text,newJobs:0,newHistory:0,newMcp:0,before,after});await save();};
-    const stage=async(key,operation,inputs={},config={})=>{
-      const request={agent:'lightweight',operation,workspace,inputs,config},signature=hash(JSON.stringify(request)),id=`${item.key}:${key}`;let row=evidence.jobs[id];
+    const stage=async(key,operation,inputs={},config={},card_id)=>{
+      const request={agent:'lightweight',operation,workspace,inputs,config,card_id},signature=hash(JSON.stringify(request)),id=`${item.key}:${key}`;let row=evidence.jobs[id];
       if(row){assert.equal(row.signature,signature);assert.ok(row.jobId,'Uncertain admission must be reconciled from existing history, never resubmitted');if(row.result)return row.result;}
       else{row=evidence.jobs[id]={operation,signature,status:'ADMISSION_PENDING',sessionId};await save();const started=await command(rpc,sessionId,`/control ${JSON.stringify(request)}`);Object.assign(row,{jobId:started.jobId,attemptId:started.attemptId,status:'RUNNING'});evidence.admissions.push({key:id,operation,sessionId,jobId:row.jobId,attemptId:row.attemptId});await save();}
       for(;;){const state=await command(rpc,sessionId,`/control-status ${JSON.stringify({workspace,attemptId:row.attemptId})}`);
@@ -120,12 +119,16 @@ try{
     evidence.static_mcp_checks??={};
     if(!evidence.static_mcp_checks[item.key]){assert.ok(!evidence.jobs[`${item.key}:collect`]?.jobId);assert.equal((await auditRows(sessionId)).length,0,'Static registrations must not call MATLAB');evidence.static_mcp_checks[item.key]={status:'PASS',actual_mcp_events:0};await save();}
     const inputs={expert:expert.artifact_id,plant:plant.artifact_id},request={operation:'collect_external_expert',workspace,inputs,config:item.collection};
-    const requirements=await confirmationRequirements(request);assert.deepEqual(requirements.map(row=>row.scope),['signals','sampling']);const refs={};
-    for(const row of requirements){const plan=await stage('plan-'+row.scope,'propose_case_plan',{}, {scope:row.scope,payload:row.expectedPayload,bindings:row.bindings});refs[row.scope]={plan_id:plan.plan_id,version_hash:plan.version_hash};}
-    await deny(item.key+':before-confirmation',{...request,config:{...item.collection,plan_refs:refs}});
-    for(const row of requirements){const confirmed=await command(rpc,sessionId,`/control-confirm ${JSON.stringify({workspace,...refs[row.scope]})}`);assert.equal(confirmed.confirmation_source,'test_fixture');evidence.confirmations.push({key:item.key,scope:row.scope,...refs[row.scope],confirmation_source:'test_fixture'});await save();}
-    const result=await stage('collect','collect_external_expert',inputs,{...item.collection,plan_refs:refs});assert.equal(result.kind,'external_expert_dataset');assert.equal(result.status,'verified');
-    const changed=structuredClone(item.collection);changed.scenarios[0].steps+=1;await deny(item.key+':changed-condition-old-confirmation',{...request,config:{...changed,plan_refs:refs}});
+    const card=await command(rpc,sessionId,`/control-prepare-review ${JSON.stringify({agent:'lightweight',intent_id:'S09-collection-'+item.key,...request})}`);
+    assert.equal(card.matlab_scope.helper,'control_harness_expert_batch');
+    if(!evidence.jobs[`${item.key}:collect`]){
+      await deny(item.key+':before-confirmation',{...request,card_id:card.card_id});
+      const accepted=await command(rpc,sessionId,`/control-confirm ${JSON.stringify({workspace,card_id:card.card_id})}`);
+      assert.equal(accepted.confirmation_source,'test_fixture');assert.equal(accepted.matlab_grant.state,'active');
+      evidence.confirmations.push({key:item.key,card_id:card.card_id,source:accepted.source});await save();
+    }
+    const result=await stage('collect','collect_external_expert',inputs,item.collection,card.card_id);assert.equal(result.kind,'external_expert_dataset');assert.equal(result.status,'verified');
+    const changed=structuredClone(item.collection);changed.scenarios[0].steps+=1;await deny(item.key+':changed-condition-old-confirmation',{...request,config:changed,card_id:card.card_id});
     const caseFile=resolve(fixtures,item.key,'case.json');assert.deepEqual(await json(caseFile),item);const independent=JSON.parse(execFileSync(python,['-I','-B','-c',independentAudit,result.artifact_path,caseFile],{cwd:workspace,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024,env:{...process.env,PYTHONPATH:'',PYTHONUTF8:'1',PYTHONDONTWRITEBYTECODE:'1'}}));
     assert.equal(independent.status,'PASS');assert.equal(hash(await readFile(item.expert_file)),expertSourceHash);
     if(item.plant.kind==='import')assert.equal(hash(await readFile(item.plant.original_slx)),item.plant.original_slx_sha256);

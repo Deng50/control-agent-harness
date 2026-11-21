@@ -31,7 +31,8 @@ const terminal=new Set(['completed','failed','killed']),pause=()=>new Promise(do
 const checkpointInfo=String.raw`import hashlib,json,sys,torch
 from pathlib import Path
 from control_harness.locking import process_alive
-p=Path(sys.argv[1]);c=torch.load(p,map_location='cpu',weights_only=True);s=json.loads(p.with_name('latest.checkpoint.json').read_text());intent=json.loads(p.with_name('stage.intent.json').read_text());actual=hashlib.sha256(p.read_bytes()).hexdigest()
+from control_harness.checkpoints import checkpoint_sidecar
+p=Path(sys.argv[1]);c=torch.load(p,map_location='cpu',weights_only=True);s=json.loads(checkpoint_sidecar(p).read_text());intent=json.loads(p.with_name('stage.intent.json').read_text());actual=hashlib.sha256(p.read_bytes()).hexdigest()
 assert actual==s['sha256'];assert s['stage_intent_sha256']==hashlib.sha256(p.with_name('stage.intent.json').read_bytes()).hexdigest()
 print(json.dumps({'path':str(p),'sha256':actual,'epoch':c['epoch'],'updates':c['updates'],'wait':c['wait'],'algorithm':c['contract']['algorithm'],'training_signature':c['training_signature'],
  'checkpoint_kind':intent['kind'],'owner_pid':intent['owner']['pid'],'owner_alive':process_alive(intent['owner']['pid']),'sidecar':s,

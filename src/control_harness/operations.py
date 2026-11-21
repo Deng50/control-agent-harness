@@ -13,13 +13,15 @@ from .modeling import register_model
 from .policy import collect_expert, optimize_policy, train_imitation
 from .residual import train_residual
 from .runtime import OperationContext
+from .stage_contracts import check_inputs
+from .reporting import artifact_delivery
 
-OPERATIONS = ["inspect_workspace", "inspect_artifact", "import_artifact", "register_model", "import_transitions", "simulate_transitions", "train_residual",
-              "design_controller", "collect_expert", "train_imitation", "optimize_policy", "demo",
+OPERATIONS = ["convert_plant_predictor", "verify_design_delivery", "inspect_workspace", "inspect_artifact", "import_artifact", "register_model", "import_transitions", "simulate_transitions", "train_residual",
+              "design_controller", "check_matlab_design", "collect_expert", "train_imitation", "optimize_policy", "demo",
               "plan_workflow", "run_workflow", "validate_estimator", "identify_linear_model", "inspect_model_source",
               "prepare_handoff", "read_artifact_file", "read_report_arrays", "prepare_bundle_archive", "recover_interrupted_stage", "register_python_model",
               "inspect_material", "register_material", "inspect_table", "prepare_supervised_dataset",
-              "propose_case_plan", "read_case_plan", "register_plant", "recommend_sampling", "sample_model", "train_supervised", "train_predictive_model", "synthesize_mpc", "tune_controller",
+              "propose_case_plan", "propose_case_plans", "read_case_plan", "register_plant", "recommend_sampling", "sample_model", "train_supervised", "train_predictive_model", "synthesize_mpc", "tune_controller",
               "register_expert", "collect_external_expert", "import_expert_data",
               "train_external_imitation", "prepare_imitation_evaluation", "evaluate_external_imitation",
               "prepare_pinn_problem", "train_pinn", "validate_differentiable_model", "optimize_external_policy", "evaluate_external_pgac"]
@@ -30,9 +32,16 @@ def run_operation(request: dict, context: OperationContext | None = None) -> dic
     operation = request["operation"]
     if operation not in OPERATIONS:
         raise ContractError(f"Unknown operation {operation}")
-    workspace = Workspace(request["workspace"])
     config = request.get("config", {})
     inputs = request.get("inputs", {})
+    if operation == "propose_case_plans":
+        # 计划使用专属的短时文件锁，提案无需争用正在运行的数值作业锁或创建数值项目。
+        from .case_plans import propose_plan_batch
+        batch = propose_plan_batch(request["workspace"], config["intent_id"], config["requirements"], config.get("retire_scopes"))
+        # Host 随后按版本从计划库核对原文。进程管道只传句柄，避免大表映射或多工况摘要重复传输。
+        return {"plans": [{key: plan[key] for key in ("scope", "intent_id", "schema_version", "plan_id", "version_hash")}
+                          for plan in batch["plans"]]}
+    workspace = Workspace(request["workspace"])
     if operation == "inspect_material":
         from .materials import inspect_material
         from .material_registration import material_options
@@ -46,7 +55,7 @@ def run_operation(request: dict, context: OperationContext | None = None) -> dic
         return propose_plan(workspace, config["scope"], config["payload"], config.get("bindings"), config.get("dependencies"))
     if operation == "read_case_plan":
         from .case_plans import read_plan
-        return read_plan(workspace, inputs.get("plan_id"), config.get("scope"))
+        return read_plan(workspace, inputs.get("plan_id"), config.get("scope"), config.get("intent_id"))
     if operation == "recommend_sampling":
         from .plants import recommend_sampling
         return recommend_sampling(workspace, inputs["model"], config)
@@ -58,13 +67,14 @@ def run_operation(request: dict, context: OperationContext | None = None) -> dic
     # require a trusted confirmation context, including direct Python callers.
     workflow_case = None
     trusted_case_context = bool(getattr(context, "_case_receipt_body", None) or getattr(context, "_test_fixture_workspace", None))
-    if operation in {"prepare_supervised_dataset", "sample_model", "train_supervised", "train_predictive_model", "synthesize_mpc", "tune_controller", "collect_external_expert", "import_expert_data",
+    tabular_stage = operation in {"prepare_supervised_dataset", "train_supervised"}
+    if not tabular_stage and operation not in {"convert_plant_predictor", "verify_design_delivery"} and (operation in {"sample_model", "train_predictive_model", "synthesize_mpc", "check_matlab_design", "tune_controller", "collect_external_expert", "import_expert_data",
                      "train_external_imitation", "evaluate_external_imitation", "prepare_pinn_problem", "train_pinn",
-                     "validate_differentiable_model", "optimize_external_policy", "evaluate_external_pgac"} or trusted_case_context:
+                     "validate_differentiable_model", "optimize_external_policy", "evaluate_external_pgac"} or trusted_case_context):
         from .case_requirements import confirmation_requirements, resolve_workflow_case
         if operation == "run_workflow":
             workflow_case = resolve_workflow_case(workspace, request)
-        context.require_case_confirmation(request, confirmation_requirements(workspace, request, workflow_case=workflow_case))
+        context.require_case_confirmation(request, confirmation_requirements(workspace, request, workflow_case=workflow_case, context=context))
     if operation == "inspect_workspace":
         return workspace.manifest
     if operation == "prepare_handoff":
@@ -91,7 +101,7 @@ def run_operation(request: dict, context: OperationContext | None = None) -> dic
         from .inspection import report_preview
         root, metadata = workspace.resolve(inputs["artifact_id"], allow_stale=True, allow_rejected=True)
         return {"artifact_id": metadata["id"], "kind": metadata["kind"], "status": workspace.manifest["artifacts"][metadata["id"]]["status"],
-                "artifact_path": str(root), "metadata": metadata,
+                "artifact_path": str(root), "metadata": metadata, "delivery": artifact_delivery(workspace, metadata["id"]),
                 "report": report_preview(root / "report.json") if "report.json" in metadata["files"] else None,
                 "files": [{"name": name, "path": str(root / name)} for name in metadata["files"]]}
     if operation == "demo":
@@ -108,8 +118,16 @@ def run_operation(request: dict, context: OperationContext | None = None) -> dic
         return (plan_workflow(workspace, inputs, config) if operation == "plan_workflow"
                 else run_workflow(workspace, inputs, config, context))
     with workspace.lock(operation):
-        if operation in {"sample_model", "collect_external_expert", "evaluate_external_imitation", "evaluate_external_pgac"}:
-            if operation == "sample_model":
+        if tabular_stage or operation in {"convert_plant_predictor", "verify_design_delivery"}:
+            # Dataset/父材料的精确版本在取得本作业锁后重算，避免排队期间发生的换版被漏掉。
+            from .case_requirements import confirmation_requirements
+            context.require_case_confirmation(request, confirmation_requirements(workspace, request, context=context))
+        if operation in {"sample_model", "check_matlab_design", "collect_external_expert", "evaluate_external_imitation", "evaluate_external_pgac"}:
+            check_inputs(workspace, operation, inputs, config)
+            if operation == "check_matlab_design":
+                from .matlab_design_check import check_design
+                artifact_id = check_design(workspace, inputs["design"], config, context)
+            elif operation == "sample_model":
                 from .plants import sample_model
                 artifact_id = sample_model(workspace, inputs["model"], config, context, request)
             elif operation == "collect_external_expert":
@@ -127,12 +145,30 @@ def run_operation(request: dict, context: OperationContext | None = None) -> dic
             artifact_id = execute_stage(workspace, operation, inputs, config, context)
     row = workspace.manifest["artifacts"][artifact_id]
     return {"artifact_id": artifact_id, "kind": row["kind"], "status": row["status"], "workspace": str(workspace.path),
-            "artifact_path": str(workspace.path / row["path"])}
+            "artifact_path": str(workspace.path / row["path"]), "delivery": artifact_delivery(workspace, artifact_id)}
 
 
 def execute_stage(workspace: Workspace, operation: str, inputs: dict, config: dict, context: OperationContext) -> str:
     """Shared numerical stage dispatch. Caller owns the operation-wide workspace lock."""
-    if operation == "register_material":
+    check_inputs(workspace, operation, inputs, config)
+    # 旧数值脚本仍可处理既有声明式模型。新路线会执行原对象适配器，直接 CLI 也须先绑定确认。
+    trusted = getattr(context, "_case_receipt_body", None) or getattr(context, "_test_fixture_workspace", None)
+    if operation in {"collect_expert", "train_imitation"} and not (trusted and context.case_confirmation_sources):
+        original = inputs.get("evaluation_model")
+        if operation == "train_imitation":
+            _, dataset = workspace.resolve(inputs["dataset"])
+            original = dataset.get("source", {}).get("evaluation_model")
+        if workspace.manifest["artifacts"].get(original, {}).get("kind") == "plant_model":
+            from .case_requirements import confirmation_requirements
+            request = {"workspace": str(workspace.path), "operation": operation, "inputs": inputs, "config": config}
+            context.require_case_confirmation(request, confirmation_requirements(workspace, request, context=context))
+    if operation == "convert_plant_predictor":
+        from .plant_predictor import convert_plant_predictor
+        artifact_id = convert_plant_predictor(workspace, inputs, config, context)
+    elif operation == "verify_design_delivery":
+        from .delivery import verify_design_delivery
+        artifact_id = verify_design_delivery(workspace, inputs["design"], config, context)
+    elif operation == "register_material":
         from .material_registration import register_material
         artifact_id = register_material(workspace, inputs["local_path"], config, context)
     elif operation == "register_expert":
@@ -180,7 +216,8 @@ def execute_stage(workspace: Workspace, operation: str, inputs: dict, config: di
         from .design_only import synthesize_mpc
         artifact_id = synthesize_mpc(workspace, inputs, config, context)
     elif operation == "import_artifact":
-        artifact_id = workspace.import_artifact(inputs["artifact_path"])
+        artifact_id = workspace.import_artifact(inputs["artifact_path"], expected_artifact_id=inputs.get("expected_artifact_id"),
+            expected_metadata_hash=inputs.get("expected_metadata_hash"), expected_project_id=inputs.get("expected_project_id"))
     elif operation == "register_python_model":
         from .python_model import register_python_model
         artifact_id = register_python_model(workspace, Path(inputs["model_path"]), config["source"], config.get("model_spec"))

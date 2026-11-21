@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from .artifacts import Workspace, WorkspaceBusy, atomic_json, confined, file_hash, read_json
-from .checkpoints import read_verified_checkpoint, training_contract
+from .checkpoints import HEAD, checkpoint_sidecar, snapshot_latest, training_contract, verified_recovery_point
 from .contracts import ContractError, canonical_hash
 from .locking import process_alive
 from .runtime import OperationContext
@@ -111,34 +111,59 @@ def recover_interrupted_stage(workspace: Workspace, stage_id: str,
                                         contract["config"], contract["interface_hash"])
             if canonical_hash(current) != signature:
                 raise ContractError("Interrupted checkpoint dependencies or numerical runtime have changed")
-            checkpoint_path = root / "latest.pt"
-            sidecar = read_json(root / "latest.checkpoint.json")
+            # 只按发布指针定位新代号；旧阶段可继续核验原 latest.pt 和旁注。
+            head_hash = file_hash(root / HEAD) if (root / HEAD).is_file() else None
+            facts = verified_recovery_point(root, contract, "archived")
+            checkpoint_path = Path(facts["checkpoint"])
+            sidecar = read_json(checkpoint_sidecar(checkpoint_path))
             if sidecar.get("stage_intent_sha256") != file_hash(root / "stage.intent.json"):
                 raise ContractError("Interrupted checkpoint is not bound to this stage intent")
-            checkpoint, digest = read_verified_checkpoint(checkpoint_path, contract)
-            context.progress("interrupted_stage_recovery", stage_id=stage_id, epoch=checkpoint["epoch"],
-                             optimizer_updates=checkpoint["updates"], owner_exit_verified=True)
+            context.progress("interrupted_stage_recovery", stage_id=stage_id, epoch=facts["epoch"],
+                             optimizer_updates=facts["optimizer_updates"], owner_exit_verified=True)
             # Recheck immediately before mutation, under the same kernel-held workspace mutex.
             if process_alive(owner.get("pid")) is not False:
                 raise WorkspaceBusy("Interrupted stage owner exit is no longer verifiable")
             _validate_unpublished(workspace, stage_id, root)
-            if (file_hash(checkpoint_path) != digest
+            if ((file_hash(root / HEAD) if (root / HEAD).is_file() else None) != head_hash
+                    or file_hash(checkpoint_path) != facts["checkpoint_sha256"]
+                    or read_json(checkpoint_sidecar(checkpoint_path)) != sidecar
                     or file_hash(root / "stage.intent.json") != sidecar["stage_intent_sha256"]):
                 raise ContractError("Interrupted checkpoint changed during recovery validation")
-            result = {"status": "archived", "stage_id": stage_id, "workspace": str(workspace.path),
-                      "algorithm": contract["algorithm"], "checkpoint_kind": intent["kind"], "epoch": checkpoint["epoch"],
-                      "optimizer_updates": checkpoint["updates"], "training_signature": signature,
-                      "checkpoint": str(destination / "latest.pt"), "checkpoint_sha256": digest,
+            result = {**facts, "status": "archived", "stage_id": stage_id, "workspace": str(workspace.path),
+                      "algorithm": contract["algorithm"], "checkpoint_kind": intent["kind"],
+                      "training_signature": signature, "checkpoint": str(destination / checkpoint_path.name),
                       "failed_path": str(destination)}
+            try:
+                if facts["checkpoint_selection"] == "current":
+                    snapshot_latest(root)
+            except (OSError, ContractError) as compatibility_error:
+                # 原子代号已经核验，兼容快照失败不应丢失这个恢复点。
+                result["compatibility_snapshot_error"] = str(compatibility_error)
             receipt = {"format_version": 1, **result, "source": str(root), "original_owner": owner,
                        "owner_verification": "os_confirmed_process_exit", "recovered_at": time.time(),
                        "recovery_pid": os.getpid(), "project_id": intent["project_id"]}
-            atomic_json(root / "interrupted-stage-recovery.json", receipt)
-            atomic_json(root / "failure.json", {"type": "InterruptedWorker", "message":
-                        "Unpublished checkpoint archived after the OS confirmed its owner exited",
-                        "recovery": "interrupted-stage-recovery.json"})
-            destination.parent.mkdir(exist_ok=True)
-            root.rename(destination)
+            try:
+                atomic_json(root / "interrupted-stage-recovery.json", receipt)
+                # 归档失败可能来自更早的训练异常，其原始失败记录必须保留。
+                if not (root / "failure.json").exists():
+                    atomic_json(root / "failure.json", {"type": "InterruptedWorker", "message":
+                                "Unpublished checkpoint archived after the OS confirmed its owner exited",
+                                "recovery": "interrupted-stage-recovery.json"})
+                destination.parent.mkdir(exist_ok=True)
+                root.rename(destination)
+            except OSError as error:
+                # 目录替换本身是归档提交边界。只有确实位于 failed/ 的收据才证明可直接续训。
+                try:
+                    if (not root.exists() and read_json(destination / "interrupted-stage-recovery.json") == receipt
+                            and file_hash(destination / checkpoint_path.name) == facts["checkpoint_sha256"]):
+                        return {**result, "archive_warning": str(error)}
+                except (OSError, ValueError):
+                    pass
+                problem = ContractError(f"Interrupted stage verified but not archived: {error}")
+                problem.stage_failure = {"stage_id": stage_id, "archive_state": "retained",
+                                         "retained_path": str(root), "archive_errors": [str(error)]}
+                problem.checkpoint_details = {**facts, "checkpoint_status": "retained"}
+                raise problem from error
             return result
     except (ContractError, WorkspaceBusy):
         raise

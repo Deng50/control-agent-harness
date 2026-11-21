@@ -189,13 +189,15 @@ Python 环境建立后执行：
 以下命令假设已经位于项目根目录：
 
 ```powershell
-.\scripts\prepare-workspace.ps1 -Workspace "$PWD\workspaces\project-01"
+.\scripts\prepare-workspace.ps1 -Prepare -Workspace "$PWD\workspaces\project-01"
 .\scripts\start-web.ps1
 ```
 
 工作目录用于保存这个控制项目的输入、产物和任务记录，不能填成某个单独的模型文件路径。
 
-Windows 沙箱要求工作目录由当前用户拥有，并具备配置沙箱所需的权限。辅助脚本只准备本集成工程内部的当前用户自有目录；它不会接管其他用户目录。第一次使用建议把所有工作目录放在项目的 `workspaces` 下。
+单独运行 `prepare-workspace.ps1 -Workspace <绝对路径>` 可只读查看物理路径、文件系统、所有者、进程完整性和有效权限。`-Prepare` 会创建需要的工作目录，且只在项目 `workspaces` 或 `test-output` 下当前用户拥有的工作区叶目录，给该用户补齐缺少的 `WRITE_DAC` 或 `WRITE_OWNER`。输出包括变更前后的实际权限。`start-web.ps1 -Workspace <绝对路径>` 可在启动前进行相同的只读检查。Web 启动后，请在网页中选择本次会话使用的工作区。
+
+进入专业会话或提交作业时，Host 会实测作业日志使用的硬链接和文件替换，并在当前会话的沙箱内启动轻量 Python 探针。它会核验 Host 文件经 worker 替换后可回读、私有 TEMP 可清理，已有账本、计划、暂存、产物及失败归档目录保持在本工作区内。训练会在已有的输出目录额外实测写入，查看产物则只作所需的检查。失败时按返回的进程、操作、路径和系统错误码处理后重试。独立 PowerShell 入口 `run-worker.ps1 --preflight --workspace <绝对路径>` 可检查本地 CLI 进程及其 TEMP。
 
 ### 配置 DeepSeek 对话服务
 
@@ -254,7 +256,7 @@ Windows 沙箱要求工作目录由当前用户拥有，并具备配置沙箱所
 在另一个 PowerShell 窗口进入项目根目录，执行：
 
 ```powershell
-.\scripts\prepare-workspace.ps1 -Workspace "$PWD\workspaces\temperature-auto-001"
+.\scripts\prepare-workspace.ps1 -Prepare -Workspace "$PWD\workspaces\temperature-auto-001"
 ```
 
 如果这个目录已有产物或运行记录，换一个新名字，例如 `temperature-auto-002`。不要把之前的测试记录当成新运行结果。
@@ -300,7 +302,7 @@ Windows 沙箱要求工作目录由当前用户拥有，并具备配置沙箱所
 手动路径与上面的串联路径二选一开始。为了清楚观察每次交接，请单独创建工作区：
 
 ```powershell
-.\scripts\prepare-workspace.ps1 -Workspace "$PWD\workspaces\temperature-manual-001"
+.\scripts\prepare-workspace.ps1 -Prepare -Workspace "$PWD\workspaces\temperature-manual-001"
 ```
 
 把界面的“项目工作目录”改为这个目录。以下用 `<名义模型ID>` 等占位符说明输入；执行前必须替换为当前工作区的实际产物 ID，去掉占位符两侧的尖括号。
@@ -783,7 +785,7 @@ Get-Content .\examples\temperature-walkthrough\imitation.json -Raw | Set-Clipboa
 | Control Web plugin is not built | 执行安装脚本构建本项目插件；源码仓库默认不提交生成的 `lib/` |
 | 找不到 `pnpm`、`node`、`pwsh` | 检查软件安装、版本与 PATH，重新打开 PowerShell 后再验证 |
 | 安装下载失败 | 查看明确失败的 Git、pip 或 pnpm 步骤，确认网络与包源；不要把半完成安装当成成功 |
-| 工作区ACL或沙箱权限错误 | 使用本工程 `workspaces/` 下由当前用户拥有的目录，并运行 `prepare-workspace.ps1` |
+| 工作区 ACL 或沙箱权限错误 | 查看错误中的进程、操作、路径和系统码。用 `prepare-workspace.ps1 -Workspace <绝对路径>` 检查有效权限。若自有工作区缺少 `WRITE_DAC` 或 `WRITE_OWNER`，在项目 `workspaces/` 或 `test-output/` 下的目标叶目录显式使用 `-Prepare` 后重试。若错误指出文件占用或私有 TEMP，处理对应路径。 |
 | JSON解析失败 | 检查英文双引号、逗号与括号；JSON里不要写注释，路径用 `/` 或转义反斜杠 |
 | dimension、unit或sample_time不一致 | 检查接口与数据映射，修正声明或做明确的数据转换，不要补零或截断硬凑维度 |
 | 找不到产物ID | 确认角色使用了正确的工作目录；外部工作区产物先导入，新运行使用自己的实际ID |

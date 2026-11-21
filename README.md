@@ -19,7 +19,7 @@ Set-Location D:\projects\control-agent-harness
 # 当前目录已经完成 Harness 安装与构建。首次建立或重新建立时执行：
 .\scripts\setup-harness.ps1
 # 建立由当前用户拥有的项目目录，并满足 Harness Windows 沙箱 ACL 前置条件：
-.\scripts\prepare-workspace.ps1 -Workspace D:\projects\control-agent-harness\workspaces\project-01
+.\scripts\prepare-workspace.ps1 -Prepare -Workspace D:\projects\control-agent-harness\workspaces\project-01
 .\scripts\start-web.ps1
 ```
 
@@ -46,7 +46,7 @@ Set-Location control-agent-harness
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -c constraints-v2-validated.txt -e .
 .\scripts\setup-harness.ps1
-.\scripts\prepare-workspace.ps1 -Workspace "$PWD\workspaces\project-01"
+.\scripts\prepare-workspace.ps1 -Prepare -Workspace "$PWD\workspaces\project-01"
 .\scripts\start-web.ps1
 ```
 
@@ -68,9 +68,13 @@ python -m venv .venv
 
 这些排除规则已写入 `.gitignore`，不会删除本机文件。GitHub 源码备份不包含实验数据与训练成果；若需要保存它们，应另做独立的工作区备份。上游许可及提取来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-Windows 的 Harness 沙箱需要工作目录由当前用户拥有，且该用户拥有完全控制，以便写入沙箱低完整性标签。辅助脚本只处理集成目录以内的当前用户自有目录；不会接管所有权、授权其他用户或关闭沙箱。外部工作路径需要具备相同前置条件。当前 Windows 后端仅限制写入，不提供完整读隔离或网络隔离，保留上游的能力边界。
+Windows ACL 沙箱使用本地 NTFS。Host 需要会话根目录上的有效 `WRITE_DAC` 和 `WRITE_OWNER`，以安装受限令牌所需的授权和低完整性标签。运行 `prepare-workspace.ps1 -Workspace <绝对路径>` 可只读检查。显式加 `-Prepare` 后，脚本仅在项目 `workspaces` 或 `test-output` 下当前用户拥有的工作区叶目录，为该用户补齐缺少的权限。外部工作区应由其管理者准备。
+
+`start-web.ps1 -Workspace <绝对路径>` 会在启动 Web 前执行同一只读检查。网页里的工作区仍由用户选定。打开专业会话或提交数值作业时，Host 与原生受限 Python worker 会使用该会话的实际目录及私有 TEMP 验证文件操作。当前 Windows 沙箱的隔离范围为写入权限。
 
 ## 使用方式
+
+已登记的 `python_callable` 对象可先完整采样，经 `convert_plant_predictor` 核验显式方程或辨识有界仿射模型，再交给 MPC 角色。`verify_design_delivery` 按指定工况检查独立 Python 包，合格的工作区控制器可以交给轻量化角色，在绑定的原对象上采集。复现所需的材料、工况和通过标准见 [B03 原生跨角色交付回归](harness-plugin/tests/plant-mpc-delivery.test.mjs)。
 
 三个控制角色保留固定上游 standard 的原生工具、技能、规划、压缩、子智能体和工作流组合，领域角色只替换 persona 并保留 quiet 作业通知。角色入口分别加载 `train-object-model`、`design-and-tune-mpc`、`distill-controller`，按用户材料和交付停止点规划，不要求每个请求都运行八阶段。已实现的适配合同、数值分支和限制见 [V2 支持矩阵](docs/v2-delivery.md)；操作字段以当前 `control_help` 为准，实际验收状态见 [acceptance.md](docs/acceptance.md)。
 

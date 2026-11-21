@@ -191,14 +191,26 @@ def _rows_arrays(rows, spec):
     return arrays
 
 
-def _collect_python(plant, expert, plan, context):
+def _collect_python(plant, expert, plan, context, journal=None):
     i, spec = plant.interface, expert.spec
     rows = {key: [] for key in ("observation", "reference", "d", "previous_u", "u", "x", "next_x", "plant_y", "next_y", "trajectory_id", "time")}
     diagnostics, summaries, diagnostic_bytes = [], [], 0
     trajectory = step = 0
     try:
-        for condition in plan["trajectories"]:
+        for index, condition in enumerate(plan["trajectories"]):
             trajectory = condition["trajectory_id"]; completed = 0
+            context.check()
+            restored = journal.load(index, condition) if journal else None
+            if restored is not None:
+                committed, prior_diagnostics = restored
+                for key in rows:
+                    rows[key].extend(committed[key])
+                diagnostics.extend(prior_diagnostics)
+                diagnostic_bytes += sum(len(json.dumps(item, allow_nan=False).encode()) for item in prior_diagnostics)
+                journal.commit(index, condition, committed, prior_diagnostics)
+                summaries.append({"trajectory_id": trajectory, "requested_steps": condition["steps"],
+                                  "completed_steps": condition["steps"], "status": "completed"})
+                continue
             context.check(); plant.reset(condition["x0"]); expert.reset()
             previous = np.asarray(condition["initial_action"], dtype=np.float64)
             reference, disturbance = np.asarray(condition["reference"]), np.asarray(condition["disturbance"])
@@ -218,6 +230,9 @@ def _collect_python(plant, expert, plan, context):
                 for key, value in record.items(): rows[key].append(value)
                 diagnostics.append(diagnostic); diagnostic_bytes += size; completed += 1; previous = action.copy()
             summaries.append({"trajectory_id": trajectory, "requested_steps": condition["steps"], "completed_steps": completed, "status": "completed"})
+            if journal:
+                journal.commit(index, condition, _rows_arrays({key: values[-completed:] for key, values in rows.items()}, spec),
+                               diagnostics[-completed:])
             context.progress("external_expert_collection", trajectory=trajectory, completed_trajectories=len(summaries), samples=len(rows["time"]))
     except Exception as error:
         completed = sum(value == trajectory for value in rows["trajectory_id"])
@@ -283,7 +298,10 @@ def collect_external_expert(workspace, expert_id, plant_id, config, context=None
                     expert = load_external_expert(expert_source, spec, expected_file_hashes=expert_material["files"])
                     plant = (load_python_adapter(plant_source, plant_spec, expected_file_hashes=plant_material["files"])
                         if plant_spec else _TorchAdapter(workspace, plant_id))
-                    result = _collect_python(plant, expert, plan, context)
+                    from .trajectory_journal import TrajectoryJournal
+                    journal = TrajectoryJournal(stage, context, plan, physical.sample_time)
+                    result = _collect_python(plant, expert, plan, context, journal)
+                    result["report"]["restored_trajectories"] = journal.restored
                 if result["status"] != "completed":
                     raise ExpertCollectionStopped("External expert batch stopped; valid prefix is not a trainable dataset", result["arrays"], result["report"], result["diagnostics"])
                 arrays = result["arrays"]

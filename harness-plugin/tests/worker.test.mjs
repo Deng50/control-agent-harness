@@ -42,6 +42,23 @@ test('global worker admission is bounded, FIFO and queued cancellation frees its
   assert.equal(slots.active, 0);
 });
 
+test('worker queue has a separate deadline and times out before dispatch', async () => {
+  const slots = new WorkerSlots(1), release = await slots.acquire(new AbortController().signal);
+  const guard = setTimeout(release,5000);
+  let dispatched = false;
+  try {
+    const hooks = numericalJob({ctx:{subprocess:{spawn(){dispatched=true;}}},slots,
+      config:{...config,queueTimeoutSeconds:1},policy:{mode:'workspace-write'},
+      job:{updateProgress(){},append(){}},request:{operation:'inspect_workspace'}});
+    const outcome = await hooks.done;
+    assert.equal(outcome.status,'failed');
+    assert.match(outcome.detail,/WORKER_QUEUE_TIMEOUT/);
+    assert.equal(outcome.cleanupVerified,true);
+    assert.equal(dispatched,false);
+    assert.equal(slots.waiting.length,0);
+  } finally {clearTimeout(guard);release();}
+});
+
 test('real worker returns an actual project manifest', async () => {
   const workspace = await mkdtemp(resolve(temp, 'inspect-'));
   const outputs = [];

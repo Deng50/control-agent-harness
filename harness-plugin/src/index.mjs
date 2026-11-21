@@ -8,9 +8,11 @@ import { agents } from './roles.mjs';
 import { operationHelp, operations } from './catalog.mjs';
 import { installMatlabResource } from './matlab-resource.mjs';
 import { createMatlabTerminalVerifier } from './matlab-terminal.mjs';
+import { MatlabTaskGrants } from './matlab-task-grants.mjs';
+import { preflightWorkspace } from './workspace-preflight.mjs';
 import { installCasePlans } from './case-plans.mjs';
 import { confirmationRequirements } from './case-requirements.mjs';
-import { reviewControlRequest } from './review.mjs';
+import { prepareExecution, prepareControlCard, reviewControlRequest } from './review.mjs';
 import { installSessionWorkspace, ensureProfessionalPreset } from './session-workspace.mjs';
 import { requiresMatlabBatch, assertMatlabBatchAvailable, matlabCollectionJob } from './matlab-job.mjs';
 
@@ -23,6 +25,7 @@ export const Config = z.object({
   codeRoot: z.string().required(),
   maxConcurrentWorkers: z.natural().min(1).default(1),
   timeoutSeconds: z.number().min(1).default(1800),
+  queueTimeoutSeconds: z.number().min(1).max(3600).default(120),
   cancellationGraceMs: z.number().min(1000).default(10000),
   // Omission is Python-only mode; one Host-wide directory must cover every
   // consumer of the same dedicated MATLAB session, including batch/Python.
@@ -41,8 +44,31 @@ export function apply(ctx, config) {
   const verifyMatlab = config.matlabResource?.identityFile
     ? createMatlabTerminalVerifier(ctx, { identityFile: config.matlabResource.identityFile }) : undefined;
   installMatlabResource(ctx, config, { verifyBeforeDispatch: verifyMatlab, verifyTerminal: verifyMatlab });
-  const casePlans = installCasePlans(ctx, { codeRoot: config.codeRoot, resolveRequirements: confirmationRequirements });
-  installSessionWorkspace(ctx);
+  // Propose all scopes in one Python transaction. Reviews have their own
+  // bounded slot so a long training job cannot block a user trying to review.
+  const reviewSlots = new WorkerSlots(1);
+  const preflight = options => preflightWorkspace({ctx,config,...options});
+  const matlabGrants = new MatlabTaskGrants(config);
+  const proposeBatch = async ({request, intent_id, requirements, agent, signal, retire_scopes = []}) => {
+    const timeout = AbortSignal.timeout(30000);
+    const stop = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    stop.throwIfAborted();
+    const policy = ctx.sandboxPolicy.resolve({session:agent.session});
+    await preflight({workspace:request.workspace,policy,signal:stop,operation:'propose_case_plans'});
+    const worker = numericalJob({ctx, slots:reviewSlots, config:{...config, timeoutSeconds:30},
+      policy, job:{updateProgress() {}, append() {}},
+      request:{operation:'propose_case_plans',workspace:request.workspace,inputs:{},config:{intent_id,retire_scopes,
+        requirements:requirements.map(({scope,reviewPayload,reviewBindings,bindings}) => ({scope,reviewPayload,reviewBindings,bindings}))}}});
+    stop.addEventListener('abort', worker.cancel, {once:true});
+    try {
+      const outcome = await worker.done;
+      stop.throwIfAborted();
+      if (outcome.status !== 'completed') throw new Error(outcome.detail ?? 'Engineering review preparation failed');
+      return JSON.parse(outcome.result).plans;
+    } finally { stop.removeEventListener('abort', worker.cancel); }
+  };
+  const casePlans = installCasePlans(ctx, { codeRoot: config.codeRoot, resolveRequirements: confirmationRequirements, proposeBatch, matlabGrants });
+  installSessionWorkspace(ctx,preflight);
   const slots = new WorkerSlots(config.maxConcurrentWorkers);
   const history = new JobHistory();
   const pendingWrites = new Set();
@@ -62,50 +88,80 @@ export function apply(ctx, config) {
   ctx.on('dispose', async () => { await Promise.allSettled([...pendingWrites]); });
   // Both the conversational tools and the human form command use this owner.
   // Commands are recorded by Harness and never require an LLM round trip.
-  const preparedAdmissionToken = Symbol('control-confirmed-admission');
-  const submit = async (agentName, args, agent, signal, toolCall, preparedWriter, preparedAdmission) => {
-    signal.throwIfAborted();
-    const spec = agents[agentName];
-    if (!spec || !spec.operations.includes(args.operation)) throw new Error('Operation is not available for this control agent');
-    if (typeof args.workspace !== 'string' || !isAbsolute(args.workspace)) throw new Error('workspace must be an absolute path');
-    for (const key of ['inputs', 'config']) {
-      if (args[key] !== undefined && (args[key] === null || typeof args[key] !== 'object' || Array.isArray(args[key]))) {
-        throw new Error(`${key} must be a JSON object`);
+  const resourceLimits = grant => ({workerQueueSeconds:config.queueTimeoutSeconds ?? 120,
+    workerSeconds:config.timeoutSeconds, matlabSeconds:grant?.scope.dispatch_timeout_seconds});
+  async function selectCardVersions(request, card_id, agent, role) {
+    const card = await casePlans.cardStatus({workspace:request.workspace, card_id, agent, role});
+    const continuation = card.operation === 'prepare_supervised_dataset' && request.operation === 'train_supervised' && card.plan_refs.training;
+    if (card.operation !== request.operation && !continuation) throw new Error('The selected review card does not cover this stage');
+    if (Object.values(card.statuses).some(status => status.confirmation_state !== 'confirmed')) {
+      throw new Error('本卡仍待用户确认，请核对当前版本并点击“确认以上摘要”。');
+    }
+    const refs = request.operation === 'prepare_supervised_dataset' ? {signals:card.plan_refs.signals} : card.plan_refs;
+    for (const [scope, ref] of Object.entries(request.config.plan_refs ?? {})) {
+      const selected = card.plan_refs[scope];
+      if (!Object.hasOwn(card.plan_refs,scope) || ref?.plan_id !== selected.plan_id || ref?.version_hash !== selected.version_hash) {
+        throw new Error('The supplied plan_refs differ from the selected review card');
       }
     }
-    const policy = ctx.sandboxPolicy.resolve({ session: agent.session });
-    const workspace = await authorizeWorkspace(args.workspace, policy, true);
-    await ensureProfessionalPreset(ctx, agent);
-    const request = { operation: args.operation, workspace, inputs: args.inputs ?? {}, config: args.config ?? {} };
-    if (preparedAdmission && (preparedAdmission[preparedAdmissionToken] !== true || preparedAdmission.owner !== agent.id
-      || preparedAdmission.rawRequest !== JSON.stringify(request))) throw new Error('Prepared recovery admission does not match this request and native Session');
-    const confirmation = preparedAdmission ? preparedAdmission.confirmation : await casePlans.authorizeRequest({ request, agent });
-    const matlabBatch = await requiresMatlabBatch(request);
-    if (matlabBatch) assertMatlabBatchAvailable(ctx, config, agent);
+    request.config = {...request.config,plan_refs:refs};
+    return card;
+  }
+  async function admitResources(request, agent, policy, signal, card) {
+    await preflight({workspace:request.workspace,policy,signal,operation:request.operation});
+    if (!await requiresMatlabBatch(request)) return null;
+    assertMatlabBatchAvailable(ctx,config,agent);
+    if (!card?.matlab_scope) throw new Error('MATLAB_TASK_GRANT_REQUIRED：请为本次操作生成确认卡，核对专用 MATLAB 的范围并点击授权。');
+    return matlabGrants.reserve({request,agent,card});
+  }
+  async function admit(agentName,args,agent,signal) {
     signal.throwIfAborted();
-    const writer = preparedWriter ?? await history.create({ workspace, owner: agent.id, agentName, request });
+    const policy = ctx.sandboxPolicy.resolve({ session: agent.session });
+    const request = await prepareExecution({...args,agent:agentName}, policy, {structured:args.card_id !== undefined});
+    if (args.next_training !== undefined) throw new Error('next_training belongs to the review card only');
+    await ensureProfessionalPreset(ctx, agent);
+    const card = args.card_id !== undefined ? await selectCardVersions(request,args.card_id,agent,agentName) : undefined;
+    const confirmation = await casePlans.authorizeRequest({ request, agent, role:agentName });
+    if (args.card_id !== undefined && !confirmation) throw new Error('This request no longer uses the reviewed engineering scopes');
+    const grant = await admitResources(request,agent,policy,signal,card);
+    return {request,agentName,agent,policy,confirmation,grant};
+  }
+
+  async function startAdmitted(admission,signal,toolCall,writer,collectionResume) {
+    const {request,agentName,agent,policy,confirmation,grant}=admission;
+    const {workspace}=request;
     let jobId;
     try {
       signal.throwIfAborted();
+      writer ??= await history.create({ workspace, owner: agent.id, agentName, request, limits:resourceLimits(grant) });
       jobId = ctx.jobs.start({
-      kind: 'control-engineering', label: `${agentName}: ${args.operation}`, owner: agent.id,
+      kind: 'control-engineering', label: `${agentName}: ${request.operation}`, owner: agent.id,
       ...(toolCall ? { toolCall } : {}),
       run: job => {
         writers.set(job.id, writer);
-        return persistedJob({ writer, job,
-          start: onEvent => matlabBatch
-            ? matlabCollectionJob({ ctx, job, agent, slots, config, request, policy, onEvent, confirmation })
-            : numericalJob({ ctx, job, slots, config, request, policy, onEvent, confirmation }),
+        let started = false;
+        const hooks = persistedJob({ writer, job,
+          start: onEvent => {
+            const worker = grant
+              ? matlabCollectionJob({ctx,job,agent,slots,config,request,policy,onEvent,confirmation,grant})
+              : numericalJob({ctx,job,slots,config,request,policy,onEvent,confirmation,collectionResume});
+            started = true;
+            return worker;
+          },
         });
+        return {cancel:hooks.cancel,done:hooks.done.finally(() => { if (!started) grant?.revoke('job_start_failed'); })};
       },
     }); } catch (error) {
-      await writer.append({ state: 'failed', outcome: { status: 'failed', detail: `Native job admission failed: ${error.message}` } });
+      grant?.revoke('job_start_failed');
+      await writer?.append({ state: 'failed', outcome: { status: 'failed', cleanupVerified:true, detail: `Native job admission failed: ${error.message}` } });
       throw error;
     }
     await writer.flush();
     return { jobId, attemptId: writer.record.attemptId, workspace,
       ...(writer.record.recoveredFrom ? { recoveredFrom: writer.record.recoveredFrom } : {}) };
-  };
+  }
+  const submit = async (agentName,args,agent,signal,toolCall) =>
+    startAdmitted(await admit(agentName,args,agent,signal),signal,toolCall);
   ctx.commands.register({
     definitionId: '@control-engineering/harness-bundle/help', name: 'control-help',
     description: 'Read the operation catalog, required inputs and engineering prerequisites',
@@ -119,6 +175,15 @@ export function apply(ctx, config) {
     },
   });
   ctx.commands.register({
+    definitionId:'@control-engineering/harness-bundle/preflight',name:'control-preflight',
+    description:'Inspect selected artifact versions and engineering interfaces before review or execution',
+    handler:async ({rawInput,agent})=>{
+      try {const result=await prepareExecution(JSON.parse(rawInput),ctx.sandboxPolicy.resolve({session:agent.session}),{probe:true});
+        return {kind:'success',text:JSON.stringify(result)};}
+      catch(error){return {kind:'error',text:error.message};}
+    },
+  });
+  ctx.commands.register({
     definitionId: '@control-engineering/harness-bundle/review', name: 'control-review',
     description: 'Read exact signal/sampling/training summaries required by this request; does not propose, confirm or execute',
     input: { hint: 'JSON: {agent, operation, workspace, inputs, config}' },
@@ -129,6 +194,17 @@ export function apply(ctx, config) {
         signal.throwIfAborted();
         return {kind:'success', text:JSON.stringify(value)};
       } catch (error) { return {kind:'error', text:error instanceof Error ? error.message : String(error)}; }
+    },
+  });
+  ctx.commands.register({
+    definitionId:'@control-engineering/harness-bundle/prepare-review',name:'control-prepare-review',
+    description:'Prepare a versioned engineering review card in this Session',
+    handler:async ({rawInput,agent,signal}) => {
+      try {
+        await ensureProfessionalPreset(ctx, agent);
+        const card = await prepareControlCard(JSON.parse(rawInput), ctx.sandboxPolicy.resolve({session:agent.session}), casePlans, agent, signal);
+        return {kind:'success',text:JSON.stringify(card)};
+      } catch (error) {return {kind:'error',text:error.message};}
     },
   });
   ctx.commands.register({
@@ -188,7 +264,7 @@ export function apply(ctx, config) {
   ctx.commands.register({
     definitionId: '@control-engineering/harness-bundle/recover', name: 'control-recover',
     description: 'Explicitly retry an interrupted/failed attempt or resume its saved training/workflow state as a new native job',
-    input: { hint: 'JSON {workspace, attemptId, mode: retry|resume, checkpoint?, plan_refs?}; optional migration refs select current plans already confirmed in this Session' },
+    input: { hint: 'Use the attempt in the sidebar. For migration select its signed card in the same Session; the legacy plan_refs selector is also supported.' },
     handler: async ({ rawInput, agent, signal }) => {
       try {
         const args = JSON.parse(rawInput);
@@ -202,27 +278,52 @@ export function apply(ctx, config) {
         }
         const recovered = await recoveryRequest(previous, args.mode, args.checkpoint);
         if (args.plan_refs !== undefined && (!args.plan_refs || typeof args.plan_refs !== 'object' || Array.isArray(args.plan_refs))) throw new Error('plan_refs must be an object selecting current confirmed plan versions');
-        const request = { operation: recovered.operation, workspace, inputs: recovered.inputs ?? {},
+        if (args.card_id !== undefined && args.plan_refs !== undefined) throw new Error('Select one confirmation card or legacy plan versions for recovery');
+        const selection = { operation: recovered.operation, workspace, inputs: recovered.inputs ?? {},
           config: { ...(recovered.config ?? {}), ...(args.plan_refs === undefined ? {} : { plan_refs: args.plan_refs }) } };
         // Admission is read-only and precedes every durable recovery mutation.
         // A legacy request may select newly confirmed plan refs, never mint them.
-        const confirmation = await casePlans.authorizeRequest({ request, agent });
-        signal.throwIfAborted();
-        const admission = { [preparedAdmissionToken]: true, owner: agent.id, rawRequest: JSON.stringify(request), confirmation };
-        const writer = await history.create({ workspace, owner: agent.id, agentName: previous.agentName,
-          request, recoveredFrom: previous.attemptId, recoveryMode: args.mode });
-        const winner = await history.claimRecovery(workspace, previous.attemptId, writer.record.attemptId, args.mode);
+        if (args.card_id !== undefined) {
+          delete selection.config.plan_refs;
+          selection.card_id=args.card_id;
+        }
+        const admission=await admit(previous.agentName,selection,agent,signal);
+        const {request,grant}=admission;
+        const collectionResume = args.mode === 'resume' && ['sample_model','collect_external_expert'].includes(request.operation)
+          ? previous.collectionCheckpoint : undefined;
+        if (grant && collectionResume) { grant.revoke('job_start_failed'); throw new Error('MATLAB 批任务需要完整且已核验的交换结果。'); }
+        let writer, winner;
+        try {
+          signal.throwIfAborted();
+          writer = await history.create({ workspace, owner: agent.id, agentName: previous.agentName,
+            request, recoveredFrom: previous.attemptId, recoveryMode: args.mode, limits:resourceLimits(grant) });
+          winner = await history.claimRecovery(workspace, previous.attemptId, writer.record.attemptId, args.mode);
+        } catch (error) {
+          grant?.revoke('job_start_failed');
+          await writer?.append({state:'failed',outcome:{status:'failed',cleanupVerified:true,
+            detail:`Recovery admission failed before a worker started: ${error.message}`}});
+          throw error;
+        }
         if (winner !== writer.record.attemptId) {
+          grant?.revoke('job_start_failed');
           await writer.append({ state: 'killed', recoveryBlocked: `Duplicate recovery; inspect replacement ${winner}`,
-            outcome: { status: 'killed', detail: 'Duplicate recovery admission suppressed; no worker started' } });
+            outcome: { status: 'killed', cleanupVerified:true, detail: 'Duplicate recovery admission suppressed; no worker started' } });
           const replacement = await history.read(workspace, winner, agent.id, ctx.jobs);
           return { kind: 'success', text: JSON.stringify({ jobId: replacement.nativeJobId, attemptId: winner, workspace,
             recoveredFrom: previous.attemptId, existing: true, state: replacement.state }) };
         }
-        return { kind: 'success', text: JSON.stringify(await submit(previous.agentName, request, agent, signal, undefined, writer, admission)) };
+        return { kind: 'success', text: JSON.stringify(await startAdmitted(admission,signal,undefined,writer,collectionResume)) };
       } catch (error) { return { kind: 'error', text: error instanceof Error ? error.message : String(error) }; }
     },
   });
+  ctx.tools.register(defineTool({
+    name: 'control_preflight',
+    description: '检查目标操作、所选产物版本、类型和信号接口，返回具体字段和补充材料。只读检查，不启动作业或产生确认。',
+    parameters:{agent:{type:'string',enum:Object.keys(agents),required:true},operation:{type:'string',enum:Object.keys(operations),required:true},
+      workspace:{type:'string',required:true},inputs:{type:'object',additionalProperties:true},config:{type:'object',additionalProperties:true}},
+    output:{schema:{type:'object',additionalProperties:true},render:(_args,value)=>[{type:'text',text:JSON.stringify(value)}]},
+    execute:(args,{agent})=>prepareExecution(args,ctx.sandboxPolicy.resolve({session:agent.session}),{probe:true}),
+  }));
   ctx.tools.register(defineTool({
     name: 'control_help',
     description: 'Read control-engineering operation instructions before submitting an unfamiliar stage. With no operation, lists the catalog. With an operation, returns required inputs, config JSON schemas, prerequisites, output meaning and a request example. Read-only; no workspace, numerical job or model service is needed.',
@@ -233,6 +334,25 @@ export function apply(ctx, config) {
     output: { schema: { type: 'object', additionalProperties: true }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
     execute: args => operationHelp(args),
   }));
+  ctx.tools.register(defineTool({
+    name:'control_prepare_review',
+    description:'Prepare the exact engineering request as a clickable human review card in this Session. Use the same intent_id for edits; choose a distinct task label for independent work. For spreadsheet preparation include next_training only when the user wants to train. Wait for the user to click, then submit the selected operation and card_id. Preparing the card does not confirm or start the work.',
+    parameters:{
+      agent:{type:'string',enum:Object.keys(agents),required:true}, operation:{type:'string',enum:Object.keys(operations),required:true},
+      workspace:{type:'string',required:true},inputs:{type:'object',additionalProperties:true},config:{type:'object',additionalProperties:true},
+      intent_id:{type:'string',description:'Task label or returned handle. Reuse across revisions of the same task.'},
+      next_training:{type:'object',additionalProperties:false,properties:{config:{type:'object',additionalProperties:true,required:true}},description:'Optional frozen train_supervised settings to review together with dataset preparation'},
+    },
+    output:{schema:{type:'object',additionalProperties:true},render:(_args,card)=>[{type:'text',text:JSON.stringify({
+      workspace:card.workspace,role:card.agent,operation:card.operation,card_id:card.card_id,intent_id:card.intent_id,
+      confirmation_scope_count:card.confirmation_scope_count,statuses:Object.fromEntries(Object.entries(card.statuses).map(([scope,s]) => [scope,s.confirmation_state])),
+    })}]},
+    execute:async (args,{agent,signal}) => {
+      if (!agent) throw new Error('Engineering review requires a Harness Session');
+      await ensureProfessionalPreset(ctx, agent);
+      return prepareControlCard(args,ctx.sandboxPolicy.resolve({session:agent.session}),casePlans,agent,signal);
+    },
+  }));
   for (const [agentName, spec] of Object.entries(agents)) {
     ctx.tools.register(defineTool({
       name: `control_${agentName}`,
@@ -242,6 +362,7 @@ export function apply(ctx, config) {
         workspace: { type: 'string', required: true, description: 'Absolute project path containing manifest.json; selected by the user.' },
         inputs: { type: 'object', additionalProperties: true, description: 'Operation-specific required artifact ids/source paths. Obtain the exact inputsSchema from control_help({operation}); do not infer names.' },
         config: { type: 'object', additionalProperties: true, description: 'Operation-specific settings. Obtain configSchema and prerequisites from control_help({operation}); preserve user-confirmed dimensions, units and conditions.' },
+        card_id: {type:'string',description:'Returned structured review card from this Session. The Host selects and verifies the exact approved versions.'},
       },
       output: {
         schema: { type: 'object', additionalProperties: false,

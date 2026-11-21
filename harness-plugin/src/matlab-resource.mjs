@@ -1,10 +1,39 @@
 /** Shared MATLAB admission; the per-call Python broker owns the same OS lock as batch/Python. */
 import { isAbsolute, resolve } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
+import { parseMatlabTerminalProbe } from './matlab-terminal.mjs';
 
 // Only trusted Host code obtains a lease. No model arguments or public tool
 // names can create this re-entry capability for the fixed terminal probe.
 const internalProbe = new AsyncLocalStorage();
+const scopedDispatch = new AsyncLocalStorage();
+const quote = text => "'" + String(text).replaceAll("'", "''") + "'";
+
+/** Only this Host-generated expression can carry the bound pair of in-process probes. */
+export async function dispatchMatlabTaskBatch({ctx,agent,grant,signal,manifestPath,manifestSha,nonce,helperRoot,onDispatch}) {
+  const {scope} = grant, before = randomUUID(), after = randomUUID();
+  const helper = resolve(helperRoot,'control_harness_task_batch.m'), callId = 'matlab-task-'+nonce;
+  const probeFile = resolve(helperRoot,'control_harness_terminal_probe.m');
+  const identity = {session_id:scope.dedicated_session.session_id,matlab_pid:scope.dedicated_session.pid};
+  const args = [scope.helper,manifestPath,manifestSha,nonce,identity.session_id,before,after];
+  // The MCP working directory is the installed helper directory. No source from
+  // the caller's workspace can shadow the code that proves process identity.
+  const code = "clear('control_harness_task_batch'); assert(strcmp(which('control_harness_task_batch'),"+quote(helper)+")); "
+    +"control_harness_task_batch("+args.map(quote).join(',')+","+identity.matlab_pid+");";
+  const params = {code,project_path:helperRoot};
+  const invocation = {agent,callId,params,grant,onDispatch,verified:false,
+    verify(result,session) {
+      for (const token of [before,after]) {
+        const proof = parseMatlabTerminalProbe(result.value,{nonce:token,identity,session,helperFile:probeFile});
+        if (token === after) return proof;
+      }
+    }};
+  const batch = await scopedDispatch.run(invocation,() => ctx.tools.execute({agent,signal,calls:[{type:'tool_call',
+    id:callId,name:scope.native_tool,arguments:JSON.stringify(params)}]}));
+  if (!batch.results[0]?.result?.isError && !invocation.verified) throw new MatlabResourceError('MATLAB 专用资源门禁未返回终态证明。');
+  return batch;
+}
 
 export class MatlabResourceError extends Error {
   constructor(message) { super(message); this.name = 'MatlabResourceError'; }
@@ -172,12 +201,16 @@ class MatlabLease {
 
   withInternalProbe(callback) { return this.resource.withInternalProbe(this, callback); }
 
-  async start() {
+  async start(requireLiveSession = false) {
     this.signal.throwIfAborted();
-    this.broker.send({ command: 'start' });
+    this.broker.send({ command: 'start',require_live_session:requireLiveSession });
     const event = await this.broker.wait('started', 'cancelled');
     if (event.event !== 'started') {
+      this.closed = true;
+      this.broker.handle.stdin.end();
+      await this.broker.done;
       this.signal.throwIfAborted();
+      if (event.reason === 'bound_session_identity_changed') throw new MatlabResourceError('专用 MATLAB 进程已退出，PID 已重用或无法验证。');
       throw new MatlabResourceError('MATLAB broker cancelled before dispatch');
     }
     this.started = true;
@@ -192,9 +225,13 @@ class MatlabLease {
 
   async complete(evidence) {
     if (this.closed) throw new MatlabResourceError('MATLAB resource lease is closed');
-    if (this.signal.aborted) return this.quarantine('cancelled_before_completion_certificate');
+    if (this.signal.aborted) {
+      await this.quarantine('cancelled_before_completion_certificate');
+      this.signal.throwIfAborted();
+    }
     this.closed = true;
-    await this.broker.finish({ command: 'complete', evidence }, 'completed', 'quarantined');
+    const event = await this.broker.finish({ command: 'complete', evidence }, 'completed', 'quarantined');
+    if (event.event !== 'completed') throw new MatlabResourceError('MATLAB 终态与取消同时发生，资源已隔离。');
   }
 
   async quarantine(reason) {
@@ -230,6 +267,27 @@ export function installMatlabResource(ctx, config, { verifyBeforeDispatch, verif
     }
     let result;
     try {
+      const scoped = scopedDispatch.getStore();
+      if (scoped) {
+        if (scoped.callId !== exec.callId || scoped.agent !== exec.agent || exec.name !== scoped.grant.scope.native_tool
+            || exec.arguments?.code !== scoped.params.code || exec.arguments?.project_path !== scoped.params.project_path
+            || Object.keys(exec.arguments).length !== 2) throw new MatlabResourceError('MATLAB 批处理调用与 Host 已授权参数不匹配。');
+        // A queued call can outlive the reviewed binary, session or artifact.
+        // A failed check here releases only the reservation and never calls MATLAB.
+        await scoped.grant.validate(lease.session);
+        await lease.start(true);
+        exec.signal.throwIfAborted();
+        scoped.onDispatch();
+        result = await next();
+        if (result.isError || exec.signal.aborted) {
+          await lease.quarantine('scoped_mcp_failed_or_cancelled_state_unknown');
+        } else {
+          const terminal = scoped.verify(result,lease.session);
+          await lease.complete(terminal);
+          scoped.verified = true;
+        }
+        return result;
+      }
       await lease.start();
       const before = verifyBeforeDispatch
         ? await resource.withInternalProbe(lease, () => verifyBeforeDispatch({ exec, lease })) : undefined;

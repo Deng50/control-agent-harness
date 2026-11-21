@@ -1,0 +1,49 @@
+{
+  "groups": {
+    "predictor": ["nominal_model", "reference_model", "identified_model", "corrected_model", "learned_model"],
+    "sampler": ["nominal_model", "reference_model", "identified_model", "corrected_model", "plant_model"]
+  },
+  "payloads": {
+    "nominal_model":["model.json"], "reference_model":["model.json"], "identified_model":["model.json"],
+    "corrected_model":["nominal.json","network.json","scalers.json","model.pt"],
+    "learned_model":["learned.json","model.pt","features.json","scaler.json","network_config.json","data_interface.json"],
+    "controller":["controller.json"], "controller_design":["design.json","bundle/bundle_manifest.json"],
+    "plant_model":["plant.json"], "external_expert":["expert.json"], "expert_dataset":["expert.npz"], "external_expert_dataset":["expert.npz"]
+  },
+  "stages": {
+    "register_model": {"inputs":{"model_path":"file"}, "workflow_output":"nominal_model"},
+    "register_python_model": {"inputs":{"model_path":"file"}, "workflow_output":"nominal_model"},
+    "import_artifact": {"inputs":{"artifact_path":"artifact_directory"}, "workflow_output":null},
+    "import_transitions": {"inputs":{"nominal_model":"nominal_model","data_path":"file"}, "optional":{"reference_model":"@predictor"}, "workflow_output":"transition_dataset"},
+    "simulate_transitions": {"inputs":{"nominal_model":"nominal_model","reference_model":"@predictor"}, "workflow_output":"transition_dataset"},
+    "train_residual": {"inputs":{"nominal_model":"nominal_model","dataset":"transition_dataset"}, "workflow_output":"corrected_model"},
+    "design_controller": {"inputs":{"model":"@predictor","evaluation_model":"@predictor"}, "workflow_output":"controller"},
+    "collect_expert": {"inputs":{"controller":"controller","evaluation_model":["nominal_model","reference_model","identified_model","corrected_model","learned_model","plant_model"]}, "workflow_output":"expert_dataset"},
+    "train_imitation": {"inputs":{"dataset":"expert_dataset"}, "workflow_output":"imitation_policy"},
+    "optimize_policy": {"inputs":{"policy":["imitation_policy","optimized_policy"],"model":"@predictor"}, "workflow_output":"optimized_policy"},
+    "identify_linear_model": {"inputs":{"nominal_model":"nominal_model","dataset":"transition_dataset"}, "workflow_output":"identified_model"},
+    "validate_estimator": {"inputs":{"controller":"controller","model":"@predictor","evaluation_model":"@predictor"}, "workflow_output":"estimator"},
+    "register_plant": {"inputs":{"material":"material"}},
+    "recommend_sampling": {"inputs":{"model":"@sampler"}},
+    "sample_model": {"inputs":{"model":"@sampler"}},
+    "train_predictive_model": {"inputs":{"dataset":"sampled_dataset"}},
+    "convert_plant_predictor": {"inputs":{"plant":"plant_model","dataset":"sampled_dataset"},"optional":{"equations":["nominal_model","reference_model"]}},
+    "synthesize_mpc": {"inputs":{},"optional":{"model":"@predictor","dataset":"sampled_dataset"}},
+    "verify_design_delivery": {"inputs":{"design":"controller_design"}},
+    "check_matlab_design": {"inputs":{"design":"controller_design"}},
+    "tune_controller": {"inputs":{"model":"@predictor","evaluation_model":"@predictor"}},
+    "prepare_supervised_dataset": {"inputs":{"material":"material"}},
+    "train_supervised": {"inputs":{"dataset":"supervised_dataset"}},
+    "prepare_pinn_problem": {"inputs":{"material":"material"}},
+    "train_pinn": {"inputs":{"problem":"conditional_ode_problem"}},
+    "register_expert": {"inputs":{"material":"material"}},
+    "collect_external_expert": {"inputs":{"expert":"external_expert","plant":["plant_model","nominal_model","reference_model","identified_model","corrected_model","learned_model"]}},
+    "import_expert_data": {"inputs":{"material":"material"}},
+    "train_external_imitation": {"inputs":{"dataset":"external_expert_dataset"}},
+    "prepare_imitation_evaluation": {"inputs":{"policy":"external_imitation_policy"}},
+    "evaluate_external_imitation": {"inputs":{"policy":"external_imitation_policy"}},
+    "validate_differentiable_model": {"inputs":{"evaluation_model":"@sampler","model":"@predictor","dataset":"sampled_dataset"}},
+    "optimize_external_policy": {"inputs":{"policy":"external_imitation_policy","model":"@predictor","validation":"differentiable_validation"}},
+    "evaluate_external_pgac": {"inputs":{"candidate":"external_pgac_candidate"}}
+  }
+}

@@ -10,29 +10,20 @@ from pathlib import Path
 
 import numpy as np
 
-from .artifacts import Workspace, atomic_json, canonical_hash, file_hash, read_json
+from .artifacts import Workspace, atomic_json, canonical_hash, failure_fields, file_hash, read_json, record_cleanup_error
+from .checkpoints import authorized_checkpoint_path, checkpoint_sidecar
 from .contracts import ContractError, ModelInterface, validate_network_dimensions
 from .control import partition_scenarios, validate_scenario
 from .data import validate_transitions
 from .modeling import DeclarativeDynamics
 from .runtime import Cancelled, OperationContext
 
-MODELS = {"nominal_model", "reference_model", "corrected_model", "identified_model", "learned_model"}
-# Inputs are explicit. An active artifact is never silently substituted mid-workflow.
-STAGES = {
-    "register_model": ({"model_path": "file"}, "nominal_model"),
-    "register_python_model": ({"model_path": "file"}, "nominal_model"),
-    "import_artifact": ({"artifact_path": "artifact_directory"}, None),
-    "import_transitions": ({"nominal_model": {"nominal_model"}, "data_path": "file"}, "transition_dataset"),
-    "simulate_transitions": ({"nominal_model": {"nominal_model"}, "reference_model": MODELS}, "transition_dataset"),
-    "train_residual": ({"nominal_model": {"nominal_model"}, "dataset": {"transition_dataset"}}, "corrected_model"),
-    "design_controller": ({"model": MODELS, "evaluation_model": MODELS}, "controller"),
-    "collect_expert": ({"controller": {"controller"}, "evaluation_model": MODELS}, "expert_dataset"),
-    "train_imitation": ({"dataset": {"expert_dataset"}}, "imitation_policy"),
-    "optimize_policy": ({"policy": {"imitation_policy", "optimized_policy"}, "model": MODELS}, "optimized_policy"),
-    "identify_linear_model": ({"nominal_model": {"nominal_model"}, "dataset": {"transition_dataset"}}, "identified_model"),
-    "validate_estimator": ({"model": MODELS, "controller": {"controller"}, "evaluation_model": MODELS}, "estimator"),
-}
+from .stage_contracts import STAGE_CONTRACTS, accepted
+
+MODELS = accepted("@predictor")
+# 同一合同同时供网页预检和 Python 的工作流类型推断使用。
+STAGES = {op: ({key: accepted(kind) for key, kind in stage["inputs"].items()}, stage["workflow_output"])
+          for op, stage in STAGE_CONTRACTS.items() if "workflow_output" in stage}
 
 
 def workflow_definition(inputs: dict, config: dict) -> dict:
@@ -165,9 +156,14 @@ def plan_workflow(workspace: Workspace, inputs: dict, config: dict) -> dict:
                     raise ContractError("epochs must be a positive integer")
                 if "resume_checkpoint" in settings:
                     path = Path(settings["resume_checkpoint"])
-                    if not path.is_absolute() or not path.is_file():
+                    if not path.is_absolute():
                         raise ContractError("resume_checkpoint must be an existing absolute file")
-                    resources[f"file:{path.resolve()}"] = file_hash(path)
+                    path = authorized_checkpoint_path(workspace, path)
+                    digest = file_hash(path)
+                    if (read_json(checkpoint_sidecar(path)).get("sha256") != digest
+                            or settings.get("resume_checkpoint_sha256", digest) != digest):
+                        raise ContractError("Workflow checkpoint differs from its sidecar or requested SHA-256")
+                    resources[f"file:{path}"] = digest
             known[stage_id] = {"kind": output_kind, "interface": interface.to_dict()}
             checks.append({"id": stage_id, "operation": operation, "output_kind": output_kind,
                            "interface": interface.to_dict(), "status": "ready"})
@@ -282,6 +278,10 @@ def run_workflow(workspace: Workspace, inputs: dict, config: dict, context: Oper
             return {"status": "verified", "workflow_run": run_id, "record_path": str(path), "steps": record["steps"], "artifacts": outputs}
         except BaseException as exc:
             record.update(status="cancelled" if isinstance(exc, Cancelled) else "interrupted", updated_at=time.time(),
-                          error={"type": type(exc).__name__, "message": str(exc)})
-            atomic_json(path, record)
+                          error={"type": type(exc).__name__, "message": str(exc), **failure_fields(exc)})
+            try:
+                atomic_json(path, record)
+            except OSError as cleanup:
+                # 工作流快照和训练目录可能同时被占用；向 CLI 返回最早的错误与现场位置。
+                record_cleanup_error(exc, f"Workflow interruption record was not written to {path}: {cleanup}")
             raise

@@ -23,6 +23,58 @@ torch.set_num_threads(1)
 
 
 class DesignOnlyTests(unittest.TestCase):
+    def test_matlab_single_point_snapshot_and_rejected_licensed_result(self):
+        """真实导出与归档，数值求解、工具箱许可及原生回包明确使用测试替身。"""
+        from hashlib import sha256
+        import json
+        import os
+        import uuid
+        from types import SimpleNamespace
+        from control_harness.matlab_design_check import check_design
+
+        design_id, _, _, _, _ = self.result({"description": "单点测试"}, {
+            "template": "spring_damper", "parameters": self.parameters, "solver_check": False})
+        config = {"case": {"x": [0.2, 0.0], "reference": [0.1]}}
+        raw = json.dumps({"operation": "check_matlab_design", "inputs": {"design": design_id}, "config": config})
+        context = SimpleNamespace(_case_receipt_body={"test_fixture": True}, _case_raw_request=raw)
+        nonce = str(uuid.uuid4())
+        exchange = self.ws.path / ".case-plans" / "matlab-exchanges" / nonce
+        env = {"CONTROL_MATLAB_PHASE": "prepare", "CONTROL_MATLAB_NONCE": nonce,
+               "CONTROL_MATLAB_REQUEST_SHA256": sha256(raw.encode()).hexdigest(), "CONTROL_MATLAB_EXCHANGE_DIR": str(exchange)}
+        with patch.dict(os.environ, env):
+            prepared = check_design(self.ws, design_id, config, context)
+        self.assertEqual(prepared["batch_kind"], "controller_design")
+        self.assertEqual(len(list((exchange/"bundle").iterdir())), 9)
+        self.assertFalse((exchange/"bundle"/"controller.py").exists())
+        result = {key: prepared[key] for key in ("nonce", "request_sha256", "spec_hash", "plan_hash")}
+        result["report"] = {"wrapper_nonce": nonce, "status": "blocked_toolbox_license", "ga_trials": 0, "closed_loop": "not_run"}
+        result_path = exchange/"result.json"
+        atomic_json(result_path, result)
+        env.update(CONTROL_MATLAB_PHASE="finalize", CONTROL_MATLAB_RESULT_PATH=str(result_path),
+                   CONTROL_MATLAB_RESULT_SHA256=sha256(result_path.read_bytes()).hexdigest())
+        with patch.dict(os.environ, env), self.ws.lock("check_matlab_design"):
+            report_id = check_design(self.ws, design_id, config, context)
+        root, meta = self.ws.resolve(report_id, allow_rejected=True)
+        self.assertEqual(meta["validation"]["status"], "rejected")
+        self.assertEqual(read_json(root/"report.json")["closed_loop"], "not_run")
+        self.assertEqual(meta["parents"][0]["id"], design_id)
+
+        # 再注册一份完整的合法 manifest，其中一个函数和项目发行版本不同。
+        # 仅按产物自身 hash 校验会误放行；这里要求固定函数逐字匹配。
+        import shutil
+        from control_harness.contracts import MaterialInterface
+        original, _ = self.ws.resolve(design_id)
+        with self.ws.lock("fixture"), self.ws.stage("controller_design", MaterialInterface("bundle"),
+                                        [], {}, compatible_parents=False) as stage:
+            shutil.copytree(original/"bundle",stage.root/"bundle")
+            (stage.root/"bundle"/"mpc_control.m").write_text("% changed fixture", encoding="utf-8")
+            changed = stage.publish({"status": "verified"}, activate=False)
+        nonce = str(uuid.uuid4())
+        env.update(CONTROL_MATLAB_PHASE="prepare", CONTROL_MATLAB_NONCE=nonce,
+                   CONTROL_MATLAB_EXCHANGE_DIR=str(exchange.parent/nonce))
+        with patch.dict(os.environ, env), self.assertRaisesRegex(ContractError, "固定求解函数"):
+            check_design(self.ws, changed, config, context)
+
     def setUp(self):
         parent=ROOT/'test-output/design-only-tests';parent.mkdir(parents=True,exist_ok=True)
         self.temporary=tempfile.TemporaryDirectory(dir=parent);self.addCleanup(self.temporary.cleanup)

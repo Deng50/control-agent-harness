@@ -88,7 +88,7 @@ class ArtifactTests(unittest.TestCase):
         with self.assertRaises(ContractError):
             self.workspace.resolve(artifact)
 
-    def test_upstream_revision_invalidates_transitive_consumers(self):
+    def test_upstream_revision_retires_defaults_but_preserves_frozen_consumers(self):
         parent = self.register()
         interface = ModelInterface.parse(self.spec["interface"])
         with self.workspace.stage("controller", interface, [parent], {}) as stage:
@@ -99,9 +99,10 @@ class ArtifactTests(unittest.TestCase):
         replacement = self.register()
         self.assertNotEqual(parent, replacement)
         for item in (child, grandchild):
-            with self.assertRaises(ContractError):
-                self.workspace.resolve(item)
+            root, _ = self.workspace.resolve(item)
+            self.assertTrue((root / "artifact.json").is_file())
         self.assertNotIn("controller", self.workspace.manifest["active"])
+        self.assertNotIn("expert_dataset", self.workspace.manifest["active"])
         self.workspace.resolve(parent)  # Immutable historical source remains inspectable.
 
     def test_conflicting_operations_are_refused(self):

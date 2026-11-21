@@ -12,6 +12,7 @@ from .contracts import ContractError, ModelInterface, canonical_hash
 from .control import closed_loop, load_controller, validate_scenario
 from .data import trajectory_split
 from .modeling import DTYPE, load_model, tensor
+from .plants import OriginalCallablePlant, load_evaluation_plant
 from .reused.mlp import MLPNetwork
 from .reused.lstm import LSTMNetwork
 from .reused.rnn import RNNNetwork
@@ -21,7 +22,8 @@ from .runtime import OperationContext
 def collect_expert(workspace: Workspace, controller_id: str, reference_id: str, config: dict,
                    context: OperationContext | None = None) -> str:
     context = context or OperationContext()
-    controller, plant = load_controller(workspace, controller_id, context), load_model(workspace, reference_id)
+    controller = load_controller(workspace, controller_id, context)
+    plant = load_evaluation_plant(workspace, controller_id, reference_id)
     controller.interface.compatible(plant.interface)
     scenarios = config.get("scenarios", [])
     if len(scenarios) < 5:
@@ -64,6 +66,7 @@ def collect_expert(workspace: Workspace, controller_id: str, reference_id: str, 
                               "scenarios": len(scenarios), "closed_loop_constraints_passed": passed,
                               "constraint_checks": reports[0]["constraint_checks"]},
                              source={"controller": controller_id, "evaluation_model": reference_id,
+                                     "evaluation_backend": "original_python_callable" if isinstance(plant, OriginalCallablePlant) else "registered_dynamics",
                                      "kind": "simulated_expert_closed_loop"})
 
 
@@ -208,6 +211,9 @@ def expert_previous_actions(data, interface):
 
 def read_expert(workspace, dataset_id):
     root, meta = workspace.resolve(dataset_id, kind="expert_dataset")
+    # 控制器和评价对象会在模仿训练的独立工况中再次执行，只允许使用冻结数据直接绑定的版本。
+    if not {meta["source"].get("evaluation_model"), meta["source"].get("controller")}.issubset({p["id"] for p in meta["parents"]}):
+        raise ContractError("专家数据所声明的控制器和评价对象必须同时绑定为该数据的父版本。")
     with np.load(root / "expert.npz", allow_pickle=False) as loaded:
         data = {k: loaded[k] for k in loaded.files}
     split = read_json(root / "split.json")
@@ -231,7 +237,7 @@ def train_imitation(workspace: Workspace, dataset_id: str, config: dict,
     data, masks, collection, meta = read_expert(workspace, dataset_id)
     interface = ModelInterface.parse(meta["interface"])
     reference_id = meta["source"]["evaluation_model"]
-    plant = load_model(workspace, reference_id)
+    plant = load_evaluation_plant(workspace, meta["source"]["controller"], reference_id)
     seed = int(config.get("seed", 42))
     seed_training(seed)
     generator = torch.Generator().manual_seed(seed)
@@ -267,11 +273,12 @@ def train_imitation(workspace: Workspace, dataset_id: str, config: dict,
         best, best_state, log = checkpoint["best_metric"], checkpoint["best_state"], checkpoint["log"]
     with workspace.stage("imitation_policy", interface, [dataset_id], config) as stage:
         def checkpoint_epoch(epoch):
-            save_checkpoint(stage.root, contract, model=policy, optimizer=optimizer, epoch=epoch,
+            return save_checkpoint(stage.root, contract, target_epochs=epochs, model=policy, optimizer=optimizer, epoch=epoch,
                             updates=updates, best_state=best_state, best_metric=best, wait=wait,
                             log=log, generator=generator)
 
-        checkpoint_epoch(start)
+        saved = checkpoint_epoch(start)
+        context.progress("imitation_initial_checkpoint", epoch=start, optimizer_updates=updates, **saved)
         for epoch in range(start, epochs):
             if wait >= patience:
                 break
@@ -302,9 +309,9 @@ def train_imitation(workspace: Workspace, dataset_id: str, config: dict,
                 wait += 1
             event = {"epoch": epoch + 1, "training_loss": loss.item(), "validation_loss": val}
             log.append(event)
-            checkpoint_epoch(epoch + 1)
+            saved = checkpoint_epoch(epoch + 1)
             context.progress("imitation_training", **event, optimizer_updates=updates,
-                             checkpoint=str(workspace.path / "failed" / stage.id / "latest.pt"))
+                             **saved)
             if wait >= patience:
                 break
         if best_state is None:
@@ -321,6 +328,7 @@ def train_imitation(workspace: Workspace, dataset_id: str, config: dict,
                   "action_constraints": net_config["action_constraints"],
                   "constraint_checks": policy_constraint_checks(policy),
                   "offline_action_metrics": "projected_action_given_expert_previous",
+                  "evaluation_model": reference_id, "evaluation_backend": meta["source"].get("evaluation_backend", "registered_dynamics"),
                   "test_action_rmse": error.square().mean(0).sqrt().tolist(), "closed_loop": evaluation, "log": log,
                   "parameter_count": sum(p.numel() for p in policy.parameters()), "test_used_for_training": False}
         atomic_json(stage.root / "network.json", net_config)
@@ -383,11 +391,18 @@ def optimize_policy(workspace: Workspace, policy_id: str, model_id: str, config:
     context = context or OperationContext()
     reject_constraint_override(config)
     policy = load_policy(workspace, policy_id)
-    root, _ = workspace.resolve(policy_id)
+    lineage = workspace.resolve_closure(policy_id)
+    root, _ = lineage[policy_id]
     descriptor = read_json(root / "policy.json")
     dataset_id = descriptor["dataset"]
+    if dataset_id not in lineage or lineage[dataset_id][1]["kind"] != "expert_dataset":
+        raise ContractError("模仿或优化策略的专家数据集必须在其已验证的依赖链内。")
     data, masks, collection, meta = read_expert(workspace, dataset_id)
-    model, plant = load_model(workspace, model_id), load_model(workspace, descriptor["evaluation_model"])
+    model = load_model(workspace, model_id)
+    if (descriptor["expert_controller"] != meta["source"]["controller"] or
+            descriptor["evaluation_model"] != meta["source"]["evaluation_model"]):
+        raise ContractError("策略记录中的专家和评价对象必须与所选专家数据的来源一致。")
+    plant = load_evaluation_plant(workspace, descriptor["expert_controller"], descriptor["evaluation_model"])
     policy.interface.compatible(model.interface)
     expert = load_controller(workspace, descriptor["expert_controller"], context)
     controller_root, _ = workspace.resolve(descriptor["expert_controller"])
@@ -446,14 +461,16 @@ def optimize_policy(workspace: Workspace, policy_id: str, model_id: str, config:
         best_score, best_state, log = checkpoint["best_metric"], checkpoint["best_state"], checkpoint["log"]
     with workspace.stage("optimized_policy", i, [policy_id, model_id], config) as stage:
         def checkpoint_epoch(epoch):
-            save_checkpoint(stage.root, contract, model=policy, optimizer=optimizer, epoch=epoch,
+            return save_checkpoint(stage.root, contract, target_epochs=epochs, model=policy, optimizer=optimizer, epoch=epoch,
                             updates=updates, best_state=best_state, best_metric=best_score, wait=0,
                             log=log, numpy_generator=rng)
 
-        checkpoint_epoch(start)
+        saved = checkpoint_epoch(start)
+        context.progress("physical_initial_checkpoint", epoch=start, optimizer_updates=updates, **saved)
         if best_score is None:
             best_score = selection_score()
-            checkpoint_epoch(start)
+            saved = checkpoint_epoch(start)
+            context.progress("physical_initial_checkpoint", epoch=start, optimizer_updates=updates, **saved)
         for epoch in range(start, epochs):
             context.check()
             # Every training condition participates each epoch, fixing the legacy tail-starvation issue.
@@ -499,9 +516,9 @@ def optimize_policy(workspace: Workspace, policy_id: str, model_id: str, config:
             event = {"epoch": epoch + 1, "loss": loss.item(), "validation_score": score if np.isfinite(score) else None,
                      "training_conditions_updated": len(groups)}
             log.append(event)
-            checkpoint_epoch(epoch + 1)
+            saved = checkpoint_epoch(epoch + 1)
             context.progress("physical_policy_optimization", **event, optimizer_updates=updates,
-                             checkpoint=str(workspace.path / "failed" / stage.id / "latest.pt"))
+                             **saved)
         policy.load_state_dict(best_state)
         policy.eval()
         original = load_policy(workspace, policy_id)

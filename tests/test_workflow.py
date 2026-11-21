@@ -78,6 +78,30 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(recovered["artifacts"], result["artifacts"])
         self.assertTrue(recovered["steps"]["data"]["recovered_publication"])
 
+    def test_failed_training_record_and_checkpoint_preflight_use_the_same_generation(self):
+        workflow = copy.deepcopy(self.config)
+        training = {"id": "training", "operation": "train_residual",
+                    "inputs": {"nominal_model": {"stage": "nominal"}, "dataset": {"stage": "data"}},
+                    "config": {"epochs": 3, "hidden_dims": [4], "batch_size": 8}}
+        workflow["steps"].append(training)
+
+        def stop(event):
+            if event.get("stage") == "residual_training" and event.get("epoch") == 1:
+                raise Cancelled("cancelled after committed generation")
+
+        with self.assertRaises(Cancelled):
+            run_workflow(self.workspace, {}, workflow, OperationContext(emit=stop))
+        record = read_json(next((self.workspace.path / "workflows").glob("*.json")))
+        error = record["error"]
+        self.assertEqual((error["epoch"], error["target_epochs"], error["checkpoint_status"]), (1, 3, "archived"))
+        settings = training["config"]
+        settings.update(resume_checkpoint=error["checkpoint"], resume_checkpoint_sha256=error["checkpoint_sha256"])
+        plan = plan_workflow(self.workspace, {}, workflow)
+        self.assertEqual(plan["errors"], [])
+        self.assertEqual(plan["resources"][f"file:{error['checkpoint']}"], error["checkpoint_sha256"])
+        settings["resume_checkpoint_sha256"] = "0" * 64
+        self.assertIn("SHA-256", plan_workflow(self.workspace, {}, workflow)["errors"][0]["message"])
+
     def test_changed_input_or_config_cannot_resume_old_results(self):
         result = run_workflow(self.workspace, {}, self.config, OperationContext())
         altered = copy.deepcopy(self.config)

@@ -2,6 +2,8 @@
 
 当前接法针对 Windows：MATLAB R2024b、官方 MCP Server 0.16.0、Simulink Agentic Toolkit 2026.11.a。复用已有安装，不安装 Engine，不升级，也不改用户 startup.m。
 
+启动脚本兼容 Windows PowerShell 5.1 与 PowerShell 7，无需安装 `pwsh`。绝对路径检查使用兼容实现，同时拒绝 `C:relative` 和 `\root-relative`。可用 `powershell.exe -NoProfile -File .\scripts\test-startup-compatibility.ps1` 检查本机兼容性。复制命令时仅复制代码，不包含 `(base) PS ...>` 或 `>>` 提示符。
+
 先显式启动一份本项目拥有的专用 MATLAB，再让 Harness 的唯一 MCP client 使用 `existing` 连接该进程。`start-web.ps1` 自身不启动 MATLAB；没有 `-Matlab` 时不加载 MATLAB overlay，锁配置保持未启用。
 
 官方默认 `existing` 使用最近执行 `shareMATLABSession` 的用户共享文件，不能据此保证选中工程会话。本接法只在专用 MATLAB 运行 `satk_initialize` 时临时设置该进程的 `APPDATA`，把共享文件写入私有会话目录，然后恢复环境；MCP 子进程使用同一私有 `APPDATA`。不改用户全局发现文件，不按名称猜选会话，不连接或关闭其他 MATLAB。

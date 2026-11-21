@@ -16,6 +16,7 @@ import zipfile
 import numpy as np
 
 from .artifacts import atomic_json, confined, read_json
+from .checkpoints import checkpoint_fields, current_checkpoint
 from .contracts import ContractError, canonical_hash
 from .external_expert_data import read_external_expert_dataset, validate_expert_interface, _actions
 from .runtime import OperationContext
@@ -190,7 +191,7 @@ def train_external_imitation(workspace, external_expert_dataset_id, config, cont
         nn_root, nn_meta = workspace.resolve(supervised_id, kind="supervised_model", allow_rejected=True)
         nn_report = read_json(nn_root / "report.json")
         context.emit({"event": "progress", "stage": "external_imitation", "supervised_model": supervised_id,
-            "epoch": nn_report["trained_epochs"], "checkpoint": str(nn_root / "latest.pt"), "checkpoint_status": "published"})
+            **checkpoint_fields(current_checkpoint(nn_root), "published")})
         context.check()
         if nn_meta["validation"]["status"] != "verified": raise ContractError("Internal supervised training did not produce a verified model")
         test_rows = np.flatnonzero(masks["test"]); shape = (len(test_rows), interface.output_dim)

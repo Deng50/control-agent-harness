@@ -1,4 +1,7 @@
 /** Bounded global worker admission and JSON-lines execution over Harness subprocess handles. */
+import {stages} from './stage-contracts.mjs';
+import {verifyPublication} from './case-requirements.mjs';
+
 export class WorkerSlots {
   constructor(limit) {
     this.limit = limit;
@@ -40,7 +43,7 @@ export class WorkerSlots {
 }
 
 /** Returns synchronous native-job hooks; done includes process-range cleanup. */
-export function numericalJob({ ctx, job, slots, config, request, policy, onEvent = () => {}, confirmation, extraEnv = {} }) {
+export function numericalJob({ ctx, job, slots, config, request, policy, onEvent = () => {}, confirmation, extraEnv = {}, collectionResume }) {
   const privateKeys = new Set(['CONTROL_MATLAB_PHASE', 'CONTROL_MATLAB_EXCHANGE_DIR', 'CONTROL_MATLAB_REQUEST_SHA256',
     'CONTROL_MATLAB_NONCE', 'CONTROL_MATLAB_RESULT_PATH', 'CONTROL_MATLAB_RESULT_SHA256']);
   if (Object.entries(extraEnv).some(([key,value]) => !privateKeys.has(key) || typeof value !== 'string')) {
@@ -62,8 +65,17 @@ export function numericalJob({ ctx, job, slots, config, request, policy, onEvent
   const done = (async () => {
     let release;
     try {
-      job.updateProgress('Waiting for a numerical worker slot');
-      release = await slots.acquire(abort.signal);
+      const queueMs = Math.ceil((config.queueTimeoutSeconds ?? 120) * 1000);
+      const queueDeadline = AbortSignal.timeout(queueMs);
+      job.updateProgress(`等待数值计算名额，排队上限 ${queueMs / 1000} 秒`);
+      try {
+        release = await slots.acquire(AbortSignal.any([abort.signal, queueDeadline]));
+      } catch (error) {
+        if (queueDeadline.aborted && !abort.signal.aborted) {
+          throw new Error(`WORKER_QUEUE_TIMEOUT：等待名额超过 ${queueMs / 1000} 秒，计算尚未开始，可稍后重试。`);
+        }
+        throw error;
+      }
       let argv = [config.pythonPath, '-m', 'control_harness', '--protocol', '--timeout', String(config.timeoutSeconds)];
       if (policy.mode !== 'danger-full-access') argv = (await ctx.sandbox.confine(argv, policy, abort.signal)).argv;
       abort.signal.throwIfAborted();
@@ -71,6 +83,7 @@ export function numericalJob({ ctx, job, slots, config, request, policy, onEvent
         stdio: { stdin: 'pipe', stdout: 'pipe', stderr: { maxBytes: 65536 } },
         env: { ...extraEnv, PYTHONPATH: `${config.codeRoot}/src`, PYTHONDONTWRITEBYTECODE: '1', PYTHONUNBUFFERED: '1',
           PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8',
+          CONTROL_COLLECTION_RESUME: collectionResume ? JSON.stringify(collectionResume) : '',
           CONTROL_CASE_RECEIPT_BODY: confirmation?.env.CONTROL_CASE_RECEIPT_BODY ?? '',
           CONTROL_CASE_RECEIPT_SIGNATURE: confirmation?.env.CONTROL_CASE_RECEIPT_SIGNATURE ?? '',
           CONTROL_CASE_RECEIPT_KEY: confirmation?.env.CONTROL_CASE_RECEIPT_KEY ?? '',
@@ -115,13 +128,27 @@ export function numericalJob({ ctx, job, slots, config, request, policy, onEvent
       const stderr = process.collected.stderr?.readFrom(0).text;
       if (stderr) job.append(stderr, { channel: 'stderr' });
       if (cancelled) return { status: 'killed', detail: 'Cancelled; check failed-stage checkpoint for resumable training' };
+      const artifactStage = request.operation === 'register_material' || (Object.hasOwn(stages,request.operation)
+        && !['recommend_sampling','prepare_imitation_evaluation'].includes(request.operation));
+      const matlabPreparation = result?.matlab_phase === 'prepared' &&
+        ['sample_model','collect_external_expert','evaluate_external_imitation','evaluate_external_pgac','check_matlab_design'].includes(request.operation);
+      if (!workerError && !pending.trim() && [0,2].includes(outcome.exitCode) && !matlabPreparation && (artifactStage || result?.delivery)) {
+        try {await verifyPublication(request.workspace,result);}
+        catch(error) {return {status:'failed',detail:'产物发布核验失败：'+error.message};}
+      }
       if (!workerError && !pending.trim() && result?.status === 'rejected' && !['inspect_artifact', 'read_artifact_file'].includes(request.operation) && [0, 2].includes(outcome.exitCode)) {
+        if (request.operation==='verify_design_delivery' && result.delivery?.status==='partial') {
+          return {status:'completed',detail:'已记录交付验收，所需证据仍有缺项。',result:JSON.stringify(result)};
+        }
         return { status: 'failed', detail: 'Stage ran but failed domain acceptance', result: JSON.stringify(result) };
       }
       if (outcome.exitCode !== 0 || workerError || result === undefined || pending.trim()) {
         return { status: 'failed', detail: workerError ?? `Worker exited ${outcome.exitCode} without a complete result: ${stderr ?? ''}` };
       }
-      return { status: 'completed', result: JSON.stringify(result) };
+      if (!['inspect_artifact','read_artifact_file'].includes(request.operation) && result?.delivery?.status === 'failed') {
+        return {status:'failed',detail:'交付核验未通过，请查看逐项证据。',result:JSON.stringify(result)};
+      }
+      return { status: 'completed', ...(result?.delivery?.status === 'partial' ? {detail:'产物已生成，交付条件尚有缺项。'} : {}), result: JSON.stringify(result) };
     } catch (error) {
       let cleanupError;
       if (process) {

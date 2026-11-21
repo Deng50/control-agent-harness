@@ -87,14 +87,15 @@ def train_residual(workspace: Workspace, nominal_id: str, dataset_id: str, confi
         best_loss, best_state, log = checkpoint["best_metric"], checkpoint["best_state"], checkpoint["log"]
     with workspace.stage("corrected_model", interface, [nominal_id, dataset_id], config) as stage:
         def checkpoint_epoch(epoch):
-            save_checkpoint(stage.root, contract, model=residual, optimizer=optimizer, epoch=epoch,
+            return save_checkpoint(stage.root, contract, target_epochs=epochs, model=residual, optimizer=optimizer, epoch=epoch,
                             updates=updates, best_state=best_state, best_metric=best_loss, wait=wait,
                             log=log, generator=generator)
 
         atomic_json(stage.root / "nominal.json", nominal.spec)
         atomic_json(stage.root / "network.json", network_config)
         atomic_json(stage.root / "scalers.json", scalers)
-        checkpoint_epoch(start)
+        saved = checkpoint_epoch(start)
+        context.progress("residual_initial_checkpoint", epoch=start, optimizer_updates=updates, **saved)
         for epoch in range(start, epochs):
             if wait >= patience:
                 break
@@ -134,9 +135,9 @@ def train_residual(workspace: Workspace, nominal_id: str, dataset_id: str, confi
                 wait += 1
             event = {"epoch": epoch + 1, "training_loss": float(np.mean(losses)), "validation_loss": validation}
             log.append(event)
-            checkpoint_epoch(epoch + 1)
+            saved = checkpoint_epoch(epoch + 1)
             context.progress("residual_training", **event, optimizer_updates=updates,
-                             checkpoint=str(workspace.path / "failed" / stage.id / "latest.pt"))
+                             **saved)
             if wait >= patience:
                 break
         if best_state is None:

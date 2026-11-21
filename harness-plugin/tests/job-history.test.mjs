@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, writeFile, symlink, access } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { spawn } from 'node:child_process';
+import {createHash} from 'node:crypto';
 import { JobHistory, authorizeWorkspace, recoveryRequest, persistedJob } from '../src/job-history.mjs';
 import { createHost, project } from './history-host.mjs';
 
@@ -55,18 +56,58 @@ test('recovery is first-wins across independent history writers and checkpoint s
   const ws = await workspace(), store = new JobHistory();
   const request = { operation: 'train_residual', workspace: ws, config: { epochs: 5 }, inputs: { dataset: 'explicit' } };
   const writer = await store.create({ workspace: ws, owner: 'owner', agentName: 'model', request });
-  await writer.append({ state: 'failed', outcome: { status: 'failed' } });
+  await writer.append({ state: 'failed', outcome: { status: 'failed',cleanupVerified:true } });
   const record = await store.read(ws, writer.record.attemptId, 'owner', emptyJobs);
   const claims = await Promise.all(Array.from({ length: 10 }, (_, i) => new JobHistory().claimRecovery(ws, writer.record.attemptId, `replacement-${i}`, 'retry')));
   assert.equal(new Set(claims).size, 1);
   assert.deepEqual(await recoveryRequest(record, 'retry'), request);
   const other = await workspace(); await writeFile(join(other, 'latest.pt'), 'test');
   await assert.rejects(recoveryRequest(record, 'resume', join(other, 'latest.pt')), /inside this workspace/);
-  await writeFile(join(ws, 'latest.pt'), 'checkpoint');
-  const resumed = await recoveryRequest(record, 'resume', 'latest.pt');
-  assert.equal(resumed.config.resume_checkpoint, join(ws, 'latest.pt'));
+  const archive = join(ws,'failed','corrected_model-aaaaaaaaaaaa');
+  await mkdir(archive,{recursive:true});
+  const latest = join(archive,'latest.pt');
+  await writeFile(latest,'checkpoint');
+  await assert.rejects(recoveryRequest(record,'resume',latest), /ENOENT/);
+  const sha256 = createHash('sha256').update('checkpoint').digest('hex');
+  await writeFile(join(archive,'latest.checkpoint.json'),JSON.stringify({format_version:1,sha256}));
+  const resumed = await recoveryRequest(record, 'resume', latest);
+  assert.equal(resumed.config.resume_checkpoint,latest);
+  assert.equal(resumed.config.resume_checkpoint_sha256,sha256);
+  await writeFile(latest,'changed');
+  await assert.rejects(recoveryRequest(record,'resume',latest),/SHA-256/);
   assert.equal(record.request.config.resume_checkpoint, undefined);
   assert.equal((await recoveryRequest({ ...record, workflowRun: 'run-123', request: { ...request, operation: 'run_workflow' } }, 'resume')).config.resume_run, 'run-123');
+});
+
+test('recovery pins exact committed generation; archived fallback requires an OS-exit receipt', async () => {
+  const ws=await workspace(), stage='corrected_model-abcdef012345', archive=join(ws,'failed',stage);
+  const current='checkpoint-'+'a'.repeat(32), previous='checkpoint-'+'b'.repeat(32);
+  const store=new JobHistory(), id='11111111-0000-4000-8000-000000000001', ledger=await store.directory(ws,id);
+  const staging=join(ws,'.staging',stage);
+  await mkdir(staging,{recursive:true});
+  await writeFile(join(staging,'stage.intent.json'),'{}');
+  await mkdir(ledger,{recursive:true});
+  await writeFile(join(ledger,'request.json'),JSON.stringify({version:1,attemptId:id,workspace:ws,owner:'owner',request:{operation:'train_residual'}}));
+  await writeFile(join(ledger,'000000000001.json'),JSON.stringify({state:'killed',outcome:{cleanupVerified:true},workerEvent:{
+    event:'progress',checkpoint:join(archive,current+'.pt'),checkpoint_status:'committed_in_staging'}}));
+  const interrupted=await store.read(ws,id,'owner',emptyJobs);
+  assert.equal(interrupted.unpublishedStageId,stage);
+  await assert.rejects(recoveryRequest(interrupted,'resume'),/先校验并归档/);
+  await mkdir(archive,{recursive:true});
+  const sha256=createHash('sha256').update('first').digest('hex');
+  const path=join(archive,previous+'.pt'), json=(name,value)=>writeFile(join(archive,name),JSON.stringify(value));
+  await writeFile(path,'first');
+  await json(previous+'.json',{format_version:1,generation:previous,sha256});
+  await json('checkpoint-head.json',{format_version:2,current,previous});
+  const record={state:'failed',workspace:ws,request:{operation:'train_supervised',config:{}},
+    stageFailure:{stage_id:stage},checkpoint:join(ws,'.staging',stage,current+'.pt'),checkpoints:[{path,sha256}]};
+  await assert.rejects(recoveryRequest(record,'resume'),/归档/);
+  await json('interrupted-stage-recovery.json',{stage_id:stage,owner_verification:'os_confirmed_process_exit',
+    checkpoint_selection:'previous',checkpoint:path,checkpoint_sha256:sha256});
+  assert.equal((await recoveryRequest(record,'resume')).config.resume_checkpoint_sha256,sha256);
+  await assert.rejects(recoveryRequest(record,'resume',record.checkpoint),/ENOENT/);
+  await json('checkpoint-head.json',{format_version:2,current,previous:null});
+  await assert.rejects(recoveryRequest(record,'resume',path),/Uncommitted/);
 });
 
 test('cancel before persistence completes never starts a worker', async () => {
@@ -157,6 +198,41 @@ test('real checkpoint cancellation and resume use a new native job with restored
     assert.ok(report.optimizer_updates > before.progress.optimizer_updates);
     assert.equal(report.trained_epochs, 12);
   } finally { await host.close(); }
+});
+
+test('native collection resume reuses committed trajectories under the original signed plan', {timeout:90000}, async () => {
+  const ws=await workspace(), host=await createHost(ws);
+  const start=(operation,inputs,config)=>host.command('control',{agent:'model',operation,workspace:ws,inputs,config}).then(unpack);
+  const result=async handle=>{
+    const ended=await host.ctx.jobs.wait(handle.jobId,30000,host.agent.id);
+    assert.equal(ended.status,'completed',ended.detail);
+    return unpack(await host.command('control-status',{workspace:ws,attemptId:handle.attemptId})).record.result;
+  };
+  let unsubscribe;
+  try {
+    const model=await result(await start('register_model',{model_path:resolve(project,'examples/linear/nominal.json')},
+      {source:{kind:'user_nominal',description:'Isolated trajectory recovery fixture'}}));
+    const inputs={model:model.artifact_id};
+    const proposal=await result(await start('recommend_sampling',inputs,{overrides:{steps:20,trajectory_count:8}}));
+    let cancelled=false;
+    unsubscribe=host.ctx.jobs.events.subscribe({owner:host.agent.id},event=>{
+      if (!cancelled && event.type==='progress' && event.job.progress?.startsWith('trajectory_commit:')) {
+        cancelled=true;
+        host.ctx.jobs.kill(event.job.id,host.agent.id);
+      }
+    });
+    const first=await start('sample_model',inputs,{sampling:proposal.sampling,sampling_run:'full'});
+    const stopped=await host.ctx.jobs.wait(first.jobId,30000,host.agent.id);
+    assert.equal(stopped.status,'killed',stopped.detail);
+    const before=unpack(await host.command('control-status',{workspace:ws,attemptId:first.attemptId})).record;
+    assert.ok(before.collectionCheckpoint.completed>0 && before.collectionCheckpoint.completed<8);
+    const resumed=unpack(await host.command('control-recover',{workspace:ws,attemptId:first.attemptId,mode:'resume'}));
+    const dataset=await result(resumed);
+    const report=JSON.parse(await readFile(join(dataset.artifact_path,'report.json'),'utf8'));
+    assert.equal(report.restored_trajectories,before.collectionCheckpoint.completed);
+    assert.equal(report.completed_trajectories,8);
+    assert.equal(report.valid_rows,160);
+  } finally {unsubscribe?.();await host.close();}
 });
 
 test('hard host termination leaves an interrupted record; fresh host exposes an explicit recovery path', { timeout: 90000 }, async () => {

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from control_harness.case_plans import (FIXTURE_KIND, PendingPlanConfirmation,
-    propose_plan, read_plan, validate_plan)
+    propose_plan, propose_plan_batch, read_plan, validate_plan)
 from control_harness.contracts import ContractError, canonical_hash
 from control_harness.runtime import OperationContext
 
@@ -104,6 +104,34 @@ class CasePlanTests(unittest.TestCase):
         validate_plan(self.root, self.ref(plan), "signals", expected_payload={**payload, "lower": -0.0})
         with self.assertRaises(PendingPlanConfirmation):
             validate_plan(self.root, self.ref(plan), "signals", expected_payload={**payload, "enabled": 0})
+
+    def test_v2_role_isolation_immutable_revisions_and_only_declared_dependencies(self):
+        legacy = self.plan()
+        rows = [{"scope": scope, "reviewPayload": {"operation": "controller", "summary": {"value": scope}},
+                 "reviewBindings": self.bindings} for scope in ("signals", "sampling", "training")]
+        def batch(intent, indices):
+            return propose_plan_batch(self.root, intent, [rows[i] for i in indices])["plans"]
+        signals, training = batch("design", [0, 2])
+        # 另一个角色/任务使用同一工作区，两个写者也不会覆盖同名阶段。
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(2) as pool:
+            one, two = (f.result() for f in [pool.submit(batch, intent, [0, 2]) for intent in ("plant", "light")])
+        self.assertEqual(len({signals["plan_id"], one[0]["plan_id"], two[0]["plan_id"]}), 3)
+        batch("design", [0, 1])
+        self.assertEqual(validate_plan(self.root, self.ref(training), "training"), training)
+        self.assertEqual(batch("design", [0, 2]), [signals, training])
+        changed = copy.deepcopy(rows[0]); changed["reviewPayload"]["summary"]["value"] = "new bounds"
+        result = propose_plan_batch(self.root, "design", [changed])["plans"][0]
+        self.assertNotEqual(result["plan_id"], signals["plan_id"])
+        self.assertEqual(read_plan(self.root, signals["plan_id"]), signals)
+        for plan in [training, signals]:
+            with self.assertRaises(PendingPlanConfirmation):
+                validate_plan(self.root, self.ref(plan), plan["scope"])
+        for plan in [legacy, one[0], two[1]]:
+            self.assertEqual(validate_plan(self.root, self.ref(plan), plan["scope"]), plan)
+        restored = batch("design", [0])[0]
+        self.assertEqual(restored["revision"], 3)
+        self.assertNotEqual(restored["version_hash"], signals["version_hash"])
 
 
 if __name__ == "__main__": unittest.main()

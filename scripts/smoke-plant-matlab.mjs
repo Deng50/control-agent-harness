@@ -5,7 +5,6 @@ import { execFileSync } from 'node:child_process';
 import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
-import { confirmationRequirements } from '../harness-plugin/src/case-requirements.mjs';
 import { command, connectHarness, prepareSmokeWorkspace, project, writeSmokeEvidence } from './harness-rpc.mjs';
 
 const {values} = parseArgs({options:{workspace:{type:'string'},evidence:{type:'string'},fixtures:{type:'string'},'web-log':{type:'string'}}});
@@ -55,8 +54,8 @@ try{
   const session=await rpc('session/create',{request:{cwd:workspace,agentPreset:'control-model'}});evidence.sessionId=session.sessionId;
   // One admission per request. Observation expiration records the same handle;
   // it never creates a replacement for an active external calculation.
-  async function stage(operation,inputs={},config={},expected='completed'){
-    const started=await command(rpc,session.sessionId,`/control ${JSON.stringify({agent:'model',operation,workspace,inputs,config})}`);
+  async function stage(operation,inputs={},config={},expected='completed',card_id){
+    const started=await command(rpc,session.sessionId,`/control ${JSON.stringify({agent:'model',operation,workspace,inputs,config,card_id})}`);
     evidence.admissions.push({...started,operation});await save();
     const deadline=Date.now()+420000;let state;
     while(Date.now()<deadline){
@@ -80,16 +79,16 @@ try{
     return plant;
   }
   async function confirm(request){
-    const refs={},dependencies={};
-    for(const req of await confirmationRequirements(request)){
-      const plan=await stage('propose_case_plan',{}, {scope:req.scope,payload:req.expectedPayload,bindings:req.bindings,dependencies:structuredClone(dependencies)});
-      refs[plan.scope]={plan_id:plan.plan_id,version_hash:plan.version_hash};dependencies[plan.scope]=refs[plan.scope];
-    }
-    request.config.plan_refs=refs;
-    return async()=>{for(const ref of Object.values(refs)){
-      const proof=await command(rpc,session.sessionId,`/control-confirm ${JSON.stringify({workspace,...ref})}`);
-      assert.equal(proof.confirmation_source,'test_fixture');evidence.confirmations.push(proof);
-    }await save();};
+    const card=await command(rpc,session.sessionId,`/control-prepare-review ${JSON.stringify({agent:'model',...request})}`);
+    assert.equal(card.matlab_scope.operation,request.operation);
+    request.card_id=card.card_id;
+    return async()=>{
+      const accepted=await command(rpc,session.sessionId,`/control-confirm ${JSON.stringify({workspace,card_id:card.card_id})}`);
+      assert.equal(accepted.confirmation_source,'test_fixture');
+      assert.equal(accepted.matlab_grant.state,'active');
+      evidence.confirmations.push({card_id:card.card_id,source:accepted.source,grant:accepted.matlab_grant});
+      await save();
+    };
   }
   async function pending(request){
     const before=(await readdir(resolve(workspace,'.control-jobs'))).sort();
@@ -127,10 +126,11 @@ try{
   for(const[name,spec]of declarations){
     const plant=await register(name,spec),request={operation:'sample_model',workspace,inputs:{model:plant.artifact_id},config:{sampling,trial:{trajectories:1,steps:3},sampling_run:'trial'}};
     const approve=await confirm(request);await pending(request);await approve();
-    const trial=await stage('sample_model',request.inputs,request.config),trialCheck=await compare(trial,spec.backend);
-    request.config.sampling_run='full';const full=await stage('sample_model',request.inputs,request.config),actual=await compare(full,spec.backend);
+    const trial=await stage('sample_model',request.inputs,request.config,'completed',request.card_id),trialCheck=await compare(trial,spec.backend);
+    request.config.sampling_run='full';const full=await stage('sample_model',request.inputs,request.config,'completed',request.card_id),actual=await compare(full,spec.backend);
     assert.deepEqual(trialCheck.data.next_x,actual.data.next_x.slice(0,3));
-    const repeated=await stage('sample_model',request.inputs,request.config),second=await compare(repeated,spec.backend);
+    await approve(); // Repeat a consumed full batch only after a fresh fixture user command.
+    const repeated=await stage('sample_model',request.inputs,request.config,'completed',request.card_id),second=await compare(repeated,spec.backend);
     near(second.data.next_x,actual.data.next_x,{atol:1e-13,rtol:1e-13},'batch reset repeat');
     assert.equal(sha(await readFile(resolve(workspace,'sources/f01_spring.slx'))),originalSlxHash,'Original SLX changed');
     evidence.checks.push({fixture:name,backend:spec.backend,trial:trial.artifact_id,full:full.artifact_id,repeated:repeated.artifact_id,
@@ -139,7 +139,7 @@ try{
   const divergent=await register('f01_diverge.m',{...common,backend:'matlab_function',entrypoint:'f01_diverge',C:f.source_model.C});
   const bad={operation:'sample_model',workspace,inputs:{model:divergent.artifact_id},config:{sampling}};await(await confirm(bad))();
   const beforeFailures=new Set(await readdir(resolve(workspace,'failed')).catch(e=>e.code==='ENOENT'?[]:Promise.reject(e)));
-  const rejected=await stage('sample_model',bad.inputs,bad.config,'failed');
+  const rejected=await stage('sample_model',bad.inputs,bad.config,'failed',bad.card_id);
   const added=(await readdir(resolve(workspace,'failed'))).filter(x=>!beforeFailures.has(x));assert.equal(added.length,1);
   const failure=await json(resolve(workspace,'failed',added[0],'report.json'));
   assert.equal(failure.status,'failed');assert.equal(failure.completed_trajectories,0);assert.ok(failure.valid_rows<50);

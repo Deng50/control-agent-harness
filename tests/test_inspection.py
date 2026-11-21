@@ -15,7 +15,7 @@ from control_harness.artifacts import Workspace, atomic_json
 from control_harness.contracts import ContractError, ModelInterface
 from control_harness.data import simulate_transitions, register_transitions, read_transitions, training_coverage
 from control_harness.examples import example
-from control_harness.inspection import prepare_handoff, read_artifact_file, report_preview
+from control_harness.inspection import artifact_capabilities, prepare_handoff, read_artifact_file, report_preview
 from control_harness.modeling import register_model
 from control_harness.operations import run_operation
 from control_harness.residual import train_residual
@@ -38,6 +38,9 @@ class InspectionTests(unittest.TestCase):
 
     def record(self, kind, parents, files, status="verified"):
         with self.workspace.stage(kind, self.interface, parents, {"test_fixture": "protocol_only"}) as stage:
+            # 路由只检查冻结文件清单；这个测试夹具从不反序列化权重或宣称已运行模型。
+            if kind == "corrected_model":
+                files = {**dict.fromkeys(("nominal.json", "network.json", "scalers.json", "model.pt"), {}), **files}
             for name, value in files.items():
                 atomic_json(stage.root / name, value)
             return stage.publish({"status": status}, source={"kind": "protocol_test_fixture"})
@@ -61,6 +64,9 @@ class InspectionTests(unittest.TestCase):
         self.assertIn(self.reference, [row["id"] for row in result["source_versions"]])
 
     def test_measured_data_does_not_fabricate_an_evaluation_model(self):
+        capabilities = artifact_capabilities(self.workspace, self.reference)["capabilities"]
+        self.assertTrue(capabilities["reference_dynamics"])
+        self.assertFalse(capabilities["original_plant"])
         arrays, _, _ = read_transitions(self.workspace, self.data)
         measured = register_transitions(self.workspace, self.nominal, arrays,
                                        {"kind": "measured", "description": "Protocol test source attribution"})
@@ -84,22 +90,73 @@ class InspectionTests(unittest.TestCase):
         self.assertEqual(optional["inputs"],{"model":self.nominal,"evaluation_model":""})
         self.assertEqual(optional["missing_inputs"],["evaluation_model"])
         self.assertIn("evaluation",optional["missing_config"])
+        deliveries = delivered["optional_handoffs"][1:]
+        self.assertEqual([row["config_suggestions"]["target"] for row in deliveries], ["standalone_python","workspace_controller"])
+        self.assertTrue(all(row["operation"]=="verify_design_delivery" and row["config_suggestions"]["case"]=={}
+                            and "case.reference" in row["missing_config"] for row in deliveries))
         draft = synthesize_mpc(self.workspace,{"description":"spring damper parameters unknown"},{})
         self.assertEqual(prepare_handoff(self.workspace,draft)["optional_handoffs"],[],"A parameterized draft is not an executable tuning model")
 
     def test_controller_and_policy_handoffs_bind_full_chain(self):
         corrected = self.record("corrected_model", [self.nominal, self.data], {"report.json": {}})
         controller = self.record("controller", [corrected, self.reference], {"controller.json": {
-            "prediction_model": corrected, "evaluation_model": self.reference}})
+            "prediction_model": corrected, "evaluation_model": self.reference, "parameters": {"horizon": 2}}})
         expert = self.record("expert_dataset", [controller, self.reference], {"collection.json": {}})
         policy = self.record("imitation_policy", [expert], {"policy.json": {"expert_controller": controller}})
         self.assertEqual(prepare_handoff(self.workspace, controller)["handoff"]["inputs"],
                          {"controller": controller, "evaluation_model": self.reference})
         self.assertEqual(prepare_handoff(self.workspace, expert)["handoff"]["inputs"], {"dataset": expert})
-        self.assertEqual(prepare_handoff(self.workspace, policy)["handoff"]["inputs"], {"policy": policy, "model": corrected})
+        prepared = prepare_handoff(self.workspace, policy)
+        self.assertIsNone(prepared["handoff"]["operation"])
+        self.assertEqual(prepared["optional_handoffs"][0]["inputs"], {"policy": policy, "model": corrected})
         bad = self.record("controller", [corrected], {"controller.json": {"evaluation_model": "reference_model-unbound"}})
         with self.assertRaises(ContractError):
             prepare_handoff(self.workspace, bad)
+
+    def test_design_promoted_controller_needs_explicit_evaluation_model(self):
+        controller = self.record("controller", [self.nominal], {"controller.json": {
+            "prediction_model": self.nominal, "parameters": {"horizon": 2}, "closed_loop": "not_run"}})
+        plan = prepare_handoff(self.workspace, controller)
+        self.assertEqual(plan["handoff"]["inputs"], {"controller": controller, "evaluation_model": ""})
+        self.assertEqual(plan["handoff"]["missing_inputs"], ["evaluation_model"])
+        self.assertEqual(artifact_capabilities(self.workspace, controller)["load_check"], "not_run")
+
+    def test_pinned_transfer_rechecks_source_and_copies_only_the_published_closure(self):
+        transfer = prepare_handoff(self.workspace, self.data)["transfer"]
+        target = Workspace(Path(self.temp.name) / "destination")
+        path = transfer["artifact_path"]
+        expected = {"expected_artifact_id": transfer["artifact_id"], "expected_project_id": transfer["project_id"],
+                    "expected_metadata_hash": transfer["metadata_hash"]}
+        for key in expected:
+            with self.subTest(key=key), self.assertRaisesRegex(ContractError, "来源版本"):
+                target.import_artifact(path, **{**expected, key: "changed"})
+        self.assertFalse(target.manifest["artifacts"])
+        self.assertEqual(target.import_artifact(path, **expected), self.data)
+        self.assertEqual(set(target.resolve_closure(self.data)), set(self.workspace.resolve_closure(self.data)))
+        self.assertFalse((target.path / ".case-plans").exists())
+
+    def test_explicit_import_of_legacy_superseded_branch_requires_original_verified_outcome(self):
+        target = Workspace(Path(self.temp.name) / "destination")
+        source, _ = self.workspace.resolve(self.data)
+        updated = copy.deepcopy(example("nonlinear")["nominal"])
+        updated["A"][0][0] += .001
+        newer = register_model(self.workspace, updated, {"kind": "user_nominal"})
+        manifest = self.workspace.manifest
+        manifest["artifacts"][self.data].update(status="stale", stale_reason=f"Upstream nominal_model replaced by {newer}")
+        atomic_json(self.workspace.manifest_path, manifest)
+        with self.assertRaisesRegex(ContractError, "stale"):
+            self.workspace.resolve(self.data)
+        self.assertEqual(target.import_artifact(source), self.data)
+        with self.assertRaisesRegex(ContractError, "stale"):
+            self.workspace.resolve(self.data)
+        # 旧版曾把 rejected 记录同样覆盖为 stale；复核原始验收结果必须阻止它通过。
+        bad = self.record("controller", [self.nominal], {"controller.json": {}}, "rejected")
+        path, _ = self.workspace.resolve(bad, allow_rejected=True)
+        manifest = self.workspace.manifest
+        manifest["artifacts"][bad].update(status="stale", stale_reason=f"Upstream nominal_model replaced by {newer}")
+        atomic_json(self.workspace.manifest_path, manifest)
+        with self.assertRaisesRegex(ContractError, "acceptance"):
+            target.import_artifact(path)
 
     def test_rejected_or_stale_artifacts_cannot_be_handed_off_but_can_be_read(self):
         rejected = self.record("controller", [self.nominal, self.reference], {"controller.json": {}}, "rejected")

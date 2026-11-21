@@ -25,7 +25,7 @@ Set-Location <项目源码目录>
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -c constraints-v2-validated.txt -e .
 .\scripts\setup-harness.ps1
-.\scripts\prepare-workspace.ps1 -Workspace "$PWD\workspaces\project-01"
+.\scripts\prepare-workspace.ps1 -Prepare -Workspace "$PWD\workspaces\project-01"
 .\scripts\start-web.ps1 -NoOpen
 ```
 

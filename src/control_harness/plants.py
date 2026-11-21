@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+from contextlib import closing, contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 import re
 
@@ -83,6 +85,79 @@ def _selection(workspace, model_id):
     if metadata["kind"] not in LEGACY_MODELS:
         raise ContractError("Sampling requires one registered plant or executable Torch dynamics artifact")
     return interface, None, None, metadata, None
+
+
+def controller_callable_source(controller_id, closure):
+    """从控制器的直接预测模型找到转换时绑定的原对象。无关的同型对象均不能代替该来源。"""
+    root, controller = closure[controller_id]
+    predictor = read_json(root / "controller.json").get("prediction_model")
+    if predictor not in {p["id"] for p in controller["parents"]}:
+        return None
+    _, model = closure[predictor]
+    source = model.get("source", {})
+    plant = source.get("plant")
+    if source.get("kind") != "plant_predictor_conversion" or plant not in {p["id"] for p in model["parents"]}:
+        return None
+    plant_root, metadata = closure[plant]
+    if metadata["kind"] != "plant_model" or read_json(plant_root / "plant.json")["adapter_spec"]["backend"] != "python_callable":
+        return None
+    if ModelInterface.parse(metadata["interface"]).fingerprint != ModelInterface.parse(controller["interface"]).fingerprint:
+        return None
+    return plant
+
+
+@dataclass
+class OriginalCallablePlant:
+    """闭环评价中的原对象。每条轨迹打开独立的受限适配器，预测和梯度仍使用控制器的预测模型。"""
+    interface: ModelInterface
+    spec: dict
+    source_root: Path
+    hashes: dict
+    sampled_limits: dict | None
+
+    @contextmanager
+    def trajectory(self, initial_state):
+        from .model_adapters import load_python_adapter
+        with closing(load_python_adapter(self.source_root, self.spec, expected_file_hashes=self.hashes)) as adapter:
+            adapter.reset(initial_state)
+            yield adapter
+
+    def check_prediction_domain(self, model, state, sequence, disturbance):
+        """辨识预测器的整段计划都要落在已观测各通道范围内。声明方程没有仿射拟合包络。"""
+        if self.sampled_limits is None:
+            return
+        def check(key, value):
+            lower = np.asarray(self.sampled_limits[key]["min"])
+            upper = np.asarray(self.sampled_limits[key]["max"])
+            eps = 32 * np.finfo(float).eps * np.maximum(1., np.maximum(np.abs(lower), np.abs(upper)))
+            if not np.isfinite(value).all() or np.any(value < lower - eps) or np.any(value > upper + eps):
+                raise ContractError(f"专家控制器的预测 {key} 超出原对象转换时的训练范围，请调整采集工况或补充数据。")
+        check("x", state)
+        check("d", disturbance)
+        for action in sequence:
+            check("u", action)
+            state = model.step(state, action, disturbance)
+            check("x", state)
+
+
+def load_evaluation_plant(workspace, controller_id, evaluation_id):
+    """兼容已登记的 Torch/方程评价模型，另为已验证转换的同源对象提供仅闭环执行接口。"""
+    _, metadata = workspace.resolve(evaluation_id)
+    if metadata["kind"] != "plant_model":
+        from .modeling import load_model
+        return load_model(workspace, evaluation_id)
+    closure = workspace.resolve_closure(controller_id)
+    if controller_callable_source(controller_id, closure) != evaluation_id:
+        raise ContractError("原对象闭环采集需要控制器预测模型转换时直接绑定、接口相同的 python_callable 对象版本。")
+    interface, spec, source_root, _, material = _selection(workspace, evaluation_id)
+    prediction_id = read_json(closure[controller_id][0] / "controller.json")["prediction_model"]
+    source = closure[prediction_id][1]["source"]
+    limits = None
+    if source.get("method") == "sampled_affine":
+        limits = source.get("applicability", {}).get("observed_training_ranges")
+        if not isinstance(limits, dict) or not {"x", "u", "d"}.issubset(limits):
+            raise ContractError("仿射预测器缺少训练范围，无法核验专家采集工况。")
+    return OriginalCallablePlant(interface, spec, source_root, material["files"], limits)
 
 
 def recommend_sampling(workspace, model_id, config):
@@ -198,7 +273,12 @@ def sample_model(workspace: Workspace, model_id: str, config: dict, context: Ope
             atomic_json(stage.root / "sampling-plan.json", plan)
             atomic_json(stage.root / "adapter.json", adapter.describe())
             try:
-                arrays, report = collect(adapter, plan, context)
+                from .trajectory_journal import TrajectoryJournal
+                # MATLAB 批结果使用原生交换签名；本地逐步对象可在每次独立 reset 边界保存。
+                journal = None if spec and spec["backend"] in MATLAB_BACKENDS else TrajectoryJournal(stage, context, plan, interface.sample_time)
+                arrays, report = collect(adapter, plan, context, journal)
+                if journal:
+                    report["restored_trajectories"] = journal.restored
             except (SamplingStopped, SamplingCancelled) as error:
                 # Capture dependencies first loaded while stepping, while
                 # retaining the original failure if diagnostics are unavailable.

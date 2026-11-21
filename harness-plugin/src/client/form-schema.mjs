@@ -9,6 +9,8 @@ export const roles=[
   {id:'lightweight',title:'控制器轻量化',sub:'外部专家 · 模仿 · 可选 PGAC'},
 ];
 export const labels={inspect_workspace:'查看工作区',inspect_artifact:'检查产物与报告',read_artifact_file:'读取产物文件',prepare_handoff:'准备下一阶段',
+  convert_plant_predictor:'从采样对象核验预测模型',verify_design_delivery:'验收控制器交付',
+  check_matlab_design:'在专用 MATLAB 核验导出控制器',
   read_report_arrays:'读取已保存曲线数据',prepare_bundle_archive:'准备完整导出 ZIP',inspect_table:'查看 CSV / Excel 实际表头',
   inspect_material:'检查本地材料',register_material:'登记路径 / 上传材料',prepare_supervised_dataset:'配置 CSV / Excel 数据',train_supervised:'纯数据 NN 训练',
   register_plant:'登记 Python / MATLAB / SLX 对象',recommend_sampling:'生成可编辑采样建议',sample_model:'单对象试跑 / 全量采样',train_predictive_model:'学习离散下一状态模型',
@@ -22,9 +24,9 @@ export const labels={inspect_workspace:'查看工作区',inspect_artifact:'检�
   import_artifact:'导入已有产物及依赖',recover_interrupted_stage:'校验未发布检查点',read_case_plan:'读取工程计划',propose_case_plan:'提案工程计划'};
 const groups={
   model:[['材料与数据',['inspect_workspace','inspect_material','register_material','prepare_supervised_dataset','train_supervised']],
-    ['单对象与预测',['register_plant','recommend_sampling','sample_model','train_predictive_model']],['条件 ODE PINN',['prepare_pinn_problem','train_pinn']],
+    ['单对象与预测',['register_plant','recommend_sampling','sample_model','convert_plant_predictor','train_predictive_model']],['条件 ODE PINN',['prepare_pinn_problem','train_pinn']],
     ['兼容旧流程',['inspect_model_source','register_model','register_python_model','import_transitions','simulate_transitions','train_residual','identify_linear_model']]],
-  controller:[['设计与调参',['inspect_workspace','synthesize_mpc','tune_controller','validate_estimator']],['材料与对象',['inspect_material','register_material','register_plant','recommend_sampling','sample_model']],['兼容旧流程',['design_controller']]],
+  controller:[['设计与调参',['inspect_workspace','convert_plant_predictor','synthesize_mpc','verify_design_delivery','check_matlab_design','tune_controller','validate_estimator']],['材料与对象',['inspect_material','register_material','register_plant','recommend_sampling','sample_model']],['兼容旧流程',['design_controller']]],
   lightweight:[['外部专家与模仿',['inspect_workspace','register_material','register_expert','collect_external_expert','import_expert_data','train_external_imitation','prepare_imitation_evaluation','evaluate_external_imitation']],
     ['可选受限 PGAC',['register_python_model','train_predictive_model','validate_differentiable_model','optimize_external_policy','evaluate_external_pgac']],
     ['兼容旧流程',['collect_expert','train_imitation','optimize_policy']]],
@@ -57,6 +59,9 @@ const nn={hidden_dims:[32,32],activation:'tanh',epochs:150,learning_rate:.001,ba
 const emptyData=()=>({schema_version:1,interface_kind:'tabular_supervised',name:'用户数据接口',task:'static_regression',signals:[],features:[],targets:[]});
 const split={mode:'trip',train:.6,validation:.2,test:.2};
 const defaults={
+  convert_plant_predictor:{inputs:{plant:'',dataset:''},config:{method:'declared_equations'}},
+  verify_design_delivery:{inputs:{design:''},config:{target:'standalone_python',case:{}}},
+  check_matlab_design:{inputs:{design:''},config:{case:{x:[],reference:[]}}},
   register_material:{inputs:{local_path:''},config:{source_kind:'path',source_metadata:{description:''}}},inspect_material:{inputs:{local_path:''},config:{}},inspect_table:{inputs:{data_path:''},config:{preview_rows:5}},
   prepare_supervised_dataset:{inputs:{material:''},config:{interface:emptyData(),split,scaler:'standard',source:{description:''}}},
   train_supervised:{inputs:{dataset:''},config:nn},register_plant:{inputs:{material:''},config:{adapter:{schema_version:1,backend:'python_callable',source_file:'',entrypoint:'',parameters:{},source_semantics:'transition'}}},
@@ -81,7 +86,7 @@ const defaults={
   validate_estimator:{inputs:{model:'',controller:'',evaluation_model:''},config:{initial_estimate:[],verification_scenarios:[],test_scenarios:[],seed:42}},
 };
 export function operationDefaults(name){return structuredClone(defaults[name]??{inputs:{},config:{}});}
-export function inputLabel(name){return {material:'材料产物 ID',model:'预测 / 对象模型 ID',dataset:'数据集产物 ID',policy:'策略产物 ID',validation:'可微模型验证报告 ID',candidate:'待原对象复验候选 ID',
+export function inputLabel(name){return {equations:'已登记的显式方程模型 ID',expected_artifact_id:'交接产物 ID',expected_project_id:'来源项目 ID',expected_metadata_hash:'来源版本摘要',design:'已导出的控制器设计产物 ID',material:'材料产物 ID',model:'预测 / 对象模型 ID',dataset:'数据集产物 ID',policy:'策略产物 ID',validation:'可微模型验证报告 ID',candidate:'待原对象复验候选 ID',
   expert:'外部专家产物 ID',plant:'原对象产物 ID',controller:'控制器产物 ID',evaluation_model:'原对象 / 评价模型 ID',nominal_model:'名义模型 ID',reference_model:'参考模型 ID',problem:'条件 ODE 问题 ID',
   local_path:'材料绝对路径',model_path:'模型源文件绝对路径',data_path:'转移数据绝对路径',artifact_path:'已有产物目录绝对路径',description:'设计任务描述'}[name]??name;}
 export const networkOps=new Set(['train_supervised','train_predictive_model','train_external_imitation','train_pinn','train_residual','train_imitation']);

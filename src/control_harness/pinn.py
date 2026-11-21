@@ -288,13 +288,13 @@ def train_pinn(workspace, problem_id, config, context=None):
             best_state, best_loss = checkpoint["best_state"], checkpoint["best_metric"]
         with workspace.stage("pinn_model", interface, [problem_id], config, compatible_parents=False) as stage:
             def checkpoint_epoch(epoch):
-                save_checkpoint(stage.root, contract, model=network, optimizer=optimizer, epoch=epoch, updates=updates,
+                return save_checkpoint(stage.root, contract, target_epochs=settings["epochs"], model=network, optimizer=optimizer, epoch=epoch, updates=updates,
                     best_state=best_state, best_metric=best_loss, wait=wait, log=log)
             for name, value in (("problem", definition), ("network_config", resolved["network_config"]), ("resolved_config", resolved), ("normalization", definition["normalization"])):
                 atomic_json(stage.root / (name + ".json"), value)
             torch.save(seeded_state, stage.root / "seeded_initial_state.pt")
-            checkpoint_epoch(start)
-            context.progress("pinn_initial_checkpoint", epoch=start, checkpoint=str(workspace.path / "failed" / stage.id / "latest.pt"))
+            saved = checkpoint_epoch(start)
+            context.progress("pinn_initial_checkpoint", epoch=start, optimizer_updates=updates, **saved)
             current = copy.deepcopy(network.state_dict())
             try:
                 network.load_state_dict(seeded_state, strict=True)
@@ -317,8 +317,9 @@ def train_pinn(workspace, problem_id, config, context=None):
                 else: wait += 1
                 event = {"epoch": epoch + 1, "training_loss": total, "training_components": losses, "validation_loss": val["total"], "validation_components": val,
                     "selected_by_validation": selected, "patience_wait": wait, "optimizer_updates": updates, "gradient_norm_before_clip": before, "gradient_norm_after_clip": after}
-                log.append(event); checkpoint_epoch(epoch + 1)
-                context.progress("pinn_training", **event, checkpoint=str(workspace.path / "failed" / stage.id / "latest.pt"))
+                log.append(event)
+                saved = checkpoint_epoch(epoch + 1)
+                context.progress("pinn_training", **event, **saved)
             if best_state is None: raise ContractError("No complete PINN epoch is available for validation-only selection")
             context.check(); network.load_state_dict(best_state, strict=True); prediction_network.eval()
             final_probe = gradient_probe(prediction_network, train, definition, settings["batch_size"], weights, context)

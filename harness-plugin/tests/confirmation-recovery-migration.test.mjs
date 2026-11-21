@@ -14,7 +14,7 @@ const output = resolve(process.env.CONTROL_TEST_OUTPUT ?? resolve(project, 'test
 await mkdir(output, { recursive: true });
 const unpack = value => { assert.equal(value.kind, 'success', value.text); return JSON.parse(value.text); };
 
-test('legacy interrupted no-refs request migrates to explicitly confirmed plans; pending recovery creates no attempt or job', { timeout: 45000 }, async () => {
+for (const selector of ['legacy refs','structured card']) test(`legacy interrupted no-refs recovery via ${selector}; pending recovery creates no attempt or job`, { timeout: 60000 }, async () => {
   const workspace = await mkdtemp(join(output, 'legacy-recovery-'));
   let host;
   try {
@@ -48,7 +48,7 @@ test('legacy interrupted no-refs request migrates to explicitly confirmed plans;
       const beforeJobs = registrations();
       const result = await host.command('control-recover', { workspace, attemptId: writer.record.attemptId, mode: 'retry', ...args });
       assert.equal(result.kind, 'error');
-      assert.match(result.text, /plan_refs|pending user confirmation/);
+      assert.match(result.text, /plan_refs|pending user confirmation|待用户确认/);
       assert.deepEqual(await attempts(), baseline, 'Pending recovery must not create dangling attempt history');
       assert.equal(registrations(), beforeJobs, 'Pending recovery must not register a native job');
       await assert.rejects(stat(join(workspace, '.control-jobs', writer.record.attemptId, 'recovery.json')), { code: 'ENOENT' });
@@ -69,18 +69,27 @@ test('legacy interrupted no-refs request migrates to explicitly confirmed plans;
       assert.equal(confirmation.confirmation_source, 'test_fixture');
       assert.equal(confirmation.source.kind, 'native_user_command');
     }
-    const started = unpack(await host.command('control-recover', { workspace, attemptId: writer.record.attemptId, mode: 'retry', plan_refs: refs }));
+    let selection = {plan_refs:refs}, expectedRefs = refs;
+    if (selector === 'structured card') {
+      const card = unpack(await host.command('control-prepare-review',{...request,agent:'model'}));
+      selection = {card_id:card.card_id};
+      expectedRefs = card.plan_refs;
+      await assertPending(selection);
+      const signed = unpack(await host.command('control-confirm',{workspace,...selection}));
+      assert.equal(signed.confirmation_source,'test_fixture');
+    }
+    const started = unpack(await host.command('control-recover', { workspace, attemptId: writer.record.attemptId, mode: 'retry', ...selection }));
     const ended = await host.ctx.jobs.wait(started.jobId, 30000, host.agent.id);
     assert.equal(ended.status, 'completed', ended.detail);
     const replacement = unpack(await host.command('control-status', { workspace, attemptId: started.attemptId })).record;
     assert.equal(replacement.result.kind, 'transition_dataset');
     assert.equal(replacement.result.status, 'verified');
     assert.equal(replacement.recoveredFrom, writer.record.attemptId);
-    assert.deepEqual(replacement.request.config.plan_refs, refs);
+    assert.deepEqual(replacement.request.config.plan_refs, expectedRefs);
     assert.equal(JSON.parse(await readFile(recordPath, 'utf8')).request.config.plan_refs, undefined, 'Migration must preserve the old immutable request');
     const after = await attempts();
     assert.equal(after.length, baseline.length + 1);
-    const duplicate = unpack(await host.command('control-recover', { workspace, attemptId: writer.record.attemptId, mode: 'retry', plan_refs: refs }));
+    const duplicate = unpack(await host.command('control-recover', { workspace, attemptId: writer.record.attemptId, mode: 'retry', ...selection }));
     assert.equal(duplicate.attemptId, started.attemptId);
     assert.deepEqual(await attempts(), after);
     assert.equal(registrations(), 1);

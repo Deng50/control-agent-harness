@@ -7,16 +7,21 @@ from __future__ import annotations
 
 import copy
 import csv
+import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import unittest
 import uuid
+from unittest.mock import patch
 
 import numpy as np
 import torch
 
-from control_harness.artifacts import Workspace, file_hash, read_json
+from control_harness.artifacts import Workspace, failure_fields, file_hash, read_json
+from control_harness import checkpoints
 from control_harness.contracts import ContractError
 from control_harness.material_registration import register_material, prepare_supervised_dataset
 from control_harness.runtime import Cancelled, OperationContext
@@ -26,6 +31,56 @@ from control_harness.supervised import train_supervised
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = Path(os.environ.get("CONTROL_TEST_OUTPUT", ROOT / "test-output" / "supervised-resume-tests"))
 HEADERS = ["trip", "f1", "f2", "f3", "target_a", "target_b"]
+
+
+def run_windows_share_probe(workspace, dataset, config):
+    """子进程只持有自己新建的测试阶段指针句柄；退出之后父进程才可执行孤儿归档。"""
+    import ctypes
+    from ctypes import wintypes
+    torch.set_num_threads(1)
+    ws = Workspace(workspace)
+    if not ws.path.is_relative_to((ROOT / "test-output").resolve()):
+        raise ValueError("Sharing probe must run inside the repository test-output directory")
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+                       wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    create.restype = wintypes.HANDLE
+    close = kernel.CloseHandle
+    close.argtypes = [wintypes.HANDLE]
+    close.restype = wintypes.BOOL
+    invalid = ctypes.c_void_p(-1).value
+    handle = None
+    observed = {}
+
+    def hold_after_commit(event):
+        nonlocal handle
+        if event.get("stage") != "supervised_training" or event.get("epoch") != 1:
+            return
+        stage_id = Path(event["checkpoint"]).parent.name
+        pointer = ws.path / ".staging" / stage_id / checkpoints.HEAD
+        if pointer.resolve() != pointer or read_json(pointer.parent / "stage.intent.json")["owner"]["pid"] != os.getpid():
+            raise RuntimeError("Refused to lock a checkpoint from another stage")
+        # GENERIC_READ，允许其他进程读写，但本次持有期间不共享 DELETE。
+        # OPEN_EXISTING 只打开真实训练器已提交的指针，不创建或改写它。
+        handle = create(str(pointer), 0x80000000, 0x1 | 0x2, None, 3, 0x80, None)
+        if handle == invalid:
+            raise ctypes.WinError(ctypes.get_last_error())
+        # 另一个打开请求仅申请 DELETE 访问，不执行删除。记录内核返回的共享冲突码作为对照。
+        probe = create(str(pointer), 0x00010000, 0x1 | 0x2 | 0x4, None, 3, 0x80, None)
+        if probe != invalid:
+            close(probe)
+            raise RuntimeError("The handle unexpectedly shared DELETE")
+        observed.update(delete_access_winerror=ctypes.get_last_error(), committed=event)
+
+    try:
+        train_supervised(ws, dataset, config, OperationContext(emit=hold_after_commit))
+    except checkpoints.CheckpointWriteError as error:
+        observed["facts"] = failure_fields(error)
+    finally:
+        if handle not in (None, invalid) and not close(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+    return observed
 
 
 def interface(*, swap=False, unit="1"):
@@ -125,6 +180,182 @@ class SupervisedResumeTests(unittest.TestCase):
         self.assertEqual(report["optimizer_updates"],self.checkpoint(resumed)["updates"])
         self.assertEqual(self.checkpoint(resumed)["contract"]["algorithm"],"supervised_training")
         self.assertGreater(report["optimizer_updates"],0)
+
+    def test_each_uncommitted_write_failure_preserves_previous_epoch_and_exact_resume(self):
+        # 在相同小数据上，在下一轮的三个提交边界分别注入拒绝访问；校验冻结点再逐张量对比续训。
+        baseline = self.checkpoint(self.train())
+        real_open, real_publish = Path.open, checkpoints._publish_pointer
+        for boundary in ("payload", "sidecar", "pointer"):
+            progress = []
+            def fail_open(path, mode="r", *args, **kwargs):
+                if progress and path.stem.startswith("checkpoint-") and (
+                        boundary == "payload" and mode == "xb" or boundary == "sidecar" and mode == "x"):
+                    raise PermissionError("denied at " + boundary)
+                return real_open(path, mode, *args, **kwargs)
+
+            def fail_pointer(path, value):
+                if progress and boundary == "pointer":
+                    raise PermissionError("denied at pointer")
+                return real_publish(path, value)
+
+            def emit(event):
+                if event.get("epoch") == 1:
+                    progress.append(event)
+
+            with self.subTest(boundary=boundary), patch.object(Path, "open", fail_open), \
+                    patch.object(checkpoints, "_publish_pointer", fail_pointer), \
+                    self.assertRaises(checkpoints.CheckpointWriteError) as caught:
+                self.train(context=OperationContext(emit=emit))
+            facts = failure_fields(caught.exception)
+            path = Path(facts["checkpoint"])
+            self.assertEqual(facts["error_code"], "CHECKPOINT_ACCESS_DENIED")
+            self.assertEqual(facts["stage_failure"]["archive_state"], "archived")
+            self.assertEqual(facts["checkpoint_status"], "archived")
+            self.assertEqual((facts["epoch"], facts["target_epochs"]), (1, self.config["epochs"]))
+            self.assertEqual(path, checkpoints.current_checkpoint(path.parent))
+            self.assertEqual(facts["checkpoint_sha256"], progress[0]["checkpoint_sha256"])
+            self.assertEqual(facts["checkpoint_sha256"], file_hash(path))
+            head = read_json(path.parent / checkpoints.HEAD)
+            self.assertTrue((path.parent / (head["previous"] + ".pt")).is_file())
+            for orphan in path.parent.glob("checkpoint-*.pt"):
+                if orphan.stem not in (head["current"], head["previous"]):
+                    with self.assertRaisesRegex(ContractError, "not committed"):
+                        self.train({**self.config, "resume_checkpoint": str(orphan)})
+            resumed = self.train({**self.config, "resume_checkpoint": str(path),
+                                  "resume_checkpoint_sha256": facts["checkpoint_sha256"]})
+            self.assert_nested_equal(baseline, self.checkpoint(resumed))
+            self.assertEqual(len(list(self.artifact(resumed).glob("checkpoint-*.pt"))), 2)
+
+    def test_first_commit_failure_has_no_resume_and_archive_failure_keeps_primary_error(self):
+        with patch.object(checkpoints, "_publish_pointer", side_effect=PermissionError("first pointer denied")), \
+                self.assertRaises(checkpoints.CheckpointWriteError) as initial:
+            self.train()
+        self.assertIn("first pointer denied", str(initial.exception))
+        self.assertNotIn("checkpoint", failure_fields(initial.exception))
+        retained = Path(initial.exception.stage_failure["retained_path"])
+        self.assertFalse((retained / checkpoints.HEAD).exists())
+        self.assertFalse((retained / "latest.pt").exists())
+
+        def zip_write_failure(*args):
+            try:
+                raise PermissionError("checkpoint volume refused write")
+            except OSError:
+                raise RuntimeError("unexpected ZIP footer position")
+
+        with patch.object(checkpoints.torch, "save", zip_write_failure), self.assertRaises(checkpoints.CheckpointWriteError) as wrapped:
+            self.train()
+        self.assertEqual(wrapped.exception.code, "CHECKPOINT_ACCESS_DENIED")
+        self.assertIn("checkpoint volume refused write", str(wrapped.exception))
+        self.assertNotIn("checkpoint", failure_fields(wrapped.exception))
+
+        real_rename = Path.rename
+        def deny_archive(source, destination):
+            if source.parent.name == ".staging" and destination.parent.name == "failed":
+                raise PermissionError("archive denied")
+            return real_rename(source, destination)
+
+        def lose_event(event):
+            if event.get("epoch") == 2:
+                raise RuntimeError("original progress transport failure")
+
+        with patch.object(Path, "rename", deny_archive), self.assertRaisesRegex(RuntimeError, "original progress") as caught:
+            self.train(context=OperationContext(emit=lose_event))
+        facts = failure_fields(caught.exception)
+        self.assertEqual((facts["checkpoint_status"], facts["epoch"]), ("retained", 2))
+        self.assertIn("archive denied", " ".join(facts["stage_failure"]["archive_errors"]))
+        path = Path(facts["checkpoint"])
+        self.assertEqual(path.parent.parent, self.ws.path / ".staging")
+        self.assertEqual(facts["checkpoint_sha256"], file_hash(path))
+        with self.assertRaises(ContractError):
+            self.train({**self.config, "resume_checkpoint": str(path)})
+
+    def test_pointer_commit_before_failed_acknowledgement_reports_actual_epoch(self):
+        committed = 0
+        progress = []
+        real_publish = checkpoints._publish_pointer
+        def fail_after_commit(path, head):
+            nonlocal committed
+            real_publish(path, head)
+            committed += 1
+            if committed == 3:  # 已提交第 2 轮，宿主只看到第 1 轮进度。
+                raise OSError("lost pointer acknowledgement")
+        with patch.object(checkpoints, "_publish_pointer", fail_after_commit), \
+                self.assertRaises(checkpoints.CheckpointWriteError) as caught:
+            self.train(context=OperationContext(emit=progress.append))
+        facts = failure_fields(caught.exception)
+        self.assertEqual((progress[-1]["epoch"], facts["epoch"], facts["checkpoint_selection"]), (1, 2, "current"))
+        self.assertEqual(facts["checkpoint_sha256"], file_hash(Path(facts["checkpoint"])))
+
+    def test_genuine_legacy_pair_is_read_only_and_generation_snapshot_requires_pointer(self):
+        selected = self.interrupted()
+        legacy = selected.with_name("latest.pt")
+        sidecar = checkpoints.checkpoint_sidecar(legacy)
+        metadata = read_json(sidecar)
+        (legacy.parent / checkpoints.HEAD).unlink()
+        with self.assertRaisesRegex(ContractError, "no committed pointer"):
+            self.train({**self.config, "resume_checkpoint": str(legacy)})
+        # 旧旁注本来没有代号或目标轮次，原字节和训练签名仍需完整校验。
+        metadata.pop("generation")
+        metadata.pop("target_epochs")
+        sidecar.write_text(json.dumps(metadata), encoding="utf-8")
+        before = (file_hash(legacy), file_hash(sidecar))
+        resumed = self.train({**self.config, "resume_checkpoint": str(legacy), "resume_checkpoint_sha256": before[0]})
+        self.assertEqual(read_json(self.artifact(resumed) / "report.json")["resumed_from_epoch"], 2)
+        self.assertEqual((file_hash(legacy), file_hash(sidecar)), before)
+
+    def test_pointer_retry_is_limited_to_windows_sharing_and_lock_conflicts(self):
+        busy = PermissionError("sharing violation")
+        busy.winerror = 32
+        denied = PermissionError("access denied")
+        denied.winerror = 5
+        for failures, expected_attempts in (([busy, None], 2), ([busy] * 3, 3), ([denied], 1)):
+            with patch.object(checkpoints, "atomic_json", side_effect=failures) as write, \
+                    patch.object(checkpoints.time, "sleep"):
+                if failures[-1] is None:
+                    checkpoints._publish_pointer(self.root / checkpoints.HEAD, {})
+                else:
+                    with self.assertRaises(PermissionError):
+                        checkpoints._publish_pointer(self.root / checkpoints.HEAD, {})
+                self.assertEqual(write.call_count, expected_attempts)
+
+    @unittest.skipUnless(os.name == "nt", "Requires Windows CreateFileW share modes")
+    def test_windows_no_share_delete_blocks_checkpoint_commit_and_resumes_exactly(self):
+        if not self.root.resolve().is_relative_to((ROOT / "test-output").resolve()):
+            self.skipTest("Real handle probe is confined to this repository's test-output")
+        expected = self.checkpoint(self.train())
+        child_code = ("import json,sys; from test_supervised_resume import run_windows_share_probe; "
+                      "print(json.dumps(run_windows_share_probe(**json.load(sys.stdin))))")
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(str(ROOT / name) for name in ("src", "tests"))}
+        child = subprocess.run([sys.executable, "-c", child_code], text=True, capture_output=True, timeout=60,
+                               env=env, input=json.dumps({"workspace": str(self.root), "dataset": self.dataset_id,
+                                                          "config": self.config}))
+        self.assertEqual(child.returncode, 0, child.stderr)
+        observed = json.loads(child.stdout)
+        self.assertEqual(observed["delete_access_winerror"], 32)
+        facts = observed["facts"]
+        replace_error = facts["io_failure"]["winerror"]
+        # MoveFileExW 在部分 Windows 文件系统上把删除目标受限返回为 5。
+        # 记录替换操作本身的原始码，不能把独立 DELETE 探针的 32 强加给训练器。
+        self.assertIn(replace_error, (5, 32, 33))
+        self.assertEqual(facts["error_code"], "CHECKPOINT_ACCESS_DENIED" if replace_error == 5 else "CHECKPOINT_FILE_BUSY")
+        self.assertEqual(facts["io_failure"]["operation"], "commit checkpoint pointer")
+        self.assertEqual(facts["epoch"], 1)
+        self.assertEqual(facts["target_epochs"], self.config["epochs"])
+        self.assertEqual(facts["checkpoint_sha256"], observed["committed"]["checkpoint_sha256"])
+        if facts["checkpoint_status"] == "retained":
+            from control_harness.recovery import recover_interrupted_stage
+            archived = recover_interrupted_stage(self.ws, facts["stage_failure"]["stage_id"])
+        else:
+            self.assertEqual(facts["checkpoint_status"], "archived")
+            archived = facts
+        self.assertEqual(file_hash(Path(archived["checkpoint"])), facts["checkpoint_sha256"])
+        resumed = self.train({**self.config, "resume_checkpoint": archived["checkpoint"],
+                              "resume_checkpoint_sha256": facts["checkpoint_sha256"]})
+        self.assert_nested_equal(self.checkpoint(resumed), expected)
+        report = read_json(self.artifact(resumed) / "report.json")
+        self.assertEqual(report["resumed_from_epoch"], 1)
+        print(f"Windows checkpoint sharing: DELETE open=32, pointer replace={replace_error}, "
+              f"{facts['error_code']}, stage={facts['checkpoint_status']}, resumed=1/{report['trained_epochs']}")
 
     def test_runtime_failure_and_relative_checkpoint_path_resume_identically(self):
         continuous=self.train()

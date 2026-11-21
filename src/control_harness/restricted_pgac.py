@@ -244,14 +244,18 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
         tensors = {name:torch.from_numpy(raw[name]) for name in ('x','reference','d','u','previous_u')}
         with workspace.stage('external_pgac_candidate',DataInterface.parse(interface.to_dict()),parents,config,compatible_parents=False) as stage:
             def checkpoint_epoch(epoch):
-                save_checkpoint(stage.root,contract,model=policy.network,optimizer=optimizer,epoch=epoch,updates=updates,
+                return save_checkpoint(stage.root, contract, target_epochs=resolved["epochs"], model=policy.network,optimizer=optimizer,epoch=epoch,updates=updates,
                     best_state=best_state,best_metric=best_score,wait=0,log=log,numpy_generator=rng)
             for name,value in [('resolved_config',resolved),('network_config',policy.config),('scaler',policy.scaler),('data_interface',policy.data_interface),
                 ('action_constraints',policy.action_constraints),('physical_context',policy.physical_context)]: atomic_json(stage.root/(name+'.json'),value)
-            torch.save(initial_state,stage.root/'initial_imitation_state.pt'); checkpoint_epoch(start)
-            context.progress('pgac_initial_checkpoint',epoch=start,checkpoint=str(workspace.path/'failed'/stage.id/'latest.pt'))
+            torch.save(initial_state,stage.root/'initial_imitation_state.pt')
+            saved = checkpoint_epoch(start)
+            context.progress('pgac_initial_checkpoint',epoch=start, optimizer_updates=updates, **saved)
             baseline_validation = _predictor_validation(baseline,model,original,resolved,substeps,context)
-            if start==0 and best_score is None: best_score = baseline_validation['score']; checkpoint_epoch(start)
+            if start == 0 and best_score is None:
+                best_score = baseline_validation['score']
+                saved = checkpoint_epoch(start)
+                context.progress('pgac_initial_checkpoint', epoch=start, optimizer_updates=updates, **saved)
             first_update = None
             for epoch in range(start,resolved['epochs']):
                 context.check(); epoch_losses = []; order = rng.permutation(groups).tolist()
@@ -272,8 +276,9 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
                 if improved: best_score,best_state = score,copy.deepcopy(policy.network.state_dict())
                 event = {'epoch':epoch+1,'training_loss':math.fsum(epoch_losses)/len(epoch_losses),'predictor_validation_score':score,
                     'selected_by_validation':improved,'training_conditions_updated':len(groups),'training_trajectory_order':order,'optimizer_updates':updates}
-                log.append(event); checkpoint_epoch(epoch+1)
-                context.progress('restricted_pgac_training',**event,checkpoint=str(workspace.path/'failed'/stage.id/'latest.pt'))
+                log.append(event)
+                saved = checkpoint_epoch(epoch+1)
+                context.progress('restricted_pgac_training',**event,**saved)
             policy.network.load_state_dict(best_state,strict=True); policy.eval()
             selected_validation = _predictor_validation(policy,model,original,resolved,substeps,context)
             refs = {'imitation_policy':policy_id,'rollout_model':model_id,'model_validation':validation_id,'external_expert_dataset':dataset_id,

@@ -43,7 +43,7 @@ export async function ensureProfessionalPreset(ctx, agent) {
   return { managed: true, agentPreset: expected, repaired: before.recorded !== expected || before.composed !== expected, durable_hint: true };
 }
 
-export async function ensureSessionWorkspace(ctx, agent, args = {}) {
+export async function ensureSessionWorkspace(ctx, agent, args = {}, preflight, signal) {
   if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).length) {
     throw new Error('control-workspace accepts no arguments; only the invoking native Session can be attached');
   }
@@ -52,23 +52,25 @@ export async function ensureSessionWorkspace(ctx, agent, args = {}) {
   if (typeof cwd !== 'string' || !isAbsolute(cwd)) throw new Error('Native Session has no stored absolute working directory');
   const policy = ctx.sandboxPolicy.resolve({ session: agent.session });
   const workspacePath = await authorizeWorkspace(cwd, policy, true);
+  const diagnostic = await preflight?.({workspace:workspacePath,policy,signal});
   const preset = await ensureProfessionalPreset(ctx, agent);
   const workspace = await ctx.workspaceRegistry.create(workspacePath);
   // The native entity independently checks the Session's immutable stored cwd.
   await workspace.attachSession(agent.id);
   if (!workspace.sessionIds.includes(agent.id)) throw new Error('Native Workspace attachment was not projected');
-  return { sessionId: agent.id, workspaceId: workspace.id, workspace: workspace.path, attached: true, preset };
+  return { sessionId: agent.id, workspaceId: workspace.id, workspace: workspace.path, attached: true, preset,
+    ...(diagnostic ? {preflight:diagnostic} : {}) };
 }
 
-export function installSessionWorkspace(ctx) {
+export function installSessionWorkspace(ctx, preflight) {
   return ctx.commands.register({
     definitionId: '@control-engineering/harness-bundle/workspace', name: 'control-workspace',
     description: 'Attach this existing Session to its native Workspace without creating another Session or starting work',
     input: { hint: 'No arguments; uses only this Session and its stored working directory' },
-    handler: async ({ agent, rawInput }) => {
+    handler: async ({ agent, rawInput, signal }) => {
       try {
         const args = rawInput.trim() ? JSON.parse(rawInput) : {};
-        return { kind: 'success', text: JSON.stringify(await ensureSessionWorkspace(ctx, agent, args)) };
+        return { kind: 'success', text: JSON.stringify(await ensureSessionWorkspace(ctx, agent, args, preflight, signal)) };
       } catch (error) { return { kind: 'error', text: error instanceof Error ? error.message : String(error) }; }
     },
   });

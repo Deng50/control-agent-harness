@@ -1,8 +1,12 @@
 """Actual single-plant artifacts, confirmation reuse and failure preservation."""
 import copy
+import base64
+import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -10,6 +14,7 @@ from control_harness.artifacts import Workspace, atomic_json, read_json
 from control_harness.case_plans import FIXTURE_KIND, PendingPlanConfirmation, propose_plan
 from control_harness.case_requirements import confirmation_requirements
 from control_harness.contracts import ContractError
+from control_harness.modeling import load_model, register_model
 from control_harness.operations import run_operation
 from control_harness.runtime import OperationContext
 from control_harness.sampling import SamplingStopped, SamplingCancelled
@@ -81,6 +86,8 @@ class PlantOperations(unittest.TestCase):
         handoff = self.operation("prepare_handoff", {"artifact_id": trial["artifact_id"]})["handoff"]
         self.assertEqual(handoff["inputs"], {"model": plant})
         self.assertEqual(handoff["config_suggestions"]["sampling_run"], "full")
+        self.assertNotIn("plan_refs", handoff["config_suggestions"])
+        self.assertEqual(handoff["config_suggestions"]["trial"], request["config"]["trial"])
         with np.load(trial_root / "transitions.npz") as data:
             trial_x = data["next_x"].copy()
         request["config"]["sampling_run"] = "full"
@@ -88,8 +95,19 @@ class PlantOperations(unittest.TestCase):
         result = run_operation(request, self.ctx)
         root, meta = self.ws.resolve(result["artifact_id"])
         self.assertEqual(meta["kind"], "sampled_dataset")
-        handoff = self.operation("prepare_handoff", {"artifact_id": result["artifact_id"]})["handoff"]
+        prepared = self.operation("prepare_handoff", {"artifact_id": result["artifact_id"]})
+        handoff = prepared["handoff"]
         self.assertEqual(handoff["operation"], "train_predictive_model")
+        affine, = [row for row in prepared["optional_handoffs"] if row["config_suggestions"]["method"]=="sampled_affine"]
+        self.assertEqual(affine["inputs"], {"plant": plant, "dataset": result["artifact_id"]})
+        equations, = [row for row in prepared["optional_handoffs"] if row["config_suggestions"]["method"]=="declared_equations"]
+        self.assertEqual(equations["missing_inputs"], ["equations"])
+        source = self.operation("prepare_handoff", {"artifact_id":plant})
+        self.assertFalse(source["artifact_capabilities"]["prediction"])
+        self.assertTrue(source["artifact_capabilities"]["sampling"])
+        for route in source["optional_handoffs"]:
+            self.assertEqual(route["inputs"]["dataset"], "")
+            self.assertEqual(route["candidate_datasets"], [result["artifact_id"]])
         self.assertEqual(handoff["config_suggestions"]["C"], [[1., 0.]])
         self.assertEqual([parent["id"] for parent in meta["parents"]], [plant])
         with np.load(root / "transitions.npz", allow_pickle=False) as data:
@@ -111,6 +129,48 @@ class PlantOperations(unittest.TestCase):
         self.assertEqual(report["completed_trajectories"], 6)
         self.assertFalse(meta["source"]["measured"])
         self.assertEqual(report["confirmation_sources"][0]["confirmation_source"], "test_fixture")
+
+    def test_promoted_mpc_collects_and_evaluates_on_exact_original_callable(self):
+        from control_harness.delivery import verify_design_delivery
+        from control_harness.design_only import synthesize_mpc
+        from control_harness.inspection import prepare_handoff
+        from control_harness.plant_predictor import convert_plant_predictor
+        from control_harness.policy import collect_expert, train_imitation
+
+        # 故意留下小且可检出的方程误差，区分预测器滚动轨迹与实际原对象轨迹。
+        plant = self.plant()
+        sampling = self.request(plant)
+        sampling["config"]["sampling_run"] = "full"
+        self.approve(sampling)
+        dataset = run_operation(sampling, self.ctx)["artifact_id"]
+        equations = register_model(self.ws, {"interface": interface(), "representation": "discrete_polynomial",
+            "A": [[.8, .1], [0., .9]], "B": [[.2], [-.1]], "E": [[], []],
+            "C": [[1., 0.]], "bias": [.001, 0.]}, {"kind": "user_nominal"})
+        predictor = convert_plant_predictor(self.ws, {"plant": plant, "dataset": dataset, "equations": equations},
+                                           {"method": "declared_equations"}, self.ctx)
+        design = synthesize_mpc(self.ws, {"model": predictor}, {"controller": {"horizon": 1}, "solver_check": False})
+        controller = verify_design_delivery(self.ws, design, {"target": "workspace_controller",
+            "case": {"x": [.1, 0.], "reference": [0.]}})
+        routes = prepare_handoff(self.ws, controller)
+        self.assertEqual(routes["handoff"]["inputs"], {"controller": controller, "evaluation_model": plant})
+        cases = {"scenarios": [{"name": str(k), "initial_state": [.02*k, -.01], "reference": [.01],
+                                "disturbance": [], "steps": 2} for k in range(5)]}
+        with self.assertRaisesRegex(ContractError, "直接绑定"):
+            collect_expert(self.ws, controller, self.plant(), cases)
+        expert = collect_expert(self.ws, controller, plant, cases)
+        root, meta = self.ws.resolve(expert, kind="expert_dataset")
+        self.assertEqual(meta["source"]["evaluation_model"], plant)
+        self.assertEqual(meta["source"]["evaluation_backend"], "original_python_callable")
+        with np.load(root / "expert.npz", allow_pickle=False) as observed:
+            x, u = observed["x"][::2], observed["u"][::2, 0]
+            expected = np.column_stack((.8*x[:,0]+.1*x[:,1]+.2*u, .9*x[:,1]-.1*u))
+            np.testing.assert_allclose(observed["x"][1::2], expected, rtol=0, atol=1e-14)
+        policy = train_imitation(self.ws, expert, {"epochs": 1, "hidden_dims": [3], "seed": 7})
+        policy_root, _ = self.ws.resolve(policy, kind="imitation_policy")
+        report = read_json(policy_root / "report.json")
+        self.assertEqual(report["evaluation_backend"], "original_python_callable")
+        self.assertEqual(len(report["closed_loop"]["test"]), 1)
+        self.assertIsNone(prepare_handoff(self.ws, policy)["handoff"]["operation"])
 
     def test_pending_json_flags_and_changed_budget_are_refused(self):
         request = self.request(self.plant())
@@ -156,6 +216,35 @@ class PlantOperations(unittest.TestCase):
         self.assertTrue((failed / "partial-transitions.npz").is_file())
         self.assertNotIn("sampled_dataset", self.ws.manifest["active"])
 
+    def test_resume_reuses_only_completed_trajectory_and_rechecks_its_bytes(self):
+        request = self.request(self.plant())
+        request["config"]["sampling_run"] = "full"
+        self.approve(request)
+        receipts = []
+        def interrupt(event):
+            if "collection_checkpoint" in event:
+                receipts.append(event["collection_checkpoint"])
+        context = OperationContext.test_fixture(self.ws, emit=interrupt, cancelled=lambda: bool(receipts))
+        context._case_receipt_key = base64.b64encode(os.urandom(32)).decode()
+        context._case_native_session = "isolated-sampling-test"
+        with self.assertRaises(SamplingCancelled):
+            run_operation(request, context)
+        self.assertEqual(receipts[0]["completed"], 1)
+        self.assertNotIn("sampled_dataset", self.ws.manifest["active"])
+        context.cancelled = lambda: False
+        started = []
+        context.emit = lambda event: started.append(event.get("trajectory_id")) if event.get("phase") == "started" else None
+        with patch.dict(os.environ, {"CONTROL_COLLECTION_RESUME": json.dumps(receipts[0])}):
+            result = run_operation(request, context)
+            self.assertEqual(started, [1, 2, 3, 4, 5])
+            report = read_json(Path(result["artifact_path"]) / "report.json")
+            self.assertEqual(report["restored_trajectories"], 1)
+            self.assertEqual(report["valid_rows"], 72)
+            data = self.ws.path / "failed" / receipts[0]["stage_id"] / "trajectory-commits" / "0.npz"
+            data.write_bytes(data.read_bytes() + b"changed")
+            with self.assertRaisesRegex(SamplingStopped, "hash changed"):
+                run_operation(request, context)
+
     def test_existing_torch_model_samples_without_an_extra_nominal_or_reference(self):
         from control_harness.modeling import register_model
         spec = {"representation": "discrete_polynomial", "interface": interface(),
@@ -169,6 +258,107 @@ class PlantOperations(unittest.TestCase):
         with np.load(root / "transitions.npz") as arrays:
             self.assertEqual(arrays["x"].shape, (72,2))
             np.testing.assert_allclose(arrays["next_x"], arrays["x"] @ np.array(spec["A"]).T + arrays["u"] @ np.array(spec["B"]).T, atol=1e-15)
+
+    def full_dataset(self, plant, config=None):
+        # 复用采样工具、确认门禁和独立轨迹切分。测试夹具的确认来源记录为 test_fixture。
+        request = self.request(plant)
+        if config is not None:
+            request["config"] = config
+        request["config"]["sampling_run"] = "full"
+        self.approve(request)
+        return run_operation(request, self.ctx)["artifact_id"]
+
+    def convert(self, inputs, config):
+        request = {"operation": "convert_plant_predictor", "workspace": str(self.ws.path),
+                   "inputs": inputs, "config": dict(config)}
+        self.approve(request)
+        return run_operation(request, self.ctx)["artifact_id"]
+
+    def test_converted_polynomial_preserves_nonlinearity_and_rejects_inaccurate_affine(self):
+        plant = self.plant("import numpy as np\ndef transition(x,u,d,dt,p):\n"
+            "    return np.array([.8*x[0]+.1*x[1]+.2*u[0]+.1*x[0]**2,.9*x[1]-.1*u[0]],dtype=np.float64)\n")
+        dataset = self.full_dataset(plant)
+        spec = {"representation": "discrete_polynomial", "interface": interface(), "A": [[.8,.1],[0.,.9]],
+                "B": [[.2],[-.1]], "C": [[1.,0.]], "terms": [{"state_index": 0, "powers": [2,0,0], "coefficient": .1}]}
+        equations = register_model(self.ws, spec, {"kind": "user_nominal"})
+        inputs = {"plant": plant, "dataset": dataset, "equations": equations}
+        strict = {"max_one_step_nrmse": 1e-12, "max_rollout_nrmse": 1e-12}
+        with self.assertRaises(PendingPlanConfirmation):
+            self.operation("convert_plant_predictor", inputs, {"method": "declared_equations", **strict}, OperationContext())
+        result = self.convert(inputs, {"method": "declared_equations", **strict})
+        model = load_model(self.ws, result)
+        self.assertEqual(model.terms, spec["terms"])
+        np.testing.assert_allclose(model.step([.3,.1], [.1], []), [.279,.08], atol=1e-14)
+        root, meta = self.ws.resolve(result)
+        self.assertEqual(meta["validation"]["status"], "verified")
+        self.assertEqual(meta["source"]["parent_versions"], {key: self.ws.manifest["artifacts"][key]["metadata_hash"] for key in inputs.values()})
+        report = read_json(root / "report.json")
+        self.assertTrue(report["acceptance"]["passed"])
+        self.assertEqual(report["confirmation_sources"][0]["confirmation_source"], "test_fixture")
+        self.assertFalse(meta["source"]["applicability"]["global_equivalence_proved"])
+        # 同一非线性对象的仿射近似在严格门限下应拒收；仍保留失败报告供用户定位误差。
+        affine = self.convert({"plant": plant, "dataset": dataset}, {"method": "sampled_affine", **strict})
+        rejected, meta = self.ws.resolve(affine, allow_rejected=True)
+        self.assertEqual(meta["validation"]["status"], "rejected")
+        self.assertTrue(read_json(rejected / "report.json")["acceptance"]["reason"])
+        with self.assertRaises(ContractError):
+            load_model(self.ws, affine)
+        self.assertEqual(self.ws.manifest["active"]["nominal_model"], equations)
+        self.assertNotIn("identified_model", self.ws.manifest["active"])
+
+    def test_conversion_refuses_another_plant_version_and_missing_output_mapping(self):
+        plant = self.plant()
+        dataset = self.full_dataset(plant)
+        custom = self.plant("import numpy as np\ndef transition(x,u,d,dt,p): return .8*x + u[0]\n"
+                            "def measure(x,p): return np.array([x[0]**2],dtype=np.float64)\n")
+        root, _ = self.ws.resolve(custom)
+        definition = read_json(root / "plant.json")
+        with self.assertRaisesRegex(ContractError, "原对象.*版本"):
+            self.convert({"plant": custom, "dataset": dataset}, {"method": "sampled_affine"})
+        # 自定义非线性测量函数可用于采样，但仅凭输入输出维度无法得到状态投影矩阵。
+        adapter = definition["adapter_spec"]
+        del adapter["C"]
+        adapter["output_entrypoint"] = "measure"
+        custom_output = self.operation("register_plant", {"material": definition["material"]}, {"adapter": adapter})["artifact_id"]
+        data = self.full_dataset(custom_output)
+        with self.assertRaisesRegex(ContractError, "输出映射 C"):
+            self.convert({"plant": custom_output, "dataset": data}, {"method": "sampled_affine"})
+
+    def test_b03_actual_callable_through_equations_and_sampled_affine(self):
+        inputs_dir = Path(__file__).resolve().parents[2] / "control-agent-benchmark/cases/B03_mpc_preferences/inputs"
+        if not inputs_dir.is_dir():
+            self.skipTest("B03 benchmark materials are not installed next to this checkout")
+        material = self.operation("register_material", {"local_path": str(inputs_dir / "plant_numpy.py")})["artifact_id"]
+        plant = self.operation("register_plant", {"material": material}, read_json(inputs_dir / "plant_adapter.json"))["artifact_id"]
+        dataset = self.full_dataset(plant, read_json(inputs_dir / "identification_sampling_config.json"))
+        equations = register_model(self.ws, read_json(inputs_dir / "declared_continuous_model.json"), {"kind": "user_nominal"})
+        expected = read_json(inputs_dir / "declared_discrete_model.json")
+        # 用独立提供的离散矩阵校验未参加拟合的状态与力组合，防止只检查“产物已登记”。
+        x, u, d = [.05, -.02], [.23], [-.1]
+        expected_next = np.asarray(expected["A"]) @ x + np.asarray(expected["B"]) @ u + np.asarray(expected["E"]) @ d
+        for method in ("declared_equations", "sampled_affine"):
+            inputs = {"plant": plant, "dataset": dataset}
+            if method == "declared_equations":
+                inputs["equations"] = equations
+            with self.subTest(method=method):
+                result = self.convert(inputs, {"method": method})
+                root, meta = self.ws.resolve(result)
+                model = load_model(self.ws, result)
+                np.testing.assert_allclose(model.step(x, u, d), expected_next, rtol=0, atol=1e-12)
+                self.assertEqual(meta["source"]["material"], material)
+                self.assertEqual(meta["source"]["applicability"]["parameter_values"], {"mass": 1., "damping": .8, "stiffness": 2.})
+                report = read_json(root / "report.json")
+                self.assertEqual(sum(map(len, report["trajectory_split"].values())), 15)
+                for part in ("validation", "test"):
+                    for record in report["rollout"][part]:
+                        self.assertEqual(record["steps"], 100)
+                        self.assertFalse(record["teacher_forcing_after_initial_state"])
+                        self.assertLess(max(record["state"]["nrmse_per_channel"]), 1e-12)
+                if method == "declared_equations":
+                    self.assertEqual(model.spec["integration"]["method"], "zoh")
+                else:
+                    fit = report["identification"]
+                    self.assertEqual(fit["training_rank"], fit["parameter_count"])
 
 
 if __name__ == "__main__": unittest.main()

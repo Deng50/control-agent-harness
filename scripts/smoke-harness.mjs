@@ -26,7 +26,7 @@ async function rpc(method, payload) {
 
 const workspace = resolve(project, 'test-output', `harness-smoke-${randomUUID()}`);
 await mkdir(workspace, { recursive: true });
-if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'), '-Workspace', workspace]);
+if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'), '-Prepare', '-Workspace', workspace]);
 const created = await rpc('session/create', { request: { cwd: workspace } });
 let sessionId = created.sessionId;
 const commands = await rpc('commands/list', { agentId: sessionId });
@@ -78,7 +78,7 @@ if (demoCase) {
   assert.ok(['linear', 'nonlinear'].includes(demoCase));
   const demoWorkspace = resolve(project, 'test-output', `harness-${demoCase}-${randomUUID()}`);
   await mkdir(demoWorkspace, { recursive: true });
-  if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'), '-Workspace', demoWorkspace]);
+  if (process.platform === 'win32') execFileSync('pwsh.exe', ['-NoProfile', '-File', resolve(project, 'scripts/prepare-workspace.ps1'), '-Prepare', '-Workspace', demoWorkspace]);
   sessionId = (await rpc('session/create', { request: { cwd: demoWorkspace } })).sessionId;
   const workflowInput = { workflow_path: resolve(project, 'examples', demoCase, 'workflow.json') };
   const workflowRequest = { agent: 'workflow', operation: 'run_workflow', workspace: demoWorkspace, inputs: workflowInput };

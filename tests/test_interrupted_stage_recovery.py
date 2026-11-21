@@ -16,6 +16,7 @@ from unittest.mock import patch
 import torch
 
 from control_harness.artifacts import Workspace, WorkspaceBusy, atomic_json, file_hash, read_json
+from control_harness.checkpoints import HEAD, checkpoint_sidecar, current_checkpoint
 from control_harness.contracts import ContractError, ModelInterface
 from control_harness.data import simulate_transitions
 from control_harness.locking import process_alive
@@ -135,7 +136,7 @@ class InterruptedStageRecoveryTests(unittest.TestCase):
         self.assertEqual(intent["algorithm"], "residual_training")
         self.assertEqual(intent["config"], self.config)
         self.assertEqual({row["id"] for row in intent["dependencies"]}, {self.nominal, self.dataset})
-        self.assertEqual(intent["training"]["training_signature"], read_json(root / "latest.checkpoint.json")["training_signature"])
+        self.assertEqual(intent["training"]["training_signature"], read_json(checkpoint_sidecar(current_checkpoint(root)))["training_signature"])
         manifest_before = self.workspace.manifest_path.read_bytes()
         result = recover_interrupted_stage(self.workspace, stage_id)
         self.assertEqual(result["status"], "archived")
@@ -160,11 +161,11 @@ class InterruptedStageRecoveryTests(unittest.TestCase):
     def test_live_worker_kernel_mutex_blocks_archive_then_exit_allows_it(self):
         child, record = self.start_worker("hold")
         root = self.workspace.path / ".staging" / record["stage_id"]
-        original = file_hash(root / "latest.pt")
+        original = file_hash(current_checkpoint(root))
         self.assertIs(process_alive(record["pid"]), True)
         with self.assertRaises(WorkspaceBusy):
             recover_interrupted_stage(self.workspace, record["stage_id"])
-        self.assertEqual(file_hash(root / "latest.pt"), original)
+        self.assertEqual(file_hash(current_checkpoint(root)), original)
         self.assertTrue(root.is_dir())
         _, error = child.communicate("exit\n", timeout=15)
         self.assertEqual(child.returncode, 73, error)
@@ -192,13 +193,19 @@ class InterruptedStageRecoveryTests(unittest.TestCase):
             atomic_json(intent_path, intent)
             refused(WorkspaceBusy)
         intent_path.write_bytes(original_intent)
-        for filename in ("config.json", "latest.checkpoint.json", "latest.pt"):
+        checkpoint = current_checkpoint(root)
+        previous = root / (read_json(root / HEAD)["previous"] + ".pt")
+        # 没有任何通过校验的代号时必须拒绝归档；只破坏当前代号的回退另测。
+        previous_bytes = previous.read_bytes()
+        previous.write_bytes(b"corrupt")
+        for filename in ("config.json", HEAD, checkpoint_sidecar(checkpoint).name, checkpoint.name):
             with self.subTest(corruption=filename):
                 path = root / filename
                 original = path.read_bytes()
                 path.write_bytes(b"corrupt")
                 refused()
                 path.write_bytes(original)
+        previous.write_bytes(previous_bytes)
         marker = root / "artifact.json"
         marker.write_text("{}", encoding="utf-8")
         refused()
@@ -213,6 +220,35 @@ class InterruptedStageRecoveryTests(unittest.TestCase):
             recover_interrupted_stage(self.workspace, "../artifacts")
         result = recover_interrupted_stage(self.workspace, stage_id)
         self.assertEqual(result["epoch"], 2)
+
+    def test_corrupt_current_generation_recovers_only_committed_verified_previous(self):
+        _, record = self.start_worker()
+        root = self.workspace.path / ".staging" / record["stage_id"]
+        pointer = (root / HEAD).read_bytes()
+        head = read_json(root / HEAD)
+        previous = root / (head["previous"] + ".pt")
+        previous_hash = file_hash(previous)
+        damaged = current_checkpoint(root)
+        damaged.write_bytes(b"damaged current")
+        original_failure = {"type": "PermissionError", "message": "original write refused"}
+        atomic_json(root / "failure.json", original_failure)
+        with patch.object(Path, "rename", side_effect=PermissionError("archive rename refused")), \
+                self.assertRaisesRegex(ContractError, "verified but not archived") as refused:
+            recover_interrupted_stage(self.workspace, record["stage_id"])
+        self.assertEqual(refused.exception.checkpoint_details["checkpoint"], str(previous))
+        self.assertEqual(refused.exception.stage_failure["archive_state"], "retained")
+        result = recover_interrupted_stage(self.workspace, record["stage_id"])
+        self.assertEqual((result["epoch"], result["checkpoint_selection"]), (1, "previous"))
+        self.assertIn("integrity", result["checkpoint_fallback_reason"])
+        path = Path(result["checkpoint"])
+        self.assertEqual(path.name, previous.name)
+        self.assertEqual(file_hash(path), previous_hash)
+        self.assertEqual((path.parent / HEAD).read_bytes(), pointer)
+        self.assertEqual((path.parent / damaged.name).read_bytes(), b"damaged current")
+        self.assertEqual(read_json(path.parent / "failure.json"), original_failure)
+        resumed = train_residual(self.workspace, self.nominal, self.dataset, {**self.config,
+                                 "resume_checkpoint": str(path), "resume_checkpoint_sha256": previous_hash})
+        self.assertEqual(read_json(self.workspace.resolve(resumed, allow_rejected=True)[0] / "report.json")["resumed_from_epoch"], 1)
 
     def test_recovery_never_overwrites_an_existing_failed_destination(self):
         _, record = self.start_worker()

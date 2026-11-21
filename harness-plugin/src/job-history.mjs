@@ -2,7 +2,9 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { mkdir, readFile, readdir, realpath, stat, writeFile, rename, link, unlink } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { pinCheckpoint } from './recovery-checkpoint.mjs';
+import { assertWorkspacePolicyPath, WorkspacePreflightError } from './workspace-policy.mjs';
 
 const TERMINAL = new Set(['completed', 'failed', 'killed']);
 const ATTEMPT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -24,7 +26,18 @@ async function physical(path) {
 }
 
 export async function authorizeWorkspace(workspace, policy, write = false) {
+  try {
+    return await resolveWorkspace(workspace,policy,write);
+  } catch (error) {
+    if (!write) throw error;
+    throw new WorkspacePreflightError({code:'WORKSPACE_PREFLIGHT_FAILED',actor:'policy',operation:'authorize_workspace',
+      path:workspace,os_code:error.code ?? null,detail:error.message,hint:'请将会话工作目录设为真实、本地且在授权范围内的任务目录。'});
+  }
+}
+
+async function resolveWorkspace(workspace,policy,write) {
   if (typeof workspace !== 'string' || !isAbsolute(workspace)) throw new Error('workspace must be an absolute path');
+  await assertWorkspacePolicyPath(workspace,policy,write);
   const target = await physical(resolve(workspace));
   if (write && policy.mode !== 'danger-full-access') {
     if (policy.mode !== 'workspace-write') throw new Error('Current session sandbox does not allow persistent job writes');
@@ -60,12 +73,12 @@ export class JobHistory {
     return path;
   }
 
-  async create({ workspace, owner, agentName, request, recoveredFrom = null, recoveryMode = null }) {
+  async create({ workspace, owner, agentName, request, recoveredFrom = null, recoveryMode = null, limits }) {
     const attemptId = randomUUID();
     const directory = await this.directory(workspace, attemptId);
     await mkdir(directory, { recursive: true });
     const record = { version: 1, attemptId, owner, agentName, workspace, runtimeId: this.runtimeId, hostPid: process.pid, host: hostname(),
-      createdAt: new Date().toISOString(), recoveredFrom, recoveryMode, request: structuredClone(request) };
+      createdAt: new Date().toISOString(), recoveredFrom, recoveryMode, limits, request: structuredClone(request) };
     await atomicJson(join(directory, 'request.json'), record, true);
     return this.writer(record, directory);
   }
@@ -100,10 +113,21 @@ export class JobHistory {
         const value = event.workerEvent;
         if (value.event === 'progress') state.progress = value;
         if (value.event === 'result') state.result = value.result;
-        if (value.checkpoint) state.checkpoint = value.checkpoint;
+        if (value.stage_failure) state.stageFailure = value.stage_failure;
+        if (value.collection_checkpoint) state.collectionCheckpoint = value.collection_checkpoint;
+        if (value.error_code) state.errorCode = value.error_code;
+        if (value.io_failure) state.ioFailure = value.io_failure;
+        if (value.checkpoint_fallback_reason) state.checkpointFallbackReason = value.checkpoint_fallback_reason;
+        const saved = value.result?.checkpoint ? value.result : value;
+        if (saved.checkpoint) {
+          state.checkpoint = saved.checkpoint;
+          const entry = {path:saved.checkpoint, sha256:saved.checkpoint_sha256, epoch:saved.epoch,
+            target:saved.target_epochs, updates:saved.optimizer_updates, status:saved.checkpoint_status};
+          state.checkpoints = [entry,...(state.checkpoints ?? []).filter(row =>
+            row.sha256 && entry.sha256 ? row.sha256 !== entry.sha256 : row.path !== entry.path)].slice(0,2);
+        }
         if (value.workflow_run) state.workflowRun = value.workflow_run;
         if (value.result?.workflow_run) state.workflowRun = value.result.workflow_run;
-        if (value.result?.checkpoint) state.checkpoint = value.result.checkpoint;
       }
       if (event.outcome) { state.outcome = event.outcome; state.detail = event.outcome.detail; }
       if (event.nativeSettlement) { state.nativeSettlement = event.nativeSettlement; state.detail = event.nativeSettlement.detail ?? state.detail; }
@@ -129,8 +153,25 @@ export class JobHistory {
         catch (error) { if (error.code !== 'ESRCH') state.recoveryBlocked = 'Original host liveness could not be verified'; }
       }
     } else state.authority = 'durable_outcome';
-    if (TERMINAL.has(state.state) && (!state.outcome || state.outcome.cleanupVerified === false)) {
+    if (TERMINAL.has(state.state) && state.outcome?.cleanupVerified !== true) {
       state.recoveryBlocked = 'Producer resource cleanup has not been verified; inspect the original execution before recovery';
+    }
+    if (state.stageFailure?.archive_state === 'publication_review') {
+      state.recoveryBlocked = '阶段可能已进入发布事务，请先核对产物清单与恢复记录。';
+    }
+    // A hard exit can leave a committed pointer but no terminal Python event.
+    // Look only for the exact stage identified by this attempt's own progress.
+    if (state.checkpoint && ['interrupted','failed','killed'].includes(state.state) &&
+        ['committed_in_staging','retained'].includes(state.checkpoints?.[0]?.status)) {
+      const id = basename(dirname(resolve(workspace,state.checkpoint)));
+      if (/^[a-z][a-z0-9_]*-[a-f0-9]{12}$/.test(id)) {
+        const intent=join(workspace,'.staging',id,'stage.intent.json');
+        try {
+          if (!relative(intent,await realpath(intent)) && (await stat(intent)).isFile()) state.unpublishedStageId=id;
+        } catch (error) {
+          if (error.code!=='ENOENT') state.checkpointInspectionError=error.message;
+        }
+      }
     }
     try { state.recovery = JSON.parse(await readFile(join(directory, 'recovery.json'), 'utf8')); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -175,17 +216,20 @@ export async function recoveryRequest(record, mode, checkpoint) {
   if (mode === 'retry') {
     return request;
   }
+  if (['sample_model','collect_external_expert'].includes(request.operation) && record.collectionCheckpoint) {
+    if (checkpoint !== undefined) throw new Error('Collection resumes from its recorded complete trajectories');
+    return request;
+  }
   if (request.operation === 'run_workflow') {
     if (!record.workflowRun) throw new Error('No recorded workflow run id; inspect workflow state before resuming');
     request.config.resume_run = record.workflowRun;
     return request;
   }
   if (!TRAINING.has(request.operation)) throw new Error('This operation has no checkpoint resume support; use retry');
+  if (record.unpublishedStageId && checkpoint === undefined) throw new Error(`请先校验并归档未发布检查点 ${record.unpublishedStageId}，再续训。`);
   const selected = checkpoint ?? record.checkpoint;
   if (typeof selected !== 'string' || !selected) throw new Error('A saved training checkpoint is required for resume');
-  const path = await realpath(resolve(record.workspace, selected));
-  if (!inside(record.workspace, path) || !(await stat(path)).isFile()) throw new Error('Checkpoint must be a file inside this workspace');
-  request.config.resume_checkpoint = path;
+  Object.assign(request.config,await pinCheckpoint(record, selected, checkpoint === undefined));
   return request;
 }
 
@@ -196,7 +240,7 @@ export function persistedJob({ writer, job, start }) {
     let outcome;
     try {
       await writer.append({ state: 'queued', nativeJobId: job.id });
-      if (cancelled) outcome = { status: 'killed', detail: 'Cancelled before numerical worker admission' };
+      if (cancelled) outcome = { status: 'killed', cleanupVerified:true, detail: 'Cancelled before numerical worker admission' };
       else {
         hooks = start(event => {
           writer.append({ workerEvent: event, ...(event.event === 'started' ? { state: 'running' } : {}) })

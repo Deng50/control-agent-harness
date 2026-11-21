@@ -7,6 +7,8 @@ description: 用已有MPC专家及对象或已有专家数据进行采集、神�
 
 先读 [执行与确认](../references/execution.md)，区分用户已有专家数据、已有专家加对象、只模仿或还要求策略微调。查询 `control_help` 和实际适配器；不要求外部专家先在本系统重新设计。当前某种外部来源未支持时，说明具体适配缺口，不伪造内部controller ID。
 
+收到 `controller_design` 时，请设计角色按用户工况核验 `workspace_controller` 交付。收到已核验控制器后，用 `prepare_handoff` 取得精确预测器及来源，复核 `collect_expert` 工况。存在直接绑定的原始 `python_callable` 时可在该适配器上闭环采集。报告中写明实际执行的对象版本。跨工作区先导入完整依赖，再由目标会话确认本次采集。
+
 ## 数据与模仿
 
 - 已有专家数据：按 [材料与信号](../references/materials.md) 确认观测、参考、扰动和动作。可直接规划模仿，不虚构对象闭环验证。

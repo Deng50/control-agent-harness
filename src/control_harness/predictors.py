@@ -105,6 +105,38 @@ def _metrics(predicted, actual, atol, rtol):
         "max_abs_error": np.max(np.abs(predicted - actual), axis=0).tolist()}
 
 
+def compare_predictor_trajectories(model, arrays, masks, split, metric, context):
+    """在相同的独立工况计算单步与开环误差。metric 按量纲、检验类型计算门限。"""
+    C = model.C.detach().numpy()
+    one_step, rollouts = {}, {}
+    for part in ("validation", "test"):
+        context.check()
+        mask = masks[part]
+        prediction = model.step(arrays["x"][mask], arrays["u"][mask], arrays["d"][mask])
+        one_step[part] = {"state": metric(prediction, arrays["next_x"][mask], "state", "one_step"),
+                          "output": metric(prediction @ C.T, arrays["next_y"][mask], "output", "one_step")}
+        records = []
+        for trajectory in split[part]:
+            rows = np.flatnonzero(arrays["trajectory_id"] == trajectory)
+            rows = rows[np.argsort(arrays["time"][rows], kind="stable")]
+            state = arrays["x"][rows[0]].copy()
+            states = []
+            for row in rows:
+                # 仅首拍用记录的真实状态，以后的每一拍都用预测器自己的上一拍状态。
+                context.check()
+                state = model.step(state, arrays["u"][row], arrays["d"][row])
+                states.append(state)
+            predicted = np.asarray(states)
+            records.append({"trajectory_id": trajectory, "steps": len(rows),
+                "state": metric(predicted, arrays["next_x"][rows], "state", "rollout"),
+                "output": metric(predicted @ C.T, arrays["next_y"][rows], "output", "rollout"),
+                "teacher_forcing_after_initial_state": False})
+        rollouts[part] = records
+    passed = all(value["passed"] for part in one_step.values() for value in part.values()) and all(
+        record[key]["passed"] for records in rollouts.values() for record in records for key in ("state", "output"))
+    return one_step, rollouts, passed
+
+
 def _identify(workspace, dataset_id, config, context):
     from .identification import fit_affine_transitions
     from .predictive import _read_sampled
@@ -124,28 +156,8 @@ def _identify(workspace, dataset_id, config, context):
     coefficients, report = fit_affine_transitions(interface, arrays, masks, fit, context)
     spec = {"representation": "discrete_polynomial", "interface": interface.to_dict(), **coefficients, "C": C.tolist(), "terms": []}
     model = _declarative(spec)
-    one_step, rollouts = {}, {}
-    for part in ("validation", "test"):
-        context.check()
-        mask = masks[part]
-        prediction = model.step(arrays["x"][mask], arrays["u"][mask], arrays["d"][mask])
-        one_step[part] = {"state": _metrics(prediction, arrays["next_x"][mask], atol, rtol),
-            "output": _metrics(prediction @ C.T, arrays["next_y"][mask], atol, rtol)}
-        records = []
-        for trajectory in split[part]:
-            rows = np.flatnonzero(arrays["trajectory_id"] == trajectory)
-            rows = rows[np.argsort(arrays["time"][rows], kind="stable")]
-            state = arrays["x"][rows[0]].copy(); states = []
-            for row in rows:
-                context.check(); state = model.step(state, arrays["u"][row], arrays["d"][row]); states.append(state)
-            predicted = np.asarray(states)
-            records.append({"trajectory_id": trajectory, "steps": len(rows),
-                "state": _metrics(predicted, arrays["next_x"][rows], atol, rtol),
-                "output": _metrics(predicted @ C.T, arrays["next_y"][rows], atol, rtol),
-                "teacher_forcing_after_initial_state": False})
-        rollouts[part] = records
-    passed = all(value["passed"] for part in one_step.values() for value in part.values()) and all(
-        record[key]["passed"] for records in rollouts.values() for record in records for key in ("state", "output"))
+    one_step, rollouts, passed = compare_predictor_trajectories(
+        model, arrays, masks, split, lambda predicted, actual, *_: _metrics(predicted, actual, atol, rtol), context)
     report.update({"route": "identify_affine", "acceptance": {"atol": atol, "rtol": rtol, "passed": passed},
         "one_step": one_step, "rollout": rollouts, "sampled_dataset": dataset_id,
         "source_provenance": source.get("source", {}), "C_validation": "consistent_with_recorded_data_not_uniqueness_proof",
@@ -236,17 +248,28 @@ def resolve_predictor(workspace, inputs, prediction_config, context=None):
         return _identify(workspace, inputs["dataset"], prediction_config, context)
     if not isinstance(inputs.get("model"), str): raise ContractError(method + " requires inputs.model")
     root, metadata = workspace.resolve(inputs["model"]); model = load_model(workspace, inputs["model"])
+    source = metadata.get("source", {})
+    # 对转换得到的对象，设计包需带走原始采样范围；可执行性并不能扩展物理有效域。
+    applicability = source.get("applicability") if source.get("kind") == "plant_predictor_conversion" else None
     if method == "direct":
         spec = copy.deepcopy(getattr(model, "spec", {"representation": "nominal_plus_learned_residual"}))
         return PredictionResult(model, model.interface, spec, inputs["model"], method,
-            {"route": method, "source_kind": metadata["kind"], "source": metadata.get("source", {}),
+            {"route": method, "source_kind": metadata["kind"], "source": source,
              "nonlinear_MPC_supported_without_AB": True, "evaluation_plant_required": False,
-             "scope": "registered_differentiable_discrete_predictor; source fidelity not independently certified"}, True, root, (inputs["model"],))
+             "scope": applicability["scope"] if applicability else
+                      "registered_differentiable_discrete_predictor; source fidelity not independently certified"}, True, root, (inputs["model"],))
     linear, spec, report = _linearize(model, prediction_config, context)
+    if applicability:
+        # 线性化误差是相对于原预测器的局部误差；原对象与预测器间的误差仍受转换报告限制。
+        report["source_conversion"] = source
+    linearization_source = {"kind": "operating_point_linearization", "source_model": inputs["model"],
+                            "operating_point": report["operating_point"], "validity_bounds": report["validity_bounds"]}
+    if applicability:
+        linearization_source["source_conversion"] = source
     with workspace.stage("identified_model", linear.interface, [inputs["model"]], prediction_config, compatible_parents=False) as stage:
         atomic_json(stage.root / "model.json", spec); atomic_json(stage.root / "report.json", report)
         artifact_id = stage.publish({"status": "verified", "scope": report["scope"], "local_error_bound_proved": False},
-            source={"kind": "operating_point_linearization", "source_model": inputs["model"], "operating_point": report["operating_point"]}, activate=False)
+            source=linearization_source, activate=False)
     root, _ = workspace.resolve(artifact_id)
     return PredictionResult(linear, linear.interface, spec, artifact_id, method, report, True, root, (artifact_id,))
 

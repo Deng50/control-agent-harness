@@ -7,14 +7,22 @@ param(
   [string]$MatlabSessionAppData=$env:CONTROL_MATLAB_SESSION_APPDATA,
   [string]$MatlabResourceDirectory=$env:CONTROL_MATLAB_RESOURCE_DIRECTORY,
   [string[]]$AdditionalPatch=@(),
-  [switch]$ValidateOnly
+  [switch]$ValidateOnly,
+  [string]$Workspace
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'windows-paths.ps1')
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $harnessRoot = Join-Path $projectRoot 'vendor/deepseek-harness'
 $pythonPath = Join-Path $projectRoot '.venv/Scripts/python.exe'
 $cliPath = Join-Path $harnessRoot 'apps/cli/lib/bin.js'
 if (-not (Test-Path -LiteralPath $pythonPath)) { throw 'Python environment is missing. See README.md setup.' }
+if ($Workspace) {
+  # Optional read-only diagnosis of this path. Session cwd is selected separately in the Web UI.
+  # The session admission path checks the real restricted child in all cases.
+  try { $workspaceDiagnosis = & (Join-Path $PSScriptRoot 'prepare-workspace.ps1') -Workspace $Workspace }
+  catch { if ($workspaceDiagnosis) { Write-Output $workspaceDiagnosis }; throw }
+}
 if (-not (Test-Path -LiteralPath $cliPath)) { throw 'Harness is not built. Run setup-harness.ps1.' }
 if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'harness-plugin/lib/client.js'))) { throw 'Control Web plugin is not built. Run setup-harness.ps1.' }
 $env:DSH_HOME = Join-Path $projectRoot '.dsh'
@@ -34,7 +42,7 @@ if ($Matlab) {
     @{Name='MatlabResourceDirectory';Value=$MatlabResourceDirectory}
   )) {
     if ([string]::IsNullOrWhiteSpace($entry.Value)) { throw ($entry.Name + ' must be supplied when -Matlab is enabled.') }
-    if (-not [IO.Path]::IsPathFullyQualified($entry.Value)) { throw ($entry.Name + ' must be an absolute path.') }
+    if (-not (Test-ControlFullyQualifiedWindowsPath $entry.Value)) { throw ($entry.Name + ' must be an absolute path.') }
   }
   if (-not (Test-Path -LiteralPath $MatlabMcpExecutable -PathType Leaf)) { throw 'MATLAB MCP executable was not found.' }
   if (-not (Test-Path -LiteralPath (Join-Path $SimulinkToolkitRoot 'tools/tools.json') -PathType Leaf)) { throw 'Simulink Toolkit tools/tools.json was not found.' }
@@ -64,6 +72,7 @@ if ($Matlab) {
   }
   if ($matlabProcess.StartTime.ToUniversalTime() -gt $markerCreatedUtc.AddSeconds(1)) { throw 'The recorded MATLAB PID was reused after this session identity was written.' }
   $matlabSessionPid = [int]$marker.pid
+  $env:CONTROL_MATLAB_BOUND_EXECUTABLE = $matlabProcess.Path
   $env:CONTROL_MATLAB_MCP_EXECUTABLE = [IO.Path]::GetFullPath($MatlabMcpExecutable)
   $env:CONTROL_SIMULINK_TOOLKIT_ROOT = [IO.Path]::GetFullPath($SimulinkToolkitRoot).Replace('\','/')
   $env:CONTROL_MATLAB_SESSION_APPDATA = $privateAppData
@@ -81,7 +90,8 @@ foreach ($patch in $patches) { $launchArgs += @('--patch', $patch) }
 $launchArgs += @('--port', $Port)
 if ($NoOpen) { $launchArgs += '--no-open' }
 if ($ValidateOnly) {
-  [ordered]@{valid=$true;matlab_enabled=[bool]$Matlab;port=$Port;patches=$patches;matlab_session_pid=$matlabSessionPid} | ConvertTo-Json -Depth 4
+  [ordered]@{valid=$true;matlab_enabled=[bool]$Matlab;port=$Port;patches=$patches;matlab_session_pid=$matlabSessionPid;
+    workspace_diagnosis=if ($Workspace) {$workspaceDiagnosis | ConvertFrom-Json} else {$null}} | ConvertTo-Json -Depth 6
   return
 }
 if ($Matlab) {

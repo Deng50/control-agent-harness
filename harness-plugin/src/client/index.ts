@@ -1,6 +1,7 @@
 import { ControlPanel, ControlIcon } from './panel.jsx';
+import { ChatReviewTool, ChatReviewTail, reviewTurnDefinition } from './confirmation-card.jsx';
 
-export const inject = ['slots', 'layout', 'remote', 'remote.session', 'remote.workspace', 'remote.commands', 'jobs', 'uiWorkspace', 'fileUpload'];
+export const inject = ['slots', 'layout', 'remote', 'remote.session', 'remote.workspace', 'remote.commands', 'jobs', 'uiWorkspace', 'fileUpload', 'uiConversation', 'sessions'];
 
 const panelId = 'control-engineering';
 const unwrap = result => {
@@ -12,7 +13,16 @@ const unwrap = result => {
 export function apply(ctx) {
   const execute = async (sessionId, name, args) => {
     const execution = unwrap(await ctx.remote.commands.execute(sessionId, `/${name} ${JSON.stringify(args)}`, []));
-    if (!execution || execution.result.kind !== 'success') throw new Error(execution?.result.text ?? 'Native command is unavailable');
+    if (!execution || execution.result.kind !== 'success') {
+      const message = execution?.result.text ?? 'Native command is unavailable';
+      let diagnostic;
+      try { diagnostic = JSON.parse(message); } catch { /* Other commands return ordinary text. */ }
+      if (diagnostic?.code === 'WORKSPACE_PREFLIGHT_FAILED') {
+        const actor = {host:'主机进程',worker:'数值进程',sandbox:'沙箱启动器',policy:'会话写入策略'}[diagnostic.actor] ?? diagnostic.actor;
+        throw new Error(`工作区预检失败，计算尚未开始。${actor}在 ${diagnostic.path} 执行 ${diagnostic.operation} 失败（${diagnostic.os_code ?? '无系统错误码'}）。${diagnostic.detail}。${diagnostic.hint}`);
+      }
+      throw new Error(message);
+    }
     return JSON.parse(execution.result.text);
   };
   const fetchVerifiedDownload = async (descriptor, mime = 'application/octet-stream') => {
@@ -35,15 +45,53 @@ export function apply(ctx) {
     setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
     return { ...descriptor, bytes: bytes.byteLength, sha256: digest, status: 'downloaded_verified', hash_verified: true };
   };
+  // A tool row and its visible Turn tail can mount together. A status read is
+  // a native command too, so share the in-flight read for that exact version.
+  const readingCards = new Map(), cardListeners = new Map();
+  const cardStatus = (sessionId, {workspace,card_id}) => {
+    const key = JSON.stringify([sessionId,workspace,card_id]);
+    if (!readingCards.has(key)) readingCards.set(key,
+      execute(sessionId,'control-card-status',{workspace,card_id}).finally(()=>readingCards.delete(key)));
+    return readingCards.get(key);
+  };
+  const watchCard = (sessionId,{workspace,card_id},listener) => {
+    const key=JSON.stringify([sessionId,workspace,card_id]);
+    if(!cardListeners.has(key))cardListeners.set(key,new Set());
+    const listeners=cardListeners.get(key);
+    listeners.add(listener);
+    return ()=>{listeners.delete(listener);if(!listeners.size)cardListeners.delete(key);};
+  };
+  const confirmCard = async (sessionId, {workspace,card_id}) => {
+    const result=await execute(sessionId,'control-confirm',{workspace,card_id});
+    if(result.card_id!==card_id || !Array.isArray(result.requirements))throw new Error('收到的确认卡与当前版本不匹配');
+    const listeners=cardListeners.get(JSON.stringify([sessionId,workspace,card_id]));
+    for(const listener of listeners??[])listener(result);
+    return result;
+  };
+  const chatReviewActions = sessionId => ({
+    loadCard: handle => cardStatus(sessionId,handle),
+    confirmCard: handle => confirmCard(sessionId,handle),
+    watchCard: (handle,listener)=>watchCard(sessionId,handle,listener),
+  });
   const actions = {
-    async createSession(workspace, title, role) {
+    async createSession(workspace, title, role, pendingId) {
       if (!['model', 'controller', 'lightweight'].includes(role)) throw new Error('Unknown control role');
-      const nativeWorkspace = unwrap(await ctx.remote.workspace.create({ path: workspace })).workspace;
-      const created = unwrap(await ctx.remote.session.create({ workspaceId: nativeWorkspace.workspaceId, agentPreset: `control-${role}` }));
-      if (created.agentPreset !== `control-${role}`) throw new Error('新角色会话的原生预设不匹配；请保留原生返回记录并检查。');
-      unwrap(await ctx.remote.session.rename({ sessionId: created.sessionId, title }));
-      await execute(created.sessionId, 'control-workspace', {});
-      return created.sessionId;
+      let id=pendingId;
+      if (!id) {
+        const nativeWorkspace = unwrap(await ctx.remote.workspace.create({ path: workspace })).workspace;
+        const created = unwrap(await ctx.remote.session.create({workspaceId:nativeWorkspace.workspaceId,agentPreset:`control-${role}`}));
+        if (created.agentPreset !== `control-${role}`) throw new Error('新角色会话的原生预设不匹配；请保留原生返回记录并检查。');
+        id=created.sessionId;
+      }
+      try {
+        unwrap(await ctx.remote.session.rename({sessionId:id,title}));
+        await execute(id,'control-workspace',{});
+        return id;
+      } catch (failure) {
+        // Native creation has already succeeded. Keep the same id for repair
+        // so each failed filesystem probe cannot create another chat.
+        throw Object.assign(new Error(failure.message),{pendingSessionId:id});
+      }
     },
     async openSession(sessionId) {
       await execute(sessionId, 'control-workspace', {});
@@ -54,7 +102,8 @@ export function apply(ctx) {
       return execute(sessionId, 'control', request);
     },
     review: (sessionId, request) => execute(sessionId, 'control-review', request),
-    confirm: (sessionId, workspace, reference) => execute(sessionId, 'control-confirm', { workspace, ...reference }),
+    prepareCard: (sessionId, request) => execute(sessionId,'control-prepare-review',request),
+    cardStatus, confirmCard,
     planStatus: (sessionId, workspace, reference) => execute(sessionId, 'control-plan-status', { workspace, ...reference }),
     status: (sessionId, workspace, attemptId) => execute(sessionId, 'control-status', { workspace, attemptId }),
     async history(sessionId, workspace) {
@@ -62,11 +111,8 @@ export function apply(ctx) {
       if (execution.result.kind !== 'success') throw new Error(execution.result.text);
       return JSON.parse(execution.result.text);
     },
-    async recover(sessionId, workspace, attemptId, mode) {
-      const execution = unwrap(await ctx.remote.commands.execute(sessionId, `/control-recover ${JSON.stringify({ workspace, attemptId, mode })}`, []));
-      if (execution.result.kind !== 'success') throw new Error(execution.result.text);
-      return JSON.parse(execution.result.text);
-    },
+    recover: (sessionId,workspace,attemptId,mode,card_id,checkpoint) =>
+      execute(sessionId,'control-recover',{workspace,attemptId,mode,...(card_id?{card_id}:{}),...(checkpoint?{checkpoint}:{})}),
     async download(descriptor) {
       if (!Number.isSafeInteger(descriptor?.bytes) || descriptor.bytes < 1) throw new Error('归档缺少已核实的完整字节数');
       return fetchVerifiedDownload(descriptor, 'application/zip');
@@ -89,6 +135,16 @@ export function apply(ctx) {
     hooks: { jobs: ctx.jobs.state },
   };
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: panelId, inject: () => actions }, ControlPanel));
+  ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
+    name:'tool.call.toolview',key:'control_prepare_review',inject:chatReviewActions,
+  },ChatReviewTool));
+  ctx.slots.inject('conversation.chat.turnTail', () => {
+    ctx.effect(()=>ctx.uiConversation.events.register(reviewTurnDefinition),'control: turn review cards');
+    return ctx.slots.register({name:'conversation.chat.turnTail',id:panelId,inject:sessionId=>{
+      const chat=ctx.uiConversation.binding(ctx.sessions.binding(sessionId)).target('chat');
+      return {...chatReviewActions(sessionId),keyedHooks:{reviewCards:turn=>chat.getSnapshot().nodes.turnDataSource(Number(turn),'control-engineering-review')}};
+    }},ChatReviewTail);
+  });
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist', id: panelId, order: -50, label: () => '控制工程',
   }, ControlIcon));

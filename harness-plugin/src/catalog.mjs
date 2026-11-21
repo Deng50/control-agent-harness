@@ -1,5 +1,6 @@
 /** Read-on-demand operation documentation. Numerical validation remains Python-owned. */
 import { agents } from './roles.mjs';
+import {stages,allowedKinds} from './stage-contracts.mjs';
 
 const str = description => ({ type: 'string', description });
 const num = (description, extra = {}) => ({ type: 'number', description, ...extra });
@@ -36,6 +37,24 @@ const spec = (summary, inputs, config, prerequisites, outputs, example = {}) => 
   configSchema: config, prerequisites, outputs, example });
 
 export const operations = {
+  convert_plant_predictor: spec('核验 python_callable 采样对象并导出 MPC 可加载的预测模型。',
+    object({plant:artifact,dataset:artifact,equations:artifact},['plant','dataset']),
+    object({method:{type:'string',enum:['declared_equations','sampled_affine']},max_one_step_nrmse:num('按各通道物理跨度归一化的单步 RMSE 上限，默认 0.01',{exclusiveMinimum:0}),max_rollout_nrmse:num('按各通道物理跨度归一化的整轨滚动 RMSE 上限，默认 0.05',{exclusiveMinimum:0})},['method']),
+    ['选择原对象及同版本的完整轨迹。方程路线另选具有相同单位、输出和采样语义的显式方程。仿射辨识需要独立轨迹和充分激励。'],
+    ['带来源版本、适用范围和验证报告的预测模型。未通过的模型禁止作为设计输入。']),
+  verify_design_delivery: spec('在隔离 Python 进程中加载导出包并核验用户给出的控制工况。',
+    object({design:artifact},['design']),object({target:{type:'string',enum:['standalone_python','workspace_controller']},
+      case:object({x:vector,reference:vector,disturbance:vector,previous:vector},['x','reference']),expected_action:vector,
+      action_atol:num('期望控制量的绝对误差上限',{minimum:0}),required_checks:array({type:'string',enum:['files','load','standalone','single_point','workspace_controller','closed_loop','matlab','simulink']})},['target','case']),
+    ['提供确切状态、参考和必要的扰动与上一拍控制。需要核验指定数值时提供 expected_action。'],
+    ['逐项返回文件、加载、隔离运行、单点工况及未运行项。仅通过全部所选条件的 workspace_controller 可交给轻量化角色。']),
+  check_matlab_design: spec('Run one explicit controller-design point on the dedicated MATLAB session using the verified project export.',
+    object({design:artifact},['design']),
+    object({case:object({x:vector,reference:vector,disturbance:vector,previous:vector},['x','reference']),
+      parameters:object({mass:num('Mass'),damping:num('Damping'),stiffness:num('Stiffness'),sample_time:num('Seconds'),
+        state_bounds:matrix,input_bounds:matrix,output_bounds:matrix})},['case']),
+    ['Select a verified controller_design and review one state/reference point and MATLAB task authorization.'],
+    ['Inactive single-point MATLAB report including toolbox, solver and closed-loop status.']),
   synthesize_mpc: spec('Export an MPC design independently of GA tuning and original-plant closed-loop evaluation.',
     object({ model: artifact, dataset: artifact, description: str('Natural-language design description; missing physical values remain parameters') }),
     object({ prediction: object({ method:{type:'string',enum:['direct','equations','identify_affine','linearize']},
@@ -50,7 +69,7 @@ export const operations = {
       template:{type:'string',enum:['spring_damper','generic']},
       parameters:object({mass:num('Explicit mass'),damping:num('Explicit damping'),stiffness:num('Explicit stiffness'),sample_time:num('Explicit sample time in seconds'),
         state_bounds:matrix,input_bounds:matrix,output_bounds:matrix}),
-      solver_check:{oneOf:[{type:'boolean'},object({x:vector,reference:vector,disturbance:vector,previous:vector},['x','reference','disturbance','previous'])]},
+      solver_check:{oneOf:[{type:'boolean'},object({x:vector,reference:vector,disturbance:vector,previous:vector})]},
       plan_refs:{type:'object',additionalProperties:true,description:'Draft requires no fake numeric confirmation. Numeric designs confirm signals; identification additionally confirms its fitting summary.'},
     }),
     ['Choose an explicit model, sampled dataset, descriptive template or prediction.model_spec. An evaluation plant, independent control scenarios and GA budget are not required.',
@@ -133,10 +152,10 @@ export const operations = {
       payload: { type: 'object', additionalProperties: true, description: 'Exact reviewed interface or numerical configuration; use the execution config unchanged' },
       bindings: { type: 'object', additionalProperties: true, description: 'Selected artifact ids, metadata_hash and content_hash keyed by execution input name' },
       dependencies: { type: 'object', additionalProperties: true, description: 'Optional upstream plan refs; default current earlier scopes' } }, ['scope', 'payload']),
-    ['Display the summary and version to the user. They confirm via native /control-confirm {workspace,plan_id,version_hash}. A model-written confirmed field cannot authorize execution.'],
+    ['Legacy v1 proposal interface for existing callers. For new work call control_prepare_review with the actual operation, inputs and config. The user clicks its engineering card; do not ask them to copy a command or compute bindings.'],
     'Versioned proposal with plan_id, version_hash, canonical payload, revision and dependency versions. Same content reuses the same version.'),
-  read_case_plan: spec('Read the editable global proposal and its versions.', object({ plan_id: str('Optional exact plan id') }),
-    object({ scope: { type: 'string', enum: ['signals', 'sampling', 'training'] } }),
+  read_case_plan: spec('Inspect a saved plan version or active scope for a selected engineering task.', object({ plan_id: str('Optional exact plan id') }),
+    object({ scope: { type: 'string', enum: ['signals', 'sampling', 'training'] }, intent_id:str('Task handle returned by control_prepare_review; omit for legacy scope lookup') }),
     ['A proposal status is not this Session\'s user confirmation. Use native /control-plan-status for Session-bound confirmation status.'],
     'One proposal or complete plan document; no numerical job is authorized by this read.'),
   prepare_supervised_dataset: spec('Prepare a confirmed data-only supervised dataset without a physical plant or network training.',
@@ -146,7 +165,7 @@ export const operations = {
       scaler: { type: 'string', enum: ['standard', 'minmax', 'none'] }, source: source(['measured', 'synthetic', 'external_expert']),
       plan_refs: { type: 'object', additionalProperties: true, description: 'signals:{plan_id,version_hash} confirmed by this native Session; flags are not authority' },
       worksheet: str('Explicit XLSX worksheet'), header_row: integer('One-based header row'), delimiter: str('CSV delimiter'), encoding: str('CSV encoding') }, ['interface', 'split', 'source', 'plan_refs']),
-    ['Register source as a material first. Confirm the exact interface and selected material version before preparation. Signal delay_steps is availability delay, not inferred physical transport delay.',
+    ['Register source as a material first. Use control_prepare_review to review the material, worksheet, mapping, split and scaler. Include top-level next_training:{config:...} only for an explicitly requested subsequent MLP; reuse the same card_id with its verified local dataset. Signal delay_steps is availability delay, not inferred physical transport delay.',
       'Split independent trips or chronological blocks before constructing causal windows. Only the training split fits preprocessing. Static regression uses same-row data; dynamic prediction requires explicit seconds and sample_time.'],
     'supervised_dataset with causal feature/target arrays, train/validation/test evidence, scaler, semantics and data-preparation report. Training is not performed.'),
   inspect_workspace: spec('Read the manifest and actual artifact ids/statuses.', object(), object(),
@@ -174,7 +193,7 @@ export const operations = {
   recover_interrupted_stage: spec('Archive a verified unpublished training checkpoint left by an OS-confirmed dead worker.', object({ stage_id: str('Exact directory name under workspace/.staging, e.g. corrected_model-12hex') }, ['stage_id']), object(),
     ['The original worker must be confirmed dead by the OS. Live or unknown owners, published stages, changed dependencies and corrupt checkpoints are refused.', 'This archives one stage into failed/. It does not start training. Copy the returned checkpoint and checkpoint_sha256 into the original matching training request.'],
     '{status:archived,stage_id,checkpoint,checkpoint_sha256,algorithm,epoch,optimizer_updates,failed_path}.', { inputs: { stage_id: '<exact-unpublished-stage-id>' } }),
-  import_artifact: spec('Import a verified artifact and its whole dependency closure from another workspace.', object({ artifact_path: path }, ['artifact_path']), object(),
+  import_artifact: spec('Import a verified artifact and its whole dependency closure from another workspace.', object({ artifact_path: path, expected_artifact_id:artifact, expected_metadata_hash:str('Source metadata SHA256'), expected_project_id:str('Source project identity') }, ['artifact_path']), object(),
     ['artifact_path is a directory containing artifact.json, inside a source workspace with manifest.json. All parents must verify; conflicting ids are rejected.'],
     'An independent immutable local artifact with the same id; full dependency closure is copied transactionally.', { inputs: { artifact_path: '<absolute-source-workspace>/artifacts/<id>' } }),
   inspect_model_source: spec('Read source structure and propose model metadata without executing uploaded code.', object({ model_path: path }, ['model_path']), object(),
@@ -431,11 +450,14 @@ export function operationHelp({ operation, agent } = {}) {
   if (agent !== undefined && !Object.hasOwn(agents, agent)) throw new Error(`Unknown control agent: ${agent}`);
   if (operation !== undefined) {
     if (!Object.hasOwn(operations, operation)) throw new Error(`Unknown control operation: ${operation}`);
-    const entry = operations[operation];
-    return { operation, agents: Object.entries(agents).filter(([,spec]) => spec.operations.includes(operation)).map(([name]) => name), ...entry,
+    const entry = operations[operation], contract=stages[operation];
+    const artifactInputs=Object.fromEntries(Object.entries({...contract?.inputs,...contract?.optional})
+      .filter(([,type])=>allowedKinds(type).length).map(([key,type])=>[key,{kinds:allowedKinds(type),required:Object.hasOwn(contract.inputs,key)}]));
+    return { operation, artifactInputs, agents: Object.entries(agents).filter(([,spec]) => spec.operations.includes(operation)).map(([name]) => name), ...entry,
       request: { operation, workspace: '<absolute-user-selected-workspace>', inputs: {}, config: {}, ...entry.example },
       sharedSchemas: { scenario, model_spec: { representation: 'discrete_polynomial', interface: { schema_version: 1, name: '<model-name>', time_semantics: 'discrete_state_transition', sample_time: '<positive seconds>', states: '[{name,unit,lower,upper},...]', controls: '[{name,unit,lower,upper},...]', outputs: '[{name,unit,lower,upper},...]', disturbances: '[{name,unit,lower,upper},...]' }, A: '[nx,nx]', B: '[nx,nu]', E: '[nx,nd]', C: '[ny,nx]', terms: '[{state_index,coefficient,powers:[nx+nu+nd nonnegative integer exponents]}]' },
         python_model_spec:{representation:'python_torch_transition | python_torch_derivative',interface:'Same explicit ordered interface; continuous_state_derivative source for derivatives, discrete_state_transition otherwise',entrypoint:'top_level_function(x,u,d,parameters)',parameters:'finite JSON object',output_map:'exactly one C:[ny,nx] or output_entrypoint:top_level_function(x,parameters)',integration:'for derivatives only: {method:euler|rk4,substeps:positive integer,input_hold:zero_order_hold},time_unit:s,derivative_units:[state_unit/s,...]'} },
+      confirmation: 'For a protected operation send these inputs and config to control_prepare_review. The Host selects plan_refs from the returned top-level card_id at execution. New independent tasks get a fresh intent; use the same intent_id for edits. Only a user clicking/submitting the reviewed version in the original Session grants authority.',
       jobSemantics: 'The execution tools return jobId/attemptId/workspace. Follow job_output until completion and inspect the result status before handing off. Tool help itself creates no job.' };
   }
   return { agents: Object.fromEntries(Object.entries(agents).map(([name,spec]) => [name, { preset: spec.preset ?? null, description: spec.description, operations: spec.operations }])),

@@ -33,13 +33,15 @@
 
 ## 确认版本
 
-`propose_case_plan` 创建 `signals/sampling/training` 摘要并绑定材料、数据与依赖版本；相同内容复用版本，变更使本 scope 及相关下游摘要失效。`read_case_plan` 读取提案，提案状态不等于某个 Session 的用户确认。
+普通用户在对话或侧栏查看同一张工程确认卡，核对后点击“确认以上摘要”。点击只签署显示的方案。侧栏可继续执行阶段，对话可发送“继续”。模型使用 `control_prepare_review` 生成卡片。执行时提交原请求和顶层 `card_id`，Host 选择对应阶段的版本。工作区按 Session、角色和任务标识隔离工程意图，同一任务的修改使用原 `intent_id`，旧快照可审计。
 
-用户核对后通过原生 `/control-confirm {workspace,plan_id,version_hash}` 确认，`/control-plan-status` 读取本 Session 状态。模型不能替用户执行人工确认命令。生产确认关联真实原生用户命令记录，JSON 的 `confirmed`、`confirmation_source` 或预选答案均不是授权。
+数据准备卡展示来源、工作表、列与时间映射、划分和缩放。选择“同时审阅训练方案”会把具体网络与训练预算加入同一次审阅。准备作业为实际生成的数据及配置签发派生凭证。后续训练同时核验当前工作区和 Session、原料父链、数据字节、信号版本及网络配置。单独准备、导入旧数据或修改方案各有独立的确认边界。
+
+两个页面都通过原生 `control-confirm` 命令签署卡片。`control-card-status` 读取该 Session 内的卡片状态。旧版单计划命令和 `control-plan-status` 继续支持历史会话。高级命令每次只提交一个标准 JSON 对象，示例 `/control-confirm {"workspace":"D:/project","card_id":"<当前卡片标识>"}`。用户口头回复、模型生成的标记和预选项均不能签署。历史 v1 确认只能按旧范围执行，新卡重新核对工程语义。
 
 执行配置以 `plan_refs` 选版本。Host 在创建历史记录和数值 job 前检查版本、依赖和 Session 确认；worker 再校验绑定原始请求的 Host receipt。材料、语义、关键数值参数变化需要新版本；已验证兼容的 checkpoint/resume_run 作为恢复状态，复用未变的工程摘要。
 
-升级前没有 plan_refs 的旧作业，可在 `/control-recover` 中显式提供当前已确认的 `plan_refs`。恢复仍检查原作业和 checkpoint 兼容性，未确认时不创建恢复 attempt 或 job。确认引用不参与优化器数值轨迹签名；学习率、数据、模型、接口等实际设置仍严格校验。
+升级前没有版本引用的旧作业，可在侧栏点击“载入原请求以审阅”，在原会话签署卡片，再重试或续接。Host 比对原请求、卡片、作业归属和已有 checkpoint，成功后只创建一个新的恢复作业。旧脚本也可向 `/control-recover` 提供已签的 `plan_refs`。确认引用不参与优化器数值轨迹签名，学习率、数据、模型、接口等实际设置仍严格校验。
 
 工作流按所选步骤联合所需 scope；只登记或只导入不要求无关采样、训练确认。受保护工作流的文件和依赖按版本固化，再交给已有领域执行器。
 

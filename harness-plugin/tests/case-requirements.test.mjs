@@ -152,6 +152,19 @@ test('preference tuning binds the evaluation recipe and scales in both runtimes'
   try {
     const fixture = py(make, [directory]), workspace = fixture.requests[0].workspace;
     const model = fixture.requests[1].config.steps[0].inputs.nominal_model;
+    // A direct model used to expose only its interface on a signals card.
+    // The actual requested horizon and weights must also match at dispatch.
+    const design = {operation:'synthesize_mpc',workspace,inputs:{model},config:{controller:{horizon:4},weights:{q:1,r:.015,s:.01}}};
+    const structured = await confirmationRequirements(design,{}, {intent_id:'direct-design'});
+    const pythonReview = py(`import json,sys
+from control_harness.artifacts import Workspace
+from control_harness.case_requirements import confirmation_requirements
+r=json.load(sys.stdin); print(json.dumps(confirmation_requirements(Workspace(r['workspace']),r,structured=True)[0]['review_payload']))`,[],JSON.stringify(design));
+    assert.deepEqual(structured[0].reviewPayload,pythonReview);
+    for (const config of [{...design.config,controller:{horizon:6}},{...design.config,weights:{...design.config.weights,r:.03}}]) {
+      const updated = await confirmationRequirements({...design,config},{},{intent_id:'direct-design'});
+      assert.notDeepEqual(updated[0].reviewPayload,structured[0].reviewPayload);
+    }
     const request = { operation:'tune_controller', workspace, inputs:{model,evaluation_model:model},
       config:{ parameters:{horizon:4,q:1,r:.015,s:.01}, evaluation:{recipe:'tracking',scales:{rmse:1,energy:100,tv:10,overshoot:.1}} } };
     const original = await confirmationRequirements(request);

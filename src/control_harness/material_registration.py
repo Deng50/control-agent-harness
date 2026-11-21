@@ -52,8 +52,17 @@ def prepare_supervised_dataset(workspace, material_id: str, config: dict, contex
         atomic_json(stage.root / "report.json", {"kind": "supervised_data_preparation", "training": "not_run",
             "physical_model": "not_provided", "dimensions": {"input_dim": interface.input_dim, "output_dim": interface.output_dim},
             "split": prepared.split, "statistics": prepared.statistics, "confirmation_sources": confirmations})
+        from .case_requirements import _config
+        from .preparation_proof import sign_preparation
+        parent = {"id": material_id, "metadata_hash": stage.parents[0]["metadata_hash"],
+                  "content_hash": material["content_hash"]}
+        provenance = {**source, "material_artifact": material_id, "content_hash": material["content_hash"],
+                      "provenance_is_user_declared": True, "confirmation_sources": confirmations}
+        # 用户可填写来源说明，派生数据凭证只能由已验证原生收据的本次作业签发。
+        provenance.pop("preparation_proof", None)
+        proof = sign_preparation(stage, context, parent, _config(config))
+        if proof is not None:
+            provenance["preparation_proof"] = proof
         return stage.publish({"status": "verified", "checks": ["explicit_signal_semantics", "causal_windows",
             "split_before_windows", "train_only_scaler", "finite_arrays"], "training": "not_run"},
-            preprocessing=prepared.scaler, source={**source, "material_artifact": material_id,
-                "content_hash": material["content_hash"], "provenance_is_user_declared": True,
-                "confirmation_sources": confirmations})
+            preprocessing=prepared.scaler, source=provenance)

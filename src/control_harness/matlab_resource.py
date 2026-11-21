@@ -394,6 +394,12 @@ def _broker(resource: MatlabResource) -> int:
                     lease.cancel_before_dispatch()
                     emit("cancelled")
                     return 0
+                # 专用任务在排队结束后再次读取操作系统进程创建标识，防止
+                # MATLAB 已退出或 PID 被重用时继续以旧的用户授权执行。
+                if command.get("require_live_session") and _alive(lease.owner.get("session") or {}) is not True:
+                    lease.cancel_before_dispatch()
+                    emit("cancelled", reason="bound_session_identity_changed")
+                    return 0
                 lease.mark_running()
                 emit("started")
             elif kind == "complete":

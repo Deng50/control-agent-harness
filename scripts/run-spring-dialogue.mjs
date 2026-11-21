@@ -10,7 +10,8 @@ const workspace = resolve(process.argv[2] ?? resolve(project, 'workspaces', `spr
 const caseRoot = resolve(project, 'examples/spring-damper');
 const evidenceRoot = resolve(workspace, 'presentation/agent-outputs');
 await mkdir(evidenceRoot, {recursive:true});
-execFileSync('pwsh.exe', ['-NoProfile','-File',resolve(project,'scripts/prepare-workspace.ps1'),'-Workspace',workspace]);
+execFileSync('pwsh.exe', ['-NoProfile','-File',resolve(project,'scripts/prepare-workspace.ps1'),
+  ...(process.argv[2] ? [] : ['-Prepare']), '-Workspace',workspace]);
 const rpc = await connectHarness();
 const provider = 'deepseek-official', model = 'deepseek-flash';
 const recordPath = resolve(workspace, 'case-run.json');

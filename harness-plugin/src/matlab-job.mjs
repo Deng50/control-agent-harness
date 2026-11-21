@@ -3,15 +3,39 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { numericalJob } from './worker.mjs';
+import { dispatchMatlabTaskBatch } from './matlab-resource.mjs';
 
 const TOOL = 'mcp__matlab__evaluate_matlab_code';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const inside = (root, target) => { const name = relative(root, target); return name === '' || (!isAbsolute(name) && name !== '..' && !name.startsWith(`..${sep}`)); };
-const quote = value => `'${String(value).replaceAll("'", "''")}'`;
 const json = path => readFile(path, 'utf8').then(JSON.parse);
+
+async function exchangeRoot(workspace) {
+  // 创建每一级目录后先确认真实位置，再创建下一层；不可先递归写入联接目标。
+  let directory = workspace;
+  for (const name of ['.case-plans','matlab-exchanges']) {
+    directory=resolve(directory,name);
+    try { await mkdir(directory); }
+    catch(error) { if (error.code !== 'EEXIST') throw error; }
+    if (relative(directory,await realpath(directory)) !== '') throw new Error('MATLAB 交换目录指向未授权的位置。');
+  }
+  return directory;
+}
+
+async function readExchangeFile(file) {
+  if (relative(file,await realpath(file)) !== '') throw new Error('MATLAB 交换文件指向未授权的位置。');
+  return readFile(file);
+}
+
+export const taskHelpers = Object.freeze({
+  sample_model:'control_harness_collect_batch', collect_external_expert:'control_harness_expert_batch',
+  evaluate_external_imitation:'control_harness_policy_evaluation', evaluate_external_pgac:'control_evaluate_pgac_batch',
+  check_matlab_design:'control_harness_design_batch',
+});
 
 /** Called after ordinary case authorization, before a history/job is created. */
 export async function requiresMatlabBatch(request) {
+  if(request.operation==='check_matlab_design')return true;
   if(request.operation==='evaluate_external_pgac')return requiresMatlabPgacEvaluation(request);
   if(request.operation==='evaluate_external_imitation')return requiresMatlabPolicyEvaluation(request);
   if(request.operation==='collect_external_expert')return requiresMatlabExpertBatch(request);
@@ -130,24 +154,25 @@ export function assertMatlabBatchAvailable(ctx, config, agent) {
 
 /** Original request/receipt are never rewritten; only private worker env changes. */
 export function matlabCollectionJob({ ctx, job, agent, slots, config, request, policy,
-  onEvent = () => {}, confirmation, numerical = numericalJob }) {
+  onEvent = () => {}, confirmation, grant, numerical = numericalJob, dispatch = dispatchMatlabTaskBatch }) {
   const abort = new AbortController();
   let active, cancelled = false, matlabDispatched = false, matlabReturned = false;
   const cancel = reason => {
     cancelled = true;
+    grant?.revoke('job_cancelled');
     abort.abort(new Error(reason ?? 'MATLAB collection cancelled'));
     active?.cancel(reason);
   };
   const done = (async () => {
     try {
       assertMatlabBatchAvailable(ctx, config, agent);
+      if (!grant || grant.scope.helper !== taskHelpers[request.operation]) throw new Error('请通过结构化任务卡授权本次固定 MATLAB 批处理。');
+      grant.begin?.();
       const raw = confirmation?.rawRequest ?? JSON.stringify(request);
       if (raw !== JSON.stringify(request)) throw new Error('Confirmed request changed before MATLAB preparation');
       const requestSha = sha(raw), nonce = randomUUID();
       const workspace = await realpath(request.workspace);
-      const parent = resolve(workspace, '.case-plans/matlab-exchanges');
-      await mkdir(parent, { recursive: true });
-      if (!inside(workspace, await realpath(parent))) throw new Error('MATLAB exchange directory escapes its workspace');
+      const parent = await exchangeRoot(workspace);
       const exchange = resolve(parent, nonce);
       const common = { CONTROL_MATLAB_EXCHANGE_DIR: exchange, CONTROL_MATLAB_REQUEST_SHA256: requestSha,
         CONTROL_MATLAB_NONCE: nonce };
@@ -160,7 +185,10 @@ export function matlabCollectionJob({ ctx, job, agent, slots, config, request, p
       if (cancelled) active.cancel();
       const preparation = await active.done;
       active = undefined;
-      if (preparation.status !== 'completed') return preparation;
+      if (preparation.status !== 'completed') {
+        grant.revoke('preparation_failed');
+        return preparation;
+      }
       abort.signal.throwIfAborted();
       prepared ??= preparation.result ? JSON.parse(preparation.result) : undefined;
       const manifestPath = resolve(exchange, 'manifest.json'), resultPath = resolve(exchange, 'result.json');
@@ -169,7 +197,7 @@ export function matlabCollectionJob({ ctx, job, agent, slots, config, request, p
           resolve(prepared.result_path ?? '') !== resultPath || prepared.request_sha256 !== requestSha || prepared.nonce !== nonce) {
         throw new Error('Sandboxed prepare did not return this job\'s fixed MATLAB exchange');
       }
-      const manifestBytes = await readFile(manifestPath);
+      const manifestBytes = await readExchangeFile(manifestPath);
       if (sha(manifestBytes) !== prepared.manifest_sha256) throw new Error('MATLAB exchange manifest changed after preparation');
       const manifest = JSON.parse(manifestBytes.toString('utf8'));
       if(request.operation==='collect_external_expert'&&(manifest.kind!=='control-matlab-expert-batch-v1'||prepared.batch_kind!=='external_expert')){
@@ -184,20 +212,25 @@ export function matlabCollectionJob({ ctx, job, agent, slots, config, request, p
       if (manifest.nonce !== nonce || manifest.request_sha256 !== requestSha || manifest.plan?.plan_hash !== prepared.plan_hash) {
         throw new Error('MATLAB manifest is not bound to the confirmed request and sampling plan');
       }
-      const helperFunction=request.operation==='evaluate_external_pgac'?'control_evaluate_pgac_batch':request.operation==='evaluate_external_imitation'?'control_harness_policy_evaluation':request.operation==='collect_external_expert'?'control_harness_expert_batch':'control_harness_collect_batch';
-      const helper = resolve(config.codeRoot, `matlab/${helperFunction}.m`);
-      const helperRoot = resolve(config.codeRoot, 'matlab');
-      // The dedicated session can outlive a plugin update. Refresh only the
-      // trusted changed PGAC helpers under this same guarded native call.
-      const refresh=request.operation==='evaluate_external_pgac'?"clear('control_harness_expert_batch','control_evaluate_pgac_batch'); ":'';
-      const code = `addpath(${quote(helperRoot)}); ${refresh}assert(strcmp(which('${helperFunction}'),${quote(helper)}),'ControlHarness:HelperIdentity','Unexpected batch helper'); fprintf('CONTROL_MATLAB_BATCH_${nonce}:%s\\n',jsonencode(${helperFunction}(${quote(manifestPath)},${quote(nonce)})));`;
-      job.updateProgress('Collecting one bounded batch through the native MATLAB MCP tool');
-      matlabDispatched = true;
-      const batch = await ctx.tools.execute({ agent, signal: abort.signal,
-        calls: [{ type: 'tool_call', id: `matlab-batch-${nonce}`, name: TOOL,
-          arguments: JSON.stringify({ code, project_path: exchange }) }] });
+      if (request.operation === 'check_matlab_design' && (manifest.kind !== 'control-matlab-design-check-v1' || prepared.batch_kind !== 'controller_design')) {
+        throw new Error('单点设计检查没有返回核对过的导出包协议。');
+      }
+      const lifetime = grant.deadline-Date.now();
+      if (lifetime <= 0) throw new Error('MATLAB 任务授权已到期。');
+      const timeout = AbortSignal.timeout(Math.min(lifetime,grant.scope.dispatch_timeout_seconds*1000));
+      const signal = AbortSignal.any([abort.signal,grant.signal,timeout]);
+      signal.throwIfAborted();
+      job.updateProgress('正在对已授权任务执行一次 MATLAB 原生批处理');
+      onEvent({event:'matlab_task_admission',...grant.audit,deadline_ms:Math.min(grant.deadline,Date.now()+grant.scope.dispatch_timeout_seconds*1000)});
+      const batch = await dispatch({ctx,agent,grant,signal,manifestPath,manifestSha:prepared.manifest_sha256,nonce,
+        onDispatch() { matlabDispatched = true; onEvent({event:'matlab_task_dispatch',...grant.audit}); },
+        helperRoot:resolve(config.codeRoot,'matlab')});
       const result = batch.results[0]?.result;
-      if (!result || result.isError) throw new Error('Native MATLAB batch was denied or failed; inspect the resource state before recovery');
+      if (!result || result.isError) {
+        const phase=matlabDispatched ? '已派发，终态未验证，需检查专用资源隔离状态' : '未派发，未进入 MATLAB 数值计算';
+        const reason=timeout.aborted ? '任务等待或执行预算已到期' : (result?.error?.info?.code ?? '原生审批拒绝、资源身份变化或执行失败');
+        throw new Error(`MATLAB 批任务${phase}（${reason}）。`);
+      }
       const certificate = marker(result.value, nonce);
       if (certificate.nonce !== nonce || resolve(certificate.result_path ?? '') !== resultPath || !['completed', 'partial', 'failed'].includes(certificate.status)) {
         throw new Error('Native MATLAB batch terminal marker does not identify this exchange');
@@ -205,8 +238,12 @@ export function matlabCollectionJob({ ctx, job, agent, slots, config, request, p
       // The native around hook has already verified dedicated identity/idle and
       // completed its lease before tools.execute returns a successful result.
       matlabReturned = true;
+      onEvent({event:'matlab_task_terminal',...grant.audit,status:certificate.status});
       abort.signal.throwIfAborted();
-      const resultBytes = await readFile(resultPath);
+      const resultBytes = await readExchangeFile(resultPath);
+      if (request.operation === 'check_matlab_design' && certificate.result_sha256 !== sha(resultBytes)) {
+        throw new Error('单点检查文件与专用 MATLAB 批次返回的摘要不一致。');
+      }
       const resultDocument = JSON.parse(resultBytes.toString('utf8'));
       if (resultDocument.nonce !== nonce || resultDocument.request_sha256 !== requestSha ||
           resultDocument.plan_hash !== prepared.plan_hash || resultDocument.spec_hash !== manifest.spec_hash) {
@@ -217,11 +254,14 @@ export function matlabCollectionJob({ ctx, job, agent, slots, config, request, p
         extraEnv: { ...common, CONTROL_MATLAB_PHASE: 'finalize', CONTROL_MATLAB_RESULT_PATH: resultPath,
           CONTROL_MATLAB_RESULT_SHA256: sha(resultBytes) } });
       if (cancelled) active.cancel();
-      return await active.done;
+      const finalized = await active.done;
+      if (finalized.status !== 'completed') grant.revoke('finalization_failed');
+      return finalized;
     } catch (error) {
+      grant?.revoke(cancelled ? 'job_cancelled' : matlabDispatched && !matlabReturned ? 'unknown_dispatch_outcome' : 'job_failed');
       return { status: cancelled ? 'killed' : 'failed', detail: error instanceof Error ? error.message : String(error),
         cleanupVerified: !matlabDispatched || matlabReturned };
-    }
+    } finally { grant?.finish(); }
   })();
   return { cancel, done };
 }

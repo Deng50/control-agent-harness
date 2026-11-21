@@ -132,9 +132,19 @@ class MPCPolicy:
 
 
 def closed_loop(plant, policy, scenario: dict, context: OperationContext | None = None, *, check_finite: bool = False) -> dict:
+    from .plants import OriginalCallablePlant
     context = context or OperationContext()
+    context.check()
+    validate_scenario(plant.interface, scenario)
+    if isinstance(plant, OriginalCallablePlant):
+        # 原对象只接收已求出的当前控制量。每个工况独立 reset，异常/取消均关闭快照运行时。
+        with plant.trajectory(scenario["initial_state"]) as adapter:
+            return _closed_loop(plant, policy, scenario, context, True, adapter)
+    return _closed_loop(plant, policy, scenario, context, check_finite, None)
+
+
+def _closed_loop(plant, policy, scenario, context, check_finite, adapter):
     i = plant.interface
-    validate_scenario(i, scenario)
     x = np.array(scenario["initial_state"], dtype=float)
     reference = np.array(scenario["reference"], dtype=float)
     disturbance = np.array(scenario["disturbance"], dtype=float)
@@ -150,8 +160,16 @@ def closed_loop(plant, policy, scenario: dict, context: OperationContext | None 
         try:
             action, diagnostics = policy.act(x, reference, disturbance, previous)
             durations.append(time.perf_counter() - started)
-            xn = plant.step(x, action, disturbance)
-            y = plant.output(tensor(xn)).detach().numpy()
+            if adapter is None:
+                xn = plant.step(x, action, disturbance)
+                y = plant.output(tensor(xn)).detach().numpy()
+            else:
+                if isinstance(policy, MPCPolicy) and plant.sampled_limits is not None:
+                    # warm 已左移一拍，附上刚选定的动作即可重建本次完整预测控制序列。
+                    sequence = np.vstack((action, policy.warm[:-1]))
+                    plant.check_prediction_domain(policy.model, x, sequence, disturbance)
+                xn = adapter.step(action, disturbance)
+                y = adapter.output()
             if check_finite and not all(np.isfinite(value).all() for value in (action, xn, y)):
                 raise FloatingPointError("Registered-model action/state/output is nonfinite")
         except (SolverFailure, FloatingPointError) as error:
@@ -526,4 +544,9 @@ def _design_goal_controller(workspace, model_id, reference_id, config, context=N
 def load_controller(workspace: Workspace, artifact_id: str, context: OperationContext | None = None):
     root, _ = workspace.resolve(artifact_id, kind="controller")
     descriptor = read_json(root / "controller.json")
+    return controller_from_descriptor(workspace, descriptor, context)
+
+
+def controller_from_descriptor(workspace, descriptor, context=None):
+    """工作区控制器及交付前检查共用同一个装载入口和 MPC 参数。"""
     return MPCPolicy(load_model(workspace, descriptor["prediction_model"]), descriptor["parameters"], context)

@@ -7,9 +7,10 @@ param(
   [switch]$ValidateOnly
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'windows-paths.ps1')
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 foreach ($path in @($MatlabExecutable,$MatlabMcpExecutable,$SimulinkToolkitRoot,$MatlabMcpToolboxRoot,$SessionDirectory)) {
-  if (-not [IO.Path]::IsPathFullyQualified($path)) { throw 'All dedicated-session paths must be absolute.' }
+  if (-not (Test-ControlFullyQualifiedWindowsPath $path)) { throw 'All dedicated-session paths must be absolute.' }
 }
 if (-not (Test-Path -LiteralPath $MatlabExecutable -PathType Leaf)) { throw 'MATLAB executable was not found.' }
 if (-not (Test-Path -LiteralPath $MatlabMcpExecutable -PathType Leaf)) { throw 'MATLAB MCP executable was not found.' }

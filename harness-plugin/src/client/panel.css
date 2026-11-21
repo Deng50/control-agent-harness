@@ -53,5 +53,18 @@
 .control-column-editor { border-left: 2px solid #8a9b9d40; padding-left: 10px; margin: 10px 0; }
 .control-review { margin-top: 18px; padding: 14px; border: 1px solid #408b8360; border-radius: 8px; }
 .control-summary { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: #408b830c; padding: 12px; border-radius: 6px; font: 11px/1.6 Consolas,monospace; }
+.control-confirmation { padding: 12px 0; overflow-wrap: anywhere; }
+.control-confirmation h4, .control-confirmation p { margin: 0 0 6px; }
+.control-confirmation p { font-size: 12px; }
+.control-confirmation details { padding: 8px 0; margin: 8px 0; border-top: 1px solid #8a9b9d40; }
+.control-confirmation summary { cursor: pointer; font-weight: 600; }
+.control-review-fields { display: grid; grid-template-columns: minmax(54px,auto) minmax(0,1fr); gap: 3px 12px; margin: 6px 0; font-size: 13px; }
+.control-review-fields dt { color: var(--text-secondary, #51696b); }
+.control-review-fields dd { margin: 0; min-width: 0; }
+.control-review-fields .control-review-fields { margin: 0; }
+.control-review-changes { padding: 8px; border-left: 3px solid #ac7b31; }
+.control-review-changes ul { margin: 4px 0; padding-left: 18px; }
+.control-chat-review { margin: 8px 0; padding: 0 14px; border: 1px solid #408b8360; border-radius: 8px; max-height: 60vh; overflow: auto; }
+.control-chat-review button { border: 1px solid #408b8360; border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; }
 .control-row button[aria-pressed=true] { border-color: #368b81; background: #25857715; }
 @media(max-width: 1000px) { .control-panel { padding: 20px; } .control-columns { grid-template-columns: 1fr; } .control-stages { gap: 7px; } }

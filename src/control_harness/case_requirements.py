@@ -19,6 +19,8 @@ from .contracts import ContractError
 from .runtime import OperationContext
 
 PROTECTED = {
+    "convert_plant_predictor": ("signals",), "verify_design_delivery": ("signals",),
+    "check_matlab_design": ("signals",),
     "prepare_supervised_dataset": ("signals",),
     "train_supervised": ("signals", "training"),
     "train_predictive_model": ("signals", "training"),
@@ -283,10 +285,70 @@ def freeze_workflow_case(workspace: Workspace, case: dict, snapshot_directory: s
             "definition_hash": canonical_hash(case["definition"])}
 
 
-def confirmation_requirements(workspace: Workspace, request: dict, *, workflow_case: dict | None = None) -> list[dict]:
+def _mlp_settings(config, interface) -> dict:
+    from .supervised import _resolved
+    values, _, _ = _resolved(config, interface)
+    # 只显示并封存会决定网络结构、数值训练或验收的实际参数。未填写字段使用训练器同一套默认值。
+    return {key: values[key] for key in ("input_dim", "output_dim", "hidden_dims", "activation", "epochs",
+            "learning_rate", "batch_size", "patience", "seed", "weight_decay", "min_delta", "grad_clip", "max_test_nrmse")}
+
+
+def validate_review_settings(requirements: list[dict]) -> dict:
+    """在写入版本前复用实际执行器的静态检查。此处不执行上传的模型或求解控制器。"""
+    from .contracts import DataInterface
+    from .datasets import _fractions
+    interface, effective = None, {}
+    for item in requirements:
+        payload = item.get("reviewPayload")
+        if not isinstance(payload, dict):
+            raise ContractError("Review payload must be a JSON object")
+        if payload.get("operation") == "synthesize_mpc" and item["scope"] == "signals":
+            from .design_only import _source, _partial_spring, _controller
+            config = payload["config"]
+            _, template = _source(payload["inputs"], config)
+            if template == "spring_damper":
+                _partial_spring(config.get("parameters", {}))
+            # 已登记预测器来自摘要中的物理接口，明确方程的接口来自 model_spec。
+            raw_interface = config.get("prediction", {}).get("model_spec", {}).get("interface", payload["summary"])
+            axes = raw_interface.get("controls")
+            _controller(config, len(axes) if isinstance(axes, list) else None)
+        if payload.get("operation") == "prepare_supervised_dataset":
+            config = payload.get("config")
+            if not isinstance(config, dict) or not isinstance(config.get("interface"), dict):
+                raise ContractError("Provide a complete tabular data interface")
+            interface = DataInterface.parse(config["interface"])
+            split, source = config.get("split"), config.get("source")
+            if (not isinstance(split, dict) or split.get("mode") not in {"trip", "time"}
+                    or split["mode"] == "trip" and config["interface"].get("trip_column") is None):
+                raise ContractError("Review a time split or explicit trip grouping column")
+            _fractions(split)
+            if (config.get("scaler", "standard") not in {"standard", "minmax", "none"}
+                    or not isinstance(source, dict) or source.get("kind") not in {"measured", "synthetic", "external_expert"}
+                    or not isinstance(source.get("description"), str) or not source["description"].strip()):
+                raise ContractError("Review a supported scaler and explicit data provenance")
+        if payload.get("operation") == "train_supervised":
+            if item["scope"] == "signals" and isinstance(payload.get("summary"), dict):
+                interface = DataInterface.parse(payload["summary"])
+            if item["scope"] == "training" and interface:
+                effective["training"] = _mlp_settings(payload.get("config", payload.get("summary")), interface)
+    return effective
+
+
+def confirmation_requirements(workspace: Workspace, request: dict, *, workflow_case: dict | None = None,
+                              context=None, structured: bool = False) -> list[dict]:
+    # 老接口继续返回 v1 的原始结构。Worker 依磁盘计划版本选择 v2，不能由请求中的布尔值切换协议。
+    references = request.get("config", {}).get("plan_refs", {})
+    if not structured and context and isinstance(references, dict):
+        from .case_plans import read_plan
+        if references:
+            records = read_plan(workspace)["plans"]
+            structured = any(isinstance(ref, dict) and records.get(ref.get("plan_id"), {}).get("schema_version") == 2
+                             for ref in references.values())
     if request["operation"] == "run_workflow":
         case = workflow_case if workflow_case is not None else resolve_workflow_case(workspace, request)
-        return [{"scope": scope, "expected_payload": case["payload"], "bindings": case["bindings"]}
+        return [{"scope": scope, "expected_payload": case["payload"], "bindings": case["bindings"],
+                 **({"review_payload": {"operation": request["operation"], "summary": case["payload"]},
+                     "review_bindings": case["bindings"]} if structured else {})}
                 for scope in case["scopes"]]
     scopes = synthesis_scopes(request) if request["operation"] == "synthesize_mpc" else PROTECTED.get(request["operation"], ())
     if not scopes:
@@ -311,6 +373,8 @@ def confirmation_requirements(workspace: Workspace, request: dict, *, workflow_c
     selected = next((metadata[key]["interface"] for key in
         ("nominal_model", "model", "dataset", "controller", "policy", "evaluation_model") if key in metadata), None)
     signals = config.get("interface") if request["operation"] == "prepare_supervised_dataset" else selected or blueprint
+    if request["operation"] in {"convert_plant_predictor", "verify_design_delivery"}:
+        signals = blueprint
     if request["operation"] in {"import_expert_data", "prepare_pinn_problem"}:
         # One existing signals review covers the complete declared import
         # contract: causal mappings, actuator limits, provenance and data prep.
@@ -344,6 +408,26 @@ def confirmation_requirements(workspace: Workspace, request: dict, *, workflow_c
         fields = ("interface","control_period","time_unit","observations","reference_available","disturbance_available",
                   "previous_action_available","initial_memory","action_mapping","failure_policy","input_rate_bounds")
         signals = {"plant_interface":metadata["plant"]["interface"],"expert_adapter":{key:spec[key] for key in fields if key in spec}}
-    return [{"scope": scope, "expected_payload": signals if scope == "signals" else
-             blueprint if request["operation"] in {"run_workflow", "demo"} else config, "bindings": bindings}
-            for scope in scopes]
+    operation = request["operation"]
+    proof = None
+    if structured and operation == "train_supervised" and "dataset" in metadata:
+        from .preparation_proof import verified_preparation
+        proof = verified_preparation(workspace, metadata["dataset"], request, context)
+    requirements = []
+    for scope in scopes:
+        summary = signals if scope == "signals" else blueprint if operation == "demo" else config
+        review, semantic_bindings = {"operation": operation, "summary": summary}, bindings
+        if operation == "prepare_supervised_dataset":
+            review = {"operation": operation, "config": config}
+        elif proof:
+            review = ({"operation": "prepare_supervised_dataset", "config": proof["config"]}
+                      if scope == "signals" else {"operation": operation, "config": config, "preparation": proof["config"]})
+            semantic_bindings = {"material": proof["material"]}
+        elif operation == "synthesize_mpc" and scope == "signals":
+            review.update(config=config, inputs=request.get("inputs", {}))
+        requirements.append({"scope": scope, "expected_payload": summary, "bindings": bindings,
+                             **({"review_payload": review, "review_bindings": semantic_bindings} if structured else {})})
+        if structured and operation == "train_supervised" and scope == "training":
+            from .contracts import DataInterface
+            requirements[-1]["effective_settings"] = _mlp_settings(config, DataInterface.parse(metadata["dataset"]["interface"]))
+    return requirements

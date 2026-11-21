@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import errno
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -36,7 +38,7 @@ def process_alive(pid: int) -> bool | None:
 
 
 @contextmanager
-def kernel_mutex(path: Path):
+def kernel_mutex(path: Path, *, wait_seconds: float = 0):
     # Keep this inode permanently: deleting a lock file permits two processes to
     # lock different inodes for the same workspace. Only the OS owns its lock.
     with path.open("a+b") as stream:
@@ -44,12 +46,21 @@ def kernel_mutex(path: Path):
             stream.write(b"0")
             stream.flush()
         stream.seek(0)
-        if os.name == "nt":
-            import msvcrt
-            msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        deadline = time.monotonic() + wait_seconds
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError as error:
+                # 两个卡片版本同时提交时等待同一文件锁，只重试锁竞争，不重试文件读写错误。
+                if error.errno not in (errno.EACCES, errno.EAGAIN) or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.025)
         try:
             yield
         finally:

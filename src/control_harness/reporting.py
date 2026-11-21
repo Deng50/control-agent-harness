@@ -34,6 +34,130 @@ _EXPORT_KINDS={'supervised_model','learned_model','controller_design','controlle
 _PREFERRED='time prediction_time input_time time_s trajectory_id condition_index source_row row_index prediction truth predicted_temperature_K reference_temperature_K normalized_physics_residual predicted_state true_state predicted_output true_output projected_action expert_action raw_action u previous_u plant_y next_y reference x next_x y'.split()
 
 
+DELIVERY_CHECKS = ('files', 'load', 'standalone', 'single_point', 'workspace_controller', 'closed_loop', 'matlab', 'simulink')
+
+
+def artifact_delivery(workspace, artifact_id):
+    """读取当前不可变版本的交付证据。旧报告中的成功标志不能代替独立运行记录。"""
+    closure = _artifact(workspace, artifact_id, return_closure=True)
+    root, meta = closure[artifact_id]
+    checks = {key: 'not_run' for key in DELIVERY_CHECKS}
+    checks['files'] = 'passed'
+    index = workspace.manifest['artifacts']
+    row = index[artifact_id]
+    # 父项单独变为 stale 时，即使历史验收记录仍完好，也不能当作本次可交付结果。
+    stale = [item for item in closure if index[item]['status'] == 'stale']
+    if meta.get('source', {}).get('kind') == 'design_delivery_verification':
+        subject = meta['source'].get('design_artifact')
+        required = {'delivery.json', 'report.json'}
+        if meta['kind'] not in {'controller', 'delivery_validation'}:
+            raise ContractError('该产物类型不能发布 MPC 交付验收凭证。')
+        if meta['kind'] == 'controller':
+            required.add('controller.json')
+        if not required.issubset(meta['files']) or subject not in row['parents']:
+            raise ContractError('交付凭证缺少验证文件或冻结设计的父绑定。')
+        evidence = read_json(root / 'delivery.json')
+        report = read_json(root / 'report.json')
+        request = read_json(root / 'config.json')
+        check_evidence = report.get('evidence', {})
+        items = check_evidence.get('required_checks', [])
+        proof = evidence.get('checks', {})
+        passed = evidence.get('status') == 'artifact_ready'
+        if report.get('algorithm') != 'verify_design_delivery' or report.get('delivery') != evidence:
+            raise ContractError('交付结论与配套报告不一致。')
+        # 还原原操作的目标、输入工况及必检项。晋级控制器配置另含两个预留工况列表。
+        from .delivery import _request
+        target, required_checks, atol = _request({k: v for k, v in request.items()
+            if k not in {'verification_scenarios', 'test_scenarios'}})
+        if (items != required_checks or evidence.get('target') != target or check_evidence.get('target') != target
+                or request.get('case') != check_evidence.get('requested_case')
+                or request.get('expected_action') != check_evidence.get('expected_action')
+                or (request.get('expected_action') is not None and check_evidence.get('action_atol') != atol)):
+            raise ContractError('交付报告与该版本用户要求的目标、工况或检查项不一致。')
+        expected_status = 'verified' if passed else 'rejected'
+        if (evidence.get('status') not in {'artifact_ready', 'partial', 'failed'}
+                or meta['validation'].get('delivery_status') != evidence['status']
+                or meta['validation']['status'] != expected_status or row['status'] not in {expected_status, 'stale'}
+                or evidence.get('request_satisfied') is not passed or set(proof) != set(DELIVERY_CHECKS)):
+            raise ContractError('交付结论与发布状态或逐项证据不一致。')
+        if passed and (evidence.get('missing_requirements') or any(proof[k] != 'passed' for k in items)
+                       or 'action' not in check_evidence.get('standalone_result', {})):
+            raise ContractError('必检项或独立执行证据不完整。')
+        if (passed and target == 'workspace_controller') != (meta['kind'] == 'controller'):
+            raise ContractError('交付类型与核验目标不一致。')
+        if meta['kind'] == 'controller':
+            descriptor = read_json(root / 'controller.json')
+            if ('workspace_controller' not in items or descriptor.get('design_artifact') != subject
+                    or descriptor.get('prediction_model') not in row['parents']
+                    or 'action' not in check_evidence.get('workspace_result', {})):
+                raise ContractError('工作区控制器缺少绑定的预测器或对应的执行证据。')
+        parent = closure[subject][1]
+        if (parent['kind'] != 'controller_design' or evidence.get('source_artifact') != subject
+                or evidence.get('bundle_artifact') != subject
+                or not evidence.get('manifest_sha256')
+                or evidence['manifest_sha256'] != parent['files'].get('bundle/bundle_manifest.json')
+                or evidence['manifest_sha256'] != check_evidence.get('manifest_sha256')):
+            raise ContractError('交付凭证与源设计包的文件版本不一致。')
+        if stale:
+            evidence.update(status='partial', request_satisfied=False,
+                            missing_requirements=[*evidence['missing_requirements'], 'current_dependencies'],
+                            details='以下依赖已过期，保留原版本验收记录：' + '、'.join(stale))
+        return {**evidence, 'artifact_id': artifact_id, 'report_file': 'report.json'}
+    # 此处只核对了索引、依赖及登记的文件哈希，未执行旧产物的代码。
+    manifest = next((name for name in _MANIFESTS if 'bundle/' + name in meta['files']), None)
+    status = {'verified': 'artifact_ready', 'stale': 'partial', 'rejected': 'failed'}[row['status']]
+    details = '已核对登记文件；尚无本次交付目标的独立验收记录。'
+    missing = []
+    from .inspection import MODEL_KINDS, artifact_capabilities
+    if meta['kind'] in MODEL_KINDS | {'controller', 'controller_design'}:
+        # 与预检、交接复用同一份真实文件要求，共享已经核对的闭包。
+        missing = artifact_capabilities(workspace, artifact_id, _closure=closure)['missing_files']
+        if missing:
+            status, checks['files'] = 'partial', 'failed'
+            details = '已登记的产物缺少该类型需要的文件：' + '、'.join(missing)
+    if meta['kind'] in {'controller_design', 'supervised_model', 'learned_model'} and not manifest:
+        status, checks['files'] = 'partial', 'failed'
+        missing.append('bundle_manifest')
+        details = '产物已登记，缺少独立包文件清单。'
+    if meta['kind'] == 'controller_design' and 'design.json' in meta['files']:
+        # 只从已冻结的实测报告读取单点结果；该记录发生在工作区，独立包仍未运行。
+        diagnostic = read_json(root / 'design.json').get('solver_check', {})
+        if (diagnostic.get('solves') == 1 and diagnostic.get('status') == 'passed'
+                and isinstance(diagnostic.get('action'), list) and diagnostic['action']
+                and all(type(v) in (int, float) and math.isfinite(v) for v in diagnostic['action'])
+                and isinstance(diagnostic.get('point'), dict)):
+            checks['single_point'] = 'passed'
+            details = '源设计记录了工作区单点求解。独立包和本次用户工况尚待验收。'
+    if meta['kind'] == 'matlab_design_check' and 'report.json' in meta['files']:
+        report = read_json(root / 'report.json')
+        if (meta['validation'].get('solver_status') == 'single_point_solved'
+                and report.get('status') == 'single_point_solved'
+                and report.get('design') in row['parents'] and 'case' in report and 'action' in report):
+            checks['matlab'] = checks['single_point'] = 'passed'
+            details = '已记录绑定设计和工况的 MATLAB 单点求解。'
+    # 大型旧调参报告仍可按原报告查阅，概览不解析无界的历史轨迹。
+    if (meta['kind'] == 'controller' and meta['validation'].get('independent_verification') is True
+            and 'report.json' in meta['files'] and (root / 'report.json').stat().st_size <= 8*1024*1024):
+        report = read_json(root / 'report.json')
+        test = report.get('test', {})
+        runs = test.get('runs', [])
+        if (report.get('test_used_for_tuning') is False and meta['source'].get('evaluation_model') in row['parents']
+                and runs and all(isinstance(run.get('trajectory'), list) and len(run['trajectory']) > 0
+                                 and len(run['trajectory']) == run.get('scenario', {}).get('steps') for run in runs)):
+            checks['closed_loop'] = 'passed' if test.get('hard_constraints_passed') is True else 'failed'
+            details = '已记录登记评价模型上的独立测试轨迹。原对象闭环和独立包运行须另行核对。'
+    if stale:
+        status = 'partial'
+        missing.append('current_dependencies')
+        details = '以下依赖已过期：' + '、'.join(stale)
+    return {'status': status, 'artifact_id': artifact_id,
+            'source_artifact': artifact_id, 'bundle_artifact': artifact_id if manifest else None,
+            'manifest_sha256': meta['files'].get('bundle/' + manifest) if manifest else None,
+            'target': None, 'request_satisfied': None, 'checks': checks, 'missing_requirements': missing,
+            'details': details,
+            'report_file': 'report.json' if 'report.json' in meta['files'] else None}
+
+
 def _relative(value):
     if not isinstance(value,str) or not value or '\\' in value or ':' in value or '\x00' in value:
         raise ContractError('Select an ordinary relative artifact member')
@@ -62,7 +186,7 @@ def _sha(path):
     return digest.hexdigest()
 
 
-def _artifact(workspace,artifact_id):
+def _artifact(workspace,artifact_id,*,return_closure=False):
     """Reject aliases in the full parent closure before generic resolve reads it."""
     visited=set();manifest=workspace.manifest
     def inspect(item):
@@ -80,7 +204,8 @@ def _artifact(workspace,artifact_id):
         for name in files:_no_alias(root,root/str(_relative(name)))
         for parent in meta.get('parents',[]):inspect(parent['id'])
     inspect(artifact_id)
-    return workspace.resolve(artifact_id,allow_stale=True,allow_rejected=True)
+    verified = workspace.resolve_closure(artifact_id, allow_stale=True, allow_rejected=True)
+    return verified if return_closure else verified[artifact_id]
 
 
 def _archive_headers(payload):

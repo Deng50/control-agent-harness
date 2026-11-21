@@ -283,15 +283,14 @@ class DataArtifactContractTests(unittest.TestCase):
         target.resolve(report)
         self.assertEqual(target.import_artifact(target.resolve(report)[0]), report)
 
-    def test_material_replacement_invalidates_data_and_reports_transitively(self):
+    def test_material_replacement_retires_old_defaults_without_destroying_frozen_lineage(self):
         material, dataset, report = self.chain()
         replacement = self.publish(self.source, "source_material", self.material_interface, value=2)
         self.assertNotEqual(material, replacement)
         self.source.resolve(material)  # Historical immutable input remains inspectable.
         for child in (dataset, report):
-            with self.assertRaises(ContractError):
-                self.source.resolve(child)
-            self.assertEqual(self.source.manifest["artifacts"][child]["status"], "stale")
+            self.source.resolve(child)
+            self.assertEqual(self.source.manifest["artifacts"][child]["status"], "verified")
         self.assertNotIn("supervised_dataset", self.source.manifest["active"])
         self.assertNotIn("dataset_report", self.source.manifest["active"])
 
@@ -303,8 +302,8 @@ class DataArtifactContractTests(unittest.TestCase):
         replacement = self.publish(target, "source_material", self.material_interface, value=3)
         self.assertNotEqual(material, replacement)
         for child in (dataset, report):
-            with self.assertRaises(ContractError):
-                target.resolve(child)
+            self.assertEqual(target.resolve(child)[1], self.source.resolve(child)[1])
+        self.assertNotIn("dataset_report", target.manifest["active"])
         self.source.resolve(report)  # A target-workspace revision is independent.
 
     def test_opt_out_must_be_a_boolean_not_missing_or_false_like_configuration(self):

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import base64
+import os
 import json
 from pathlib import Path
 import tempfile
@@ -127,6 +129,24 @@ class ExternalExpertTests(unittest.TestCase):
             expected_mean = arrays["X"][split==0].mean(0)
         np.testing.assert_allclose(read_json(root / "scaler.json")["X"]["location"], expected_mean, rtol=0, atol=1e-14)
         self.assertEqual(report["expert"]["resets"], 6)
+
+    def test_resume_restores_expert_memory_diagnostics_and_matches_full_collection(self):
+        expert, plant, _, _ = self.register()
+        baseline, _, _ = self.collect(expert, plant)
+        commits = []
+        context = OperationContext(emit=lambda event: commits.append(event["collection_checkpoint"])
+                                   if "collection_checkpoint" in event else None, cancelled=lambda: bool(commits))
+        context._case_receipt_key = base64.b64encode(os.urandom(32)).decode()
+        context._case_native_session = "isolated-expert-test"
+        with self.assertRaises(ExpertCollectionCancelled):
+            self.collect(expert, plant, context=context)
+        context.cancelled = lambda: False
+        with patch.dict(os.environ, {"CONTROL_COLLECTION_RESUME": json.dumps(commits[0])}):
+            resumed, _, report = self.collect(expert, plant, context=context)
+        self.assertEqual(report["restored_trajectories"], 1)
+        with np.load(baseline / "expert.npz") as before, np.load(resumed / "expert.npz") as after:
+            for key in before.files:
+                np.testing.assert_array_equal(after[key], before[key])
 
     def test_registration_is_static_and_source_hashes_are_checked_before_execution(self):
         expert, _, material, _ = self.register(EXPERT + "\nraise RuntimeError('must not run during registration')\n")

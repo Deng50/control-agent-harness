@@ -252,13 +252,14 @@ def train_supervised(workspace: Workspace, dataset_id: str, config: dict,
         best_state, best_loss = checkpoint["best_state"], checkpoint["best_metric"]
     with workspace.stage("supervised_model", interface, [dataset_id], config) as stage:
         def checkpoint_epoch(epoch):
-            save_checkpoint(stage.root, contract, model=network, optimizer=optimizer, epoch=epoch, updates=updates,
+            return save_checkpoint(stage.root, contract, target_epochs=resolved["epochs"], model=network, optimizer=optimizer, epoch=epoch, updates=updates,
                 best_state=best_state, best_metric=best_loss, wait=wait, log=log, generator=generator)
 
         atomic_json(stage.root / "network_config.json", network_config)
         atomic_json(stage.root / "resolved_config.json", resolved)
         atomic_json(stage.root / "scaler.json", scaler)
-        checkpoint_epoch(start)  # A cancellation in the first epoch can replay epoch zero.
+        saved = checkpoint_epoch(start)
+        context.progress("supervised_initial_checkpoint", epoch=start, optimizer_updates=updates, **saved)
         for epoch in range(start, resolved["epochs"]):
             if wait >= resolved["patience"]: break
             context.check()
@@ -287,9 +288,10 @@ def train_supervised(workspace: Workspace, dataset_id: str, config: dict,
             else: wait += 1
             event = {"epoch": epoch + 1, "training_loss": training_sum / len(train_idx), "validation_loss": validation_loss,
                      "selected_by_validation": selected, "patience_wait": wait}
-            log.append(event); checkpoint_epoch(epoch + 1)
+            log.append(event)
+            saved = checkpoint_epoch(epoch + 1)
             context.progress("supervised_training", **event, optimizer_updates=updates,
-                checkpoint=str(workspace.path / "failed" / stage.id / "latest.pt"))
+                **saved)
         if best_state is None: raise ContractError("No completed supervised training epoch is available")
         context.check()
         network.load_state_dict(best_state, strict=True); network.eval()

@@ -1,6 +1,9 @@
 """New entry points with real files, immutable artifacts and explicit fixture authority."""
 import copy
+import base64
 import csv
+import hashlib
+import hmac
 import json
 from pathlib import Path
 import tempfile
@@ -10,7 +13,8 @@ import numpy as np
 from openpyxl import Workbook
 
 from control_harness.artifacts import Workspace, atomic_json, read_json
-from control_harness.case_plans import FIXTURE_KIND, PendingPlanConfirmation, propose_plan
+from control_harness.case_plans import FIXTURE_KIND, PendingPlanConfirmation, propose_plan, propose_plan_batch, validate_plan
+from control_harness.contracts import ContractError
 from control_harness.case_requirements import confirmation_requirements
 from control_harness.operations import run_operation
 from control_harness.runtime import OperationContext
@@ -111,6 +115,94 @@ class MaterialDataOperations(unittest.TestCase):
         with self.assertRaises(PendingPlanConfirmation): run_operation(changed, self.context)
         changed = copy.deepcopy(request); changed['inputs']['material'] = self.material()
         with self.assertRaises(PendingPlanConfirmation): run_operation(changed, self.context)
+
+    def test_confirmed_preparation_and_training_rebind_only_same_signed_session_intent_recipe(self):
+        # 使用隔离测试目录的固定测试密钥模拟 Host 已签收据，不读取实际 Host 密钥或调用模型。
+        prep = self.request(self.material())
+        recipe = copy.deepcopy(prep["config"])
+        network = {"epochs": 1, "hidden_dims": [3], "seed": 7}
+        session = "fixture-native-session"
+        key = bytes(range(32))
+        def ctx():
+            value = OperationContext()
+            value._case_native_session = session
+            value._case_receipt_key = base64.b64encode(key).decode()
+            return value
+        first = confirmation_requirements(self.workspace, prep, structured=True)[0]
+        rows = [{"scope": "signals", "reviewPayload": first["review_payload"], "reviewBindings": first["review_bindings"]},
+                {"scope": "training", "reviewPayload": {"operation": "train_supervised", "config": network, "preparation": recipe},
+                 "reviewBindings": first["review_bindings"]}]
+        plans = propose_plan_batch(self.workspace, "object-training", rows)["plans"]
+        self.assertEqual(plans[1]["effective_settings"]["input_dim"], 3)
+        self.assertEqual(plans[1]["effective_settings"]["hidden_dims"], [3])
+        self.assertEqual(plans[1]["effective_settings"]["learning_rate"], .003)
+        before = (self.workspace.path / ".case-plans/plans.json").read_bytes()
+        invalid = copy.deepcopy(rows); invalid[1]["reviewPayload"]["config"]["input_dim"] = 999
+        with self.assertRaisesRegex(ContractError, "input_dim"):
+            propose_plan_batch(self.workspace, "object-training", invalid)
+        self.assertEqual((self.workspace.path / ".case-plans/plans.json").read_bytes(), before)
+        refs = {p["scope"]: {k: p[k] for k in ["plan_id", "version_hash"]} for p in plans}
+        prep["config"]["plan_refs"] = {"signals": refs["signals"]}
+        for field, value in [("scaler", "minmax"), ("worksheet", "另一工作表"),
+                             ("split", {"mode": "time"})]:
+            changed = copy.deepcopy(prep); changed["config"][field] = value
+            req = confirmation_requirements(self.workspace, changed, structured=True)[0]
+            with self.assertRaisesRegex(PendingPlanConfirmation, "reviewed plan payload"):
+                validate_plan(self.workspace, refs["signals"], "signals", expected_payload=req["expected_payload"],
+                              bindings=req["bindings"], review_payload=req["review_payload"], review_bindings=req["review_bindings"])
+        def receipt(request, *, wrong_bindings=False):
+            context = ctx()
+            requirements = confirmation_requirements(self.workspace, request, context=context)
+            raw = json.dumps(request, ensure_ascii=False)
+            selected = [{"scope": r["scope"], **request["config"]["plan_refs"][r["scope"]]} for r in requirements]
+            body = json.dumps({"schema_version": 1, "workspace": str(self.workspace.path), "session_id": session,
+                "operation": request["operation"], "request_sha256": hashlib.sha256(raw.encode()).hexdigest(),
+                "plans": selected, "execution_bindings": [] if wrong_bindings else
+                     [{"scope": r["scope"], "bindings": r["bindings"]} for r in requirements],
+                "confirmation_sources": [{**ref, "confirmation_source": "test_fixture",
+                    "source": {"kind": "native_user_command", "command_id": "isolated-fixture", "seq": 1}} for ref in selected]})
+            context.bind_raw_request(raw)
+            context._case_receipt_body = body
+            context._case_receipt_signature = hmac.new(key, body.encode(), hashlib.sha256).hexdigest()
+            return context, requirements
+        ids = []
+        for _ in range(2):
+            outcome = run_operation(prep, receipt(prep)[0])
+            ids.append(outcome["artifact_id"])
+            train = {"workspace": prep["workspace"], "operation": "train_supervised",
+                     "inputs": {"dataset": ids[-1]}, "config": {**network, "plan_refs": refs}}
+            context, actual = receipt(train)
+            self.assertEqual([r["review_payload"] for r in actual], [r["reviewPayload"] for r in rows])
+            context.require_case_confirmation(train, actual)
+        self.assertNotEqual(*ids)
+        with self.assertRaisesRegex(PendingPlanConfirmation, "Host confirmation receipt"):
+            receipt(train, wrong_bindings=True)[0].require_case_confirmation(train, actual)
+        changed_defaults = copy.deepcopy(actual); changed_defaults[1]["effective_settings"]["learning_rate"] = .01
+        with self.assertRaisesRegex(PendingPlanConfirmation, "effective MLP settings"):
+            receipt(train)[0].require_case_confirmation(train, changed_defaults)
+        changed = copy.deepcopy(train); changed["config"]["epochs"] += 1
+        with self.assertRaises(PendingPlanConfirmation):
+            receipt(changed)[0].require_case_confirmation(changed, confirmation_requirements(self.workspace, changed, context=ctx()))
+        fresh = ctx(); fresh._case_native_session = "other-session"
+        strict = confirmation_requirements(self.workspace, train, context=fresh)
+        self.assertEqual(strict[1]["review_bindings"]["dataset"]["id"], ids[-1])
+        # 只准备数据的新停止点撤销旧 training head；重新添回不能继承已撤销的签名。
+        stop = propose_plan_batch(self.workspace, "object-training", rows[:1], retire_scopes=["training"])
+        self.assertNotEqual(stop["plans"][0]["version_hash"], refs["signals"]["version_hash"])
+        self.assertEqual(propose_plan_batch(self.workspace, "object-training", rows[:1], retire_scopes=["training"]), stop)
+        with self.assertRaises(PendingPlanConfirmation):
+            validate_plan(self.workspace, refs["training"], "training")
+        reinstated = propose_plan_batch(self.workspace, "object-training", rows)["plans"][1]
+        self.assertGreater(reinstated["revision"], plans[1]["revision"])
+        self.assertNotEqual(refs["training"]["plan_id"], reinstated["plan_id"])
+        from control_harness.preparation_proof import verified_preparation
+        _, meta = self.workspace.resolve(ids[-1])
+        bad = copy.deepcopy(meta); bad["source"]["preparation_proof"]["signature"] = "0" * 64
+        with self.assertRaisesRegex(ContractError, "signed dataset"):
+            verified_preparation(self.workspace, bad, train, ctx())
+        bad = copy.deepcopy(meta); bad["files"]["supervised.npz"] = "0" * 64
+        with self.assertRaisesRegex(ContractError, "signed dataset"):
+            verified_preparation(self.workspace, bad, train, ctx())
 
     def test_real_xlsx_uses_explicit_sheet_and_duplicate_header_positions(self):
         path = self.root / 'duplicate-signals.xlsx'; book = Workbook(); sheet = book.active; sheet.title = '行程信号'

@@ -410,7 +410,7 @@ def _safe(value):
     return value if value is None or isinstance(value, str) else {"unsupported_type": type(value).__name__}
 
 
-def collect(adapter, plan, context=None):
+def collect(adapter, plan, context=None, journal=None):
     """Reset once per trajectory, stop at first invalid transition, retain prefix."""
     plan = _validated_plan(plan)
     interface = _interface(adapter.interface)
@@ -432,9 +432,17 @@ def collect(adapter, plan, context=None):
     try:
         context.check()
         report["adapter"] = json.loads(json.dumps(adapter.describe(), allow_nan=False)) if callable(getattr(adapter, "describe", None)) else {"description_available": False}
-        for trajectory in plan["trajectories"]:
+        for index, trajectory in enumerate(plan["trajectories"]):
             attempt = {"trajectory_id": trajectory["trajectory_id"], "step_index": 0, "time": 0.0, "phase": "reset"}
             context.check()
+            restored = journal.load(index, trajectory) if journal else None
+            if restored is not None:
+                committed, _ = restored
+                for key in rows:
+                    rows[key].extend(committed[key])
+                journal.commit(index, trajectory, committed)
+                report["completed_trajectories"] += 1
+                continue
             x0 = _array(trajectory["x0"], (interface.nx,), "x0")
             returned = adapter.reset(x0.copy())
             state = _array(adapter.state, (interface.nx,), "adapter.state")
@@ -474,6 +482,9 @@ def collect(adapter, plan, context=None):
                 rows["trajectory_id"].append(trajectory["trajectory_id"])
                 rows["time"].append(trajectory["t"][k])
             report["completed_trajectories"] += 1
+            if journal:
+                length = plan["steps"]
+                journal.commit(index, trajectory, {key: np.asarray(values[-length:]) for key, values in rows.items()})
             context.progress("sampling", trajectory_id=trajectory["trajectory_id"], phase="completed", valid_rows=len(rows["x"]))
         context.check()
     except Exception as error:

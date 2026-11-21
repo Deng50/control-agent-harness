@@ -10,6 +10,7 @@ from pathlib import Path
 import torch
 
 from control_harness.artifacts import Workspace, file_hash, read_json
+from control_harness.checkpoints import checkpoint_sidecar
 from control_harness.contracts import ContractError
 from control_harness.control import design_controller
 from control_harness.data import simulate_transitions
@@ -249,7 +250,7 @@ class TrainingResumeTests(unittest.TestCase):
         with self.assertRaisesRegex(ContractError, "integrity"):
             self.train("imitation", {**config, "resume_checkpoint": str(path)})
         path.write_bytes(original)
-        path.with_name("latest.checkpoint.json").unlink()
+        checkpoint_sidecar(path).unlink()
         with self.assertRaisesRegex(ContractError, "unsupported"):
             self.train("imitation", {**config, "resume_checkpoint": str(path)})
 
