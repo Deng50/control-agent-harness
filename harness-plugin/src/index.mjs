@@ -9,6 +9,7 @@ import { operationHelp, operations } from './catalog.mjs';
 import { installMatlabResource } from './matlab-resource.mjs';
 import { createMatlabTerminalVerifier } from './matlab-terminal.mjs';
 import { saveSessionSlx } from './simulink-save.mjs';
+import { simulinkPlantTool } from './simulink-plant.mjs';
 import { MatlabTaskGrants } from './matlab-task-grants.mjs';
 import { preflightWorkspace } from './workspace-preflight.mjs';
 import { installCasePlans } from './case-plans.mjs';
@@ -50,6 +51,7 @@ export function apply(ctx, config) {
   const reviewSlots = new WorkerSlots(1);
   const preflight = options => preflightWorkspace({ctx,config,...options});
   if (verifyMatlab) {
+    ctx.tools.register(simulinkPlantTool(ctx, config));
     ctx.tools.register(defineTool({
       name:'control_save_simulink_model',
       description:'Save one loaded top-level Simulink model to this conversation workspace. Returns its verified absolute .slx path and byte count. Request simulation separately after saving.',

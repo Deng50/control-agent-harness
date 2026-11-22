@@ -53,10 +53,32 @@ async function fixture(callback) {
 const state = directory => readFile(join(directory, 'resource.json'), 'utf8').then(JSON.parse);
 const mcpSuccess = text => ({ content: [{ type: 'text', text }] });
 
-// 重放真实会话中 Inport/Value 的 MCP 响应。仅 MATLAB 服务端用替身，原生工具桥、
-// 权限检查、固定探针解析和 Python 资源代理均使用项目的真实实现。
-for (const fault of ['none', 'english', 'multiline', 'busy', 'different-session', 'cancel-during-probe', 'timeout', 'transport', 'owner-exited']) {
-  test(`Inport Value diagnostic, terminal condition: ${fault}`, async () => fixture(async directory => {
+// 重放两次真实会话的 MCP 错误：原生工具桥会在会话记录外层另加 "Error: "。
+// 仅 MATLAB 服务端为替身；权限检查、探针解析和 Python 资源代理使用真实实现。
+const inport = {
+  label: 'Inport Value',
+  text: "matlab error: Inport block 没有名为 'Value' 的参数\n \n",
+  invalid: {code:"set_param('MassSpringDamper/u_force','Value','1');"},
+  corrected: {code:"set_param('MassSpringDamper/u_force','Port','1');"},
+};
+const plant = {
+  label: 'event 277 Plant B',
+  text: `matlab error: 参数 'B' 的 '<a href="matlab:open_and_hilite_hyperlink ('MPC_MassSpringDamper/Plant','error')">MPC_MassSpringDamper/Plant</a>' 中的设置无效。\n \n`,
+  invalid: {code:"set_param('MPC_MassSpringDamper/Plant','A','eye(2)');"},
+  corrected: {code:"set_param('MPC_MassSpringDamper/Plant','A','eye(2)','B','eye(2)','C','eye(2)','D','zeros(2)','InitialCondition','[1;0]','SampleTime','0.01');"},
+};
+const terminalConditions = ['none', 'busy', 'different-session', 'cancel-during-probe', 'timeout', 'transport', 'owner-exited'];
+const parameterScenarios = [
+  {...inport, conditions:terminalConditions}, {...plant, conditions:terminalConditions},
+  {...inport, label:'English Inport', text:"matlab error: Inport block does not have a parameter named 'Value'."},
+  {...plant, label:'Chinese plain text', text:"matlab error: 参数 'B' 的 '模型/对象' 中的设置无效。"},
+  {...inport, label:'mixed SDK failure', text:inport.text + 'SDK request deadline elapsed', classified:false},
+  {...plant, label:'extra diagnostic', text:plant.text + 'MCP transport disconnected', classified:false},
+  {...plant, label:'conflicting link target', text:plant.text.replace('>MPC_MassSpringDamper/Plant<','>AnotherModel/Plant<'), classified:false},
+  {...plant, label:'unrecognized markup', text:"matlab error: 参数 'B' 的 '<b>model/Plant</b>' 中的设置无效。", classified:false},
+];
+for (const scenario of parameterScenarios) for (const fault of scenario.conditions ?? ['none']) {
+  test(`${scenario.label} diagnostic, terminal condition: ${fault}`, async () => fixture(async directory => {
     const identityFile = join(directory, 'identity.json'), sessionId = randomUUID();
     const bound = spawnSync(python, ['-m', 'control_harness.matlab_resource', 'bind-session',
       '--directory', directory, '--pid', String(process.pid), '--session-id', sessionId],
@@ -74,13 +96,9 @@ for (const fault of ['none', 'english', 'multiline', 'busy', 'different-session'
     const verify = args => createMatlabTerminalVerifier(ctx, {identityFile, codeRoot:project})(args);
     const mounted = await context(directory, {verifyBeforeDispatch:verify, verifyTerminal:verify});
     ctx = mounted.ctx;
-    const invalid = {code:"set_param('MassSpringDamper/u_force','Value','1');"};
-    const corrected = {code:"set_param('MassSpringDamper/u_force','Port','1');"};
-    const errorText = fault === 'english' ? "matlab error: Inport block does not have a parameter named 'Value'."
-      : fault === 'multiline' ? "matlab error: Inport block 没有名为 'Value' 的参数\nSDK request deadline elapsed"
-      : "matlab error: Inport block 没有名为 'Value' 的参数\n \n";
-    const qualified = !['timeout','transport','multiline'].includes(fault);
-    const retryable = fault === 'none' || fault === 'english';
+    const {invalid, corrected, text:errorText} = scenario;
+    const qualified = scenario.classified !== false && !['timeout','transport'].includes(fault);
+    const retryable = qualified && fault === 'none';
     try {
       ctx.tools.guard(()=>{ permissions++; });
       mounted.register(evalTool, async ({code}) => {
@@ -106,7 +124,7 @@ for (const fault of ['none', 'english', 'multiline', 'busy', 'different-session'
       const failed = await execute(ctx,evalTool,abort.signal,invalid);
       assert.equal(failed.isError,true);
       if (qualified) {
-        assert.equal(failed.error.message.trim(),errorText.trim());
+        assert.equal(failed.error.message,errorText);
         assert.equal(failed.meta.matlab_parameter_retryable,retryable);
       }
       const ledger = await state(directory);

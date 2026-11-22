@@ -1,16 +1,11 @@
-import { randomUUID } from 'node:crypto';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import { authorizeWorkspace } from './job-history.mjs';
 import { pinDirectoryPath } from './windows-host-security.mjs';
 
-const MATLAB_EVALUATE = 'mcp__matlab__evaluate_matlab_code';
+import { matlabString, requireSessionMatlab, runSimulinkHelper } from './simulink-native.mjs';
 const MODEL_IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
 const RESERVED_FILENAME = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
-
-function matlabString(value) {
-  return "'" + value.replaceAll("'", "''") + "'";
-}
 
 function sameAbsolutePath(candidate, expected) {
   return typeof candidate === 'string' && isAbsolute(candidate) && relative(candidate, expected) === '';
@@ -27,36 +22,8 @@ async function regularTarget(target) {
 
 /** 经原生工具和它的审批、专用资源中间件执行；读取本次调用的唯一回执。 */
 async function runNativeSave(tools, codeRoot, agent, signal, model, target) {
-  const helperDirectory = join(codeRoot, 'matlab');
-  const helperPath = join(helperDirectory, 'control_harness_save_slx.m');
-  const callId = randomUUID();
-  const receiptPrefix = 'CONTROL_HARNESS_SLX_' + callId + ':';
-  const outputFormat = matlabString(receiptPrefix + '%s\\n');
-  const code = [
-    "clear('control_harness_save_slx');",
-    `assert(strcmp(which('control_harness_save_slx'),${matlabString(helperPath)}));`,
-    `fprintf(${outputFormat},jsonencode(control_harness_save_slx(${matlabString(model)},${matlabString(target)})));`,
-  ].join(' ');
-  const execution = await tools.execute({
-    agent, signal,
-    calls: [{
-      type: 'tool_call',
-      id: 'slx-' + callId,
-      name: MATLAB_EVALUATE,
-      arguments: JSON.stringify({code, project_path: helperDirectory}),
-    }],
-  });
-  signal.throwIfAborted();
-  const result = execution.results[0]?.result;
-  if (!result || result.isError) {
-    throw new Error(result?.error?.message ?? '原生 MATLAB 保存调用失败，请查看该调用的审批、资源状态和错误。');
-  }
-  const receiptLines = (result.value?.content ?? [])
-    .filter(item => item.type === 'text')
-    .flatMap(item => item.text.split(/\r?\n/))
-    .filter(line => line.startsWith(receiptPrefix));
-  if (receiptLines.length !== 1) throw new Error('MATLAB 没有返回唯一的本次保存记录。');
-  const receipt = JSON.parse(receiptLines[0].slice(receiptPrefix.length));
+  const receipt = await runSimulinkHelper(tools, codeRoot, agent, signal, 'control_harness_save_slx', 'SLX',
+    [matlabString(model), matlabString(target)]);
   if (receipt.status === 'refused') throw new Error(receipt.reason);
   if (receipt.status !== 'saved' || receipt.model !== model || !sameAbsolutePath(receipt.path, target)) {
     throw new Error('MATLAB 实际保存位置与当前会话的 SLX 目标不同。');
@@ -98,13 +65,7 @@ export async function saveSessionSlx(ctx, config, args, {agent, signal}, preflig
       !isAbsolute(cwd) || /[\r\n\0]/.test(cwd)) {
     throw new Error('保存 SLX 需要本次会话绑定的绝对工作目录。');
   }
-  const resource = config.matlabResource;
-  const nativePrefixes = resource?.toolPrefixes ?? ['mcp__matlab__'];
-  if (!resource?.directory || !resource.identityFile ||
-      !nativePrefixes.some(prefix => MATLAB_EVALUATE.startsWith(prefix)) ||
-      !ctx.tools.definitions(agent).some(tool => tool.name === MATLAB_EVALUATE)) {
-    throw new Error('请通过专用 MATLAB overlay 启动 Web 并在此会话启用原生 MATLAB 工具。');
-  }
+  requireSessionMatlab(ctx, config, agent);
   const policy = ctx.sandboxPolicy.resolve({session});
   const workspace = await authorizeWorkspace(cwd, policy, true);
   await preflight({workspace, policy, signal, operation: 'save_simulink_model'});

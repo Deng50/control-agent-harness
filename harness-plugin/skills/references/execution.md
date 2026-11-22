@@ -14,6 +14,8 @@
 
 ## 对话中创建 Simulink 模型
 
+使用离散状态空间对象时，先用 `model_edit` 加入 Discrete State-Space 块，仅设置名称、位置等结构属性。若返回 `partial`，先读回已经创建的块。对这个已加载的块调用 `control_configure_simulink_plant`，将模型名、模型内相对块路径、按行表示的二维数值数组 `A/B/C/D`、初态向量 `initialCondition` 与采样周期 `sampleTime` 一起提交。该工具用一次 `set_param` 写入六个参数并读回。根据读回记录把输入按 B 的列顺序组成向量，按 C 的行顺序连接输出，在接线完成后更新模型并检查端口。
+
 模型创建后用 `control_save_simulink_model` 单独保存。参数 `model` 填已加载的模型名，如 `MassSpringDamper`。目标工作区来自当前会话。保存成功后把工具实际返回的 SLX 绝对路径交给用户。MATLAB 的当前目录、模型名和生成的建模脚本都不能证明工作区已有模型文件。
 
 用户要求仿真时，将试验输入、参数和初态准备好，再单独执行仿真。先按原方程核对输入输出顺序、反馈取样点、增益和单位。根级 Inport 用与端口次序、维度、采样时间一致的外部输入驱动，例如通过 `Simulink.SimulationInput.setExternalInput` 传入 Dataset。分别报告保存路径、实际运行的工况和仿真结果。若输入设置失败，保留已保存文件并说明仿真未运行。

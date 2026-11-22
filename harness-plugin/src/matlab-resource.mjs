@@ -251,10 +251,15 @@ class MatlabLease {
 function synchronousParameterError(exec, result) {
   if (exec.name !== 'mcp__matlab__evaluate_matlab_code' || !result.isError || result.error?.info) return false;
   const diagnostic = result.error?.message?.trim() ?? '';
-  if (diagnostic.length > 1024 || /[\r\n]/u.test(diagnostic)) return false;
+  if (diagnostic.length > 1024 || /[\r\n\u2028\u2029]/u.test(diagnostic)) return false;
+  // R2024b 会把块路径显示成可点击的 MATLAB 链接。仅提取已知诊断链接，
+  // 链接实参与可见块路径必须完全相同；不执行链接，也不对任意 HTML 去标签。
+  const blockLink = /<a href="matlab:open_and_hilite_hyperlink[ \t]*\('([^'"<>]+)',[ \t]*'error'\)">\1<\/a>/gu;
+  const plain = diagnostic.replace(blockLink, '$1');
   const missing = /^matlab error: ['"]?[\w /()-]+['"]? block (?:没有名为 ['"][\w.]+['"] 的参数|does not have a parameter named ['"][\w.]+['"])[.。]?$/iu;
-  const invalid = /^matlab error: Invalid setting in '[^']+' for parameter '[\w.]+'[.]?$/iu;
-  return missing.test(diagnostic) || invalid.test(diagnostic);
+  const invalidEnglish = /^matlab error: Invalid setting in '[^'<>]+' for parameter '[\w.]+'[.]?$/iu;
+  const invalidChinese = /^matlab error: 参数 '[\w.]+' 的 '[^'<>]+' 中的设置无效[。.]?$/u;
+  return missing.test(plain) || invalidEnglish.test(plain) || invalidChinese.test(plain);
 }
 
 // 错误结果仍原样返回；记录的是专用资源可以承接下一次独立调用，而非本次任务成功。

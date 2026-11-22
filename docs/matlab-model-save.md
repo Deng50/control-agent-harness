@@ -28,6 +28,8 @@
 node scripts/smoke-matlab-inport-save.mjs test-output/matlab-inport-demo --prepare-workspace
 ```
 
-测试为该进程使用独立资源锁和新的会话工作区，经原生 Harness 工具执行器连接真实 MATLAB。选项 `--prepare-workspace` 只为本次新建的测试叶目录准备 Windows ACL。测试先保存 Inport 直通模型，再触发 `Value` 参数错误并读取资源终态。随后从返回的绝对路径重载 SLX，用常值 2 的 Dataset 独立仿真一秒，要求输出为 2 且队列为空。测试将保存收据、原始参数错误、仿真结果和最终资源状态写入生成目录下的 `smoke-evidence.json`。结束后，由启动测试会话的操作者关闭该专用 MATLAB。
+测试为该进程使用独立资源锁和新的会话工作区，经原生 Harness 工具执行器连接真实 MATLAB。选项 `--prepare-workspace` 只为本次新建的测试叶目录准备 Windows ACL。测试先保存 Inport 直通模型，再触发 `Value` 参数错误并读取资源终态。随后从返回的绝对路径重载 SLX，用常值 2 的 Dataset 独立仿真一秒，要求输出为 2 且队列为空。
+
+同一脚本还在默认 Discrete State-Space 块上单独写入两状态的 A，复现 R2024b 报 B 无效的诊断。专用会话身份与空闲状态复核通过后，脚本调用 `control_configure_simulink_plant` 一次写入并核对 A、B、C、D、初态和采样时间，再接入控制力和扰动力，更新模型并仿真一步。实测状态须与离散方程计算值一致。保存收据、原始错误、读回参数、仿真结果和最终资源状态均写入生成目录下的 `smoke-evidence.json`。验收结束后关闭这次启动的专用测试 MATLAB。
 
 如果在建模之后、保存之前遇到预检失败，该测试模型可能仍在专用 MATLAB 中打开。修复预检并重跑前，请先检查该测试进程内的未保存模型。MATLAB 生成的 `.autosave` 文件与工具收据中的交付路径分别核对。

@@ -57,7 +57,7 @@ const [{Context}, {Session}, prompt, tools, executor, local, projection, agents,
     'packages/core/agent','packages/jobs/jobs-local','packages/interaction/commands','packages/sandbox/sandbox-policy',
     'packages/sandbox/sandbox-local','packages/mcp/mcp-client'].map(built));
 const ctx = new Context();
-const report = {status:'RUNNING',matlabPid:marker.matlab_pid,workspace,model,stages:[]};
+const report = {status:'RUNNING',matlabRelease:marker.matlab_release,matlabPid:marker.matlab_pid,workspace,model,stages:[]};
 const evidencePath = join(workspace,'smoke-evidence.json');
 let stage = 'mount-harness';
 try {
@@ -87,6 +87,19 @@ try {
     report.stages.push({name,...data});
     await writeFile(evidencePath,JSON.stringify(report,null,2));
   };
+  // 直接核对 broker 的释放凭证，同时要求调用者仍能看见原始 MATLAB 错误。
+  const verifyRetryableError = async (name,result,expectedDiagnostic) => {
+    assert.equal(result.isError,true);
+    assert.match(result.error.message,expectedDiagnostic);
+    const settled = await readState();
+    assert.equal(settled.owner,null);
+    assert.equal(settled.quarantine,null,'同步参数错误后，身份与空闲探针必须通过');
+    assert.equal(settled.last_completion.evidence.matlab_pid,marker.matlab_pid);
+    assert.equal(settled.last_completion.evidence.session_id,marker.session_id);
+    assert.equal(settled.last_completion.evidence.call_outcome,'synchronous_parameter_error');
+    await checkpoint(name,{diagnostic:result.error.message.trim(),owner:settled.owner,quarantine:settled.quarantine,
+      outcome:settled.last_completion.evidence.call_outcome,proof:settled.last_completion.evidence.producer});
+  };
   stage = 'create-model';
   success(await call(evaluate,{code:[
     `new_system('${model}');`,
@@ -104,15 +117,7 @@ try {
   await checkpoint(stage,{receipt:saved});
   stage = 'invalid-inport-parameter';
   const failed = await call(evaluate, {code:`set_param('${model}/u','Value','1');`,project_path:workspace});
-  assert.equal(failed.isError,true);
-  assert.match(failed.error.message,/Inport block[^\n]*Value/i);
-  const settled = await readState();
-  assert.equal(settled.owner,null);
-  assert.equal(settled.quarantine,null,'同步参数错误后，身份与空闲探针必须通过');
-  assert.equal(settled.last_completion.evidence.matlab_pid,marker.matlab_pid);
-  assert.equal(settled.last_completion.evidence.call_outcome,'synchronous_parameter_error');
-  await checkpoint(stage,{diagnostic:failed.error.message.trim(),owner:settled.owner,quarantine:settled.quarantine,
-    outcome:settled.last_completion.evidence.call_outcome,proof:settled.last_completion.evidence.producer});
+  await verifyRetryableError(stage,failed,/Inport block[^\n]*Value/i);
   stage = 'reload-and-simulate';
   // 重新从确切路径加载，Dataset 喂给 Inport，Simulink 输出末值应等于已知输入。
   const quote = value => "'" + value.replaceAll("'","''") + "'";
@@ -132,6 +137,66 @@ try {
   assert.equal(final.owner,null); assert.equal(final.quarantine,null);
   assert.equal(final.queue.length,0);
   await checkpoint(stage,{input:2,output:2,stopTimeSeconds:1,queueLength:final.queue.length,owner:null,quarantine:null});
+
+  // 原会话 #271 仅在新块上指定位置。完全重建默认块，避免之前的内存参数影响 #277 的复现。
+  const plantModel = 'PlantSmoke_' + randomUUID().slice(0,8);
+  const plant = plantModel + '/Plant';
+  stage = 'create-default-plant';
+  success(await call(evaluate,{project_path:workspace,code:[
+    `new_system('${plantModel}');`,
+    `add_block('simulink/Discrete/Discrete State-Space','${plant}');`,
+  ].join('\n')}));
+  stage = 'invalid-plant-parameter';
+  const problem = await call(evaluate,{project_path:workspace,
+    code:`set_param('${plant}','A','[0.99950087 0.00997338; -0.09973379 0.99451418]');`});
+  await verifyRetryableError(stage,problem,/(参数\s*'B'.*设置无效|Invalid setting in .* for parameter 'B')/i);
+
+  // 两列 B 分别接收控制力和扰动力；同时读回矩阵、初态、采样周期，以便核对纠正后的实际模型。
+  const requested = {model:plantModel,block:'Plant',
+    A:[[0.99950087,0.00997338],[-0.09973379,0.99451418]],
+    B:[[0.00004991,0.00004991],[0.00997338,0.00997338]],C:[[1,0],[0,1]],D:[[0,0],[0,0]],
+    initialCondition:[1,0],sampleTime:0.01};
+  stage = 'configure-and-read-back-plant';
+  const configured = success(await call('control_configure_simulink_plant',requested));
+  assert.equal(configured.status,'configured');
+  assert.equal(configured.stage,'readback');
+  assert.equal(configured.model,plantModel);
+  assert.equal(configured.block_path,plant);
+  assert.equal(configured.parameters_applied,true);
+  for (const key of ['states','inputs','outputs']) assert.equal(configured[key],2);
+  for (const key of ['A','B','C','D']) assert.deepEqual(configured[key],requested[key],key);
+  assert.deepEqual(configured.initial_condition,requested.initialCondition);
+  assert.equal(configured.sample_time,requested.sampleTime);
+  assert.equal(configured.diagram_update,'not_run');
+  await checkpoint(stage,{receipt:configured});
+
+  stage = 'wire-update-and-simulate-plant';
+  // 在全新的一次原生调用中接入一个宽度为 2 的向量，进行图更新和一个采样周期的仿真。
+  const stepped = success(await call(evaluate,{project_path:workspace,code:[
+    `add_block('simulink/Sources/Constant','${plantModel}/Forces','Value','[2;-1]');`,
+    `add_block('simulink/Sinks/Out1','${plantModel}/State');`,
+    `add_line('${plantModel}','Forces/1','Plant/1'); add_line('${plantModel}','Plant/1','State/1');`,
+    `set_param('${plantModel}','Solver','FixedStepDiscrete','FixedStep','0.01','StopTime','0.01');`,
+    `set_param('${plantModel}','SimulationCommand','update');`,
+    `si = Simulink.SimulationInput('${plantModel}');`,
+    "si = si.setModelParameter('SaveOutput','on','OutputSaveName','yout','SaveFormat','Dataset');",
+    "so = sim(si); series = so.get('yout').getElement(1).Values;",
+    "x = getdatasamples(series,numel(series.Time));",
+    "fprintf('PLANT_ONE_STEP=%s\\n',jsonencode([series.Time(end),reshape(x,1,[])]));",
+    `close_system('${plantModel}',0);`
+  ].join('\n')}));
+  const text = stepped.content.filter(item=>item.type==='text').map(item=>item.text).join('\n');
+  const sample = text.match(/^PLANT_ONE_STEP=(\[[^\r\n]*\])$/m);
+  assert.ok(sample,'缺少本次图更新后的采样输出');
+  const [time,...state] = JSON.parse(sample[1]);
+  assert.ok(Math.abs(time-0.01) < 1e-12);
+  const expected = requested.A.map((row,i)=>row[0]+2*requested.B[i][0]-requested.B[i][1]);
+  assert.equal(state.length,2);
+  state.forEach((value,i)=>assert.ok(Math.abs(value-expected[i]) < 1e-10,`state[${i}]=${value}, expected ${expected[i]}`));
+  const released = await readState();
+  assert.equal(released.owner,null); assert.equal(released.quarantine,null); assert.equal(released.queue.length,0);
+  await checkpoint(stage,{initialState:requested.initialCondition,forces:[2,-1],time,state,expected,
+    queueLength:released.queue.length,owner:null,quarantine:null});
   report.status = 'PASS';
 } catch (error) {
   report.status = 'FAIL'; report.failedStage = stage;
