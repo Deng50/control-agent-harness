@@ -11,6 +11,7 @@ const args = {
 const nativeTool = 'mcp__matlab__evaluate_matlab_code';
 const receipt = {status: 'configured', stage: 'readback', parameters_applied: true, model: args.model,
   block_path: args.model + '/' + args.block, states: 1, inputs: 2, outputs: 2, diagram_update: 'not_run',
+  ports: {input_count: 1, output_count: 1, required_input_width: 2, required_output_width: 2},
   A: 0.9, B: [0.1, -0.2], C: [1, 2], D: [[0, 0], [0, 0]], initial_condition: 1, sample_time: 0.1};
 
 function fixture(reply = receipt) {
@@ -42,6 +43,7 @@ test('numeric tool uses one guarded native call, preserves block name and return
   for (const key of ['A', 'B', 'C', 'D']) assert.deepEqual(actual[key], args[key]);
   assert.deepEqual(actual.initial_condition, args.initialCondition);
   assert.equal(actual.sample_time, args.sampleTime);
+  assert.deepEqual(actual.ports, receipt.ports);
 });
 
 test('malformed dimensions, expressions, invalid sample times and unavailable native tools stop before dispatch', async () => {
@@ -57,7 +59,8 @@ test('malformed dimensions, expressions, invalid sample times and unavailable na
 
 test('native refusals, uncertain readback, and a receipt for another block never report configured', async () => {
   for (const alternate of [{...receipt, block_path:'Another/Plant'}, {...receipt, C: [1]},
-    {...receipt, sample_time: null}, {...receipt, status:'refused', stage:'validation', reason:'wrong block', parameters_applied:false},
+    {...receipt, sample_time: null}, {...receipt, ports: {...receipt.ports, required_input_width: 1}},
+    {...receipt, status:'refused', stage:'validation', reason:'wrong block', parameters_applied:false},
     {...receipt, status:'unverified', reason:'mismatch', parameters_applied:true}]) {
     await assert.rejects(fixture(alternate).run());
   }

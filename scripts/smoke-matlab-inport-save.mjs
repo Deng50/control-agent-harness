@@ -88,25 +88,36 @@ try {
     await writeFile(evidencePath,JSON.stringify(report,null,2));
   };
   // 直接核对 broker 的释放凭证，同时要求调用者仍能看见原始 MATLAB 错误。
-  const verifyRetryableError = async (name,result,expectedDiagnostic) => {
+  const verifyRetryableError = async (name,result,expectedDiagnostic,outcome='synchronous_parameter_error') => {
     assert.equal(result.isError,true);
     assert.match(result.error.message,expectedDiagnostic);
     const settled = await readState();
     assert.equal(settled.owner,null);
-    assert.equal(settled.quarantine,null,'同步参数错误后，身份与空闲探针必须通过');
+    assert.equal(settled.quarantine,null,'同步错误后，身份与空闲探针必须通过');
     assert.equal(settled.last_completion.evidence.matlab_pid,marker.matlab_pid);
     assert.equal(settled.last_completion.evidence.session_id,marker.session_id);
-    assert.equal(settled.last_completion.evidence.call_outcome,'synchronous_parameter_error');
-    await checkpoint(name,{diagnostic:result.error.message.trim(),owner:settled.owner,quarantine:settled.quarantine,
+    assert.equal(settled.last_completion.evidence.call_outcome,outcome);
+    await checkpoint(name,{diagnostic:result.error.message.trim(),matlabPid:settled.last_completion.evidence.matlab_pid,
+      matchedDedicatedSession:true,owner:settled.owner,quarantine:settled.quarantine,
       outcome:settled.last_completion.evidence.call_outcome,proof:settled.last_completion.evidence.producer});
   };
+  const valueText = value => value.content.filter(item=>item.type==='text').map(item=>item.text).join('\n');
+  const endpoint = (sourceBlock,sourcePort,destinationBlock,destinationPort) =>
+    ({sourceBlock,sourcePort,destinationBlock,destinationPort});
+  stage = 'toolkit-library-settings';
+  const settings = success(await call(evaluate,{project_path:workspace,
+    code:"settings = library.settingsLookup(); fprintf('SETTINGS=%s\\n',jsonencode(struct('found',settings.found,'gatePass',settings.gatePass)));"}));
+  const gate = JSON.parse(valueText(settings).match(/^SETTINGS=(\{[^\r\n]*\})$/m)[1]);
+  assert.ok(!gate.found || gate.gatePass,'测试工作区 Toolkit 库配置未就绪');
+  await checkpoint(stage,gate);
   stage = 'create-model';
   success(await call(evaluate,{code:[
     `new_system('${model}');`,
     `add_block('simulink/Sources/In1','${model}/u');`,
-    `add_block('simulink/Sinks/Out1','${model}/y');`,
-    `add_line('${model}','u/1','y/1');`
+    `add_block('simulink/Sinks/Out1','${model}/y');`
   ].join('\n'),project_path:workspace}));
+  const passthrough = success(await call('control_wire_simulink',{model,connections:[endpoint('u',1,'y',1)]}));
+  assert.equal(passthrough.status,'wired');
   await checkpoint(stage,{});
   stage = 'save-model';
   const saved = success(await call('control_save_simulink_model',{model}));
@@ -164,20 +175,114 @@ try {
   assert.equal(configured.block_path,plant);
   assert.equal(configured.parameters_applied,true);
   for (const key of ['states','inputs','outputs']) assert.equal(configured[key],2);
+  assert.deepEqual(configured.ports,{input_count:1,output_count:1,required_input_width:2,required_output_width:2});
   for (const key of ['A','B','C','D']) assert.deepEqual(configured[key],requested[key],key);
   assert.deepEqual(configured.initial_condition,requested.initialCondition);
   assert.equal(configured.sample_time,requested.sampleTime);
   assert.equal(configured.diagram_update,'not_run');
   await checkpoint(stage,{receipt:configured});
 
-  stage = 'wire-update-and-simulate-plant';
-  // 在全新的一次原生调用中接入一个宽度为 2 的向量，进行图更新和一个采样周期的仿真。
-  const stepped = success(await call(evaluate,{project_path:workspace,code:[
-    `add_block('simulink/Sources/Constant','${plantModel}/Forces','Value','[2;-1]');`,
-    `add_block('simulink/Sinks/Out1','${plantModel}/State');`,
-    `add_line('${plantModel}','Forces/1','Plant/1'); add_line('${plantModel}','Plant/1','State/1');`,
+  stage = 'prepare-wiring-fixture';
+  // 通过与网页相同的 Toolkit 入口建立两个标量源和一个 Mux，确保两个分量的次序可以核对。
+  const structure = {model:plantModel,scope:'root',depth:'0'};
+  success(await call('mcp__matlab__model_read',structure));
+  const added = success(await call('mcp__matlab__model_edit',{model:plantModel,scope:'root',layout_mode:'incremental',
+    operations:JSON.stringify([
+      {op:'add_block',type:'Constant',name:'Control',ref:'control',params:{Value:'2'}},
+      {op:'add_block',type:'Constant',name:'Disturbance',ref:'dist',params:{Value:'-1'}},
+      {op:'add_block',type:'Mux',name:'Inputs',ref:'mux',params:{Inputs:'2'}},
+      {op:'add_block',type:'Outport',name:'State',ref:'state'},
+    ])}));
+  const blocks = valueText(success(await call('mcp__matlab__model_read',structure)));
+  assert.match(valueText(added),/status:\s*ok/i);
+  for (const name of ['Control','Disturbance','Inputs','Plant','State']) assert.ok(blocks.includes(name),name);
+  const plan = [endpoint('Control',1,'Inputs',1),endpoint('Disturbance',1,'Inputs',2),
+    endpoint('Inputs',1,'Plant',1),endpoint('Plant',1,'State',1)];
+  const runWiring = connections => call('control_wire_simulink',{model:plantModel,connections});
+  const verifyReadback = (receipt,actions) => {
+    assert.equal(receipt.status,'wired'); assert.equal(receipt.stage,'readback');
+    assert.equal(receipt.model,plantModel); assert.equal(receipt.connections.length,plan.length);
+    assert.equal(receipt.created,actions.filter(x=>x==='created').length);
+    assert.equal(receipt.existing,actions.filter(x=>x==='existing').length);
+    receipt.connections.forEach((connection,index)=>{
+      for (const key of Object.keys(plan[index])) assert.equal(connection[key],plan[index][key],key);
+      assert.equal(connection.action,actions[index]);
+      // 两个标量接入 Mux 的两个物理输入；其两个分量在 Plant 上共用一个物理输入。
+      assert.equal(connection.sourcePortCount,1);
+      assert.equal(connection.destinationPortCount,index < 2 ? 2 : 1);
+      for (const width of [connection.sourceSignalWidth,connection.destinationSignalWidth]) {
+        // 未编译的模型可以明确返回未知；有已编译宽度时必须与这次模型相符。
+        if (Array.isArray(width)) assert.deepEqual(width,[]);
+        else assert.equal(width,index < 2 ? 1 : 2);
+      }
+    });
+  };
+  stage = 'reject-literal-wiring-before-dispatch';
+  const batchCode = `add_line('${plantModel}','Control/1','Inputs/1'); add_line('${plantModel}','Disturbance/1','Plant/2');`;
+  const completionBefore = (await readState()).last_completion;
+  const redirected = await call(evaluate,{project_path:workspace,code:batchCode});
+  assert.equal(redirected.isError,true);
+  assert.match(redirected.error.message,/control_wire_simulink/);
+  assert.deepEqual((await readState()).last_completion,completionBefore);
+  await checkpoint(stage,{dispatched:false});
+
+  stage = 'reject-invalid-batch-before-any-line';
+  // 第二条引用不存在的端口。独立查询第一条的目标是否仍未接线，直接验证预检的零写入。
+  const refused = await runWiring([plan[0],endpoint('Disturbance',1,'Plant',2)]);
+  assert.equal(refused.isError,true);
+  assert.match(refused.error.message,/Plant/);
+  assert.match(refused.error.message,/Mux/);
+  const unchanged = success(await call(evaluate,{project_path:workspace,code:[
+    `ports = get_param('${plantModel}/Inputs','PortHandles');`,
+    "fprintf('EMPTY_INPUTS=%d\\n',all(arrayfun(@(p) get_param(p,'Line') == -1, ports.Inport)));",
+  ].join('\n')}));
+  assert.match(valueText(unchanged),/^EMPTY_INPUTS=1\s*$/m);
+  await checkpoint(stage,{diagnostic:refused.error.message,unchangedInputs:2});
+
+  stage = 'invalid-wiring-after-partial-legacy-batch';
+  // 模拟旧建模脚本：第一条成功，第二条引用不存在的端口。原生 MATLAB 同步返回 #321，
+  // 随后必须以同一 PID、同一专用会话的终态证明释放资源；此前成功的连线应由后续工具读回。
+  const badWire = await call(evaluate,{project_path:workspace,code:[
+    "sources = {'Control/1','Disturbance/1'}; destinations = {'Inputs/1','Plant/2'};",
+    `for k = 1:2, add_line('${plantModel}',sources{k},destinations{k}); end`,
+  ].join('\n')});
+  await verifyRetryableError(stage,badWire,/Simulink 对象名称无效:\s*'Plant\/2'。|Invalid Simulink object name:\s*'Plant\/2'\./i,
+    'synchronous_wiring_error');
+  assert.equal(badWire.meta.matlab_wiring_retryable,true);
+
+  stage = 'reject-conflicting-existing-line';
+  // 已有线保持原状；即使计划把一条可用的新线放在冲突前，也不能留下多余修改。
+  const conflict = await runWiring([plan[1],endpoint('Disturbance',1,'Inputs',1)]);
+  assert.equal(conflict.isError,true);
+  assert.match(conflict.error.message,/Inputs/);
+  await checkpoint(stage,{diagnostic:conflict.error.message});
+  stage = 'correct-and-read-back-wiring';
+  const wired = success(await runWiring(plan));
+  verifyReadback(wired,['existing','created','created','created']);
+  const repeated = success(await runWiring(plan));
+  verifyReadback(repeated,['existing','existing','existing','existing']);
+  await checkpoint(stage,{first:wired,repeated});
+
+  stage = 'update-and-save-corrected-plant';
+  success(await call(evaluate,{project_path:workspace,code:[
     `set_param('${plantModel}','Solver','FixedStepDiscrete','FixedStep','0.01','StopTime','0.01');`,
     `set_param('${plantModel}','SimulationCommand','update');`,
+  ].join('\n')}));
+  const plantSaved = success(await call('control_save_simulink_model',{model:plantModel}));
+  assert.equal(plantSaved.status,'saved'); assert.equal(plantSaved.simulation,'not_run');
+  assert.equal(plantSaved.path,join(workspace,plantModel+'.slx'));
+  assert.equal(plantSaved.bytes,(await stat(plantSaved.path)).size);
+  await checkpoint(stage,{receipt:plantSaved});
+
+  stage = 'reload-verify-and-simulate-corrected-plant';
+  // 从工具返回的确切绝对路径重新加载，复核磁盘模型的接线，再从 t=0 开始仿真。
+  success(await call(evaluate,{project_path:workspace,code:[
+    `close_system('${plantModel}',0); assert(~bdIsLoaded('${plantModel}')); load_system(${quote(plantSaved.path)});`,
+    `assert(strcmpi(get_param('${plantModel}','FileName'),${quote(plantSaved.path)}));`,
+  ].join('\n')}));
+  const reloaded = success(await runWiring(plan));
+  verifyReadback(reloaded,['existing','existing','existing','existing']);
+  const stepped = success(await call(evaluate,{project_path:workspace,code:[
     `si = Simulink.SimulationInput('${plantModel}');`,
     "si = si.setModelParameter('SaveOutput','on','OutputSaveName','yout','SaveFormat','Dataset');",
     "so = sim(si); series = so.get('yout').getElement(1).Values;",
@@ -195,7 +300,8 @@ try {
   state.forEach((value,i)=>assert.ok(Math.abs(value-expected[i]) < 1e-10,`state[${i}]=${value}, expected ${expected[i]}`));
   const released = await readState();
   assert.equal(released.owner,null); assert.equal(released.quarantine,null); assert.equal(released.queue.length,0);
-  await checkpoint(stage,{initialState:requested.initialCondition,forces:[2,-1],time,state,expected,
+  await checkpoint(stage,{path:plantSaved.path,wiresVerifiedAfterReload:reloaded.existing,
+    initialState:requested.initialCondition,forces:[2,-1],time,state,expected,
     queueLength:released.queue.length,owner:null,quarantine:null});
   report.status = 'PASS';
 } catch (error) {

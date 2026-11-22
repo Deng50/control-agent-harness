@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { parseMatlabTerminalProbe } from './matlab-terminal.mjs';
-import { checkInteractiveModelSave } from './simulink-save-routing.mjs';
+import { checkInteractiveModelEdits } from './simulink-save-routing.mjs';
 
 // Only trusted Host code obtains a lease. No model arguments or public tool
 // names can create this re-entry capability for the fixed terminal probe.
@@ -247,11 +247,11 @@ class MatlabLease {
 }
 
 // 固定上游的 MCP bridge 把服务端工具错误压成文本。这里仅选择可进行终态复核的错误；
-// 只有完整匹配的一行明确块参数诊断才触发探针。中文/英文参数名和块类型均不写死。
-function synchronousParameterError(exec, result) {
-  if (exec.name !== 'mcp__matlab__evaluate_matlab_code' || !result.isError || result.error?.info) return false;
+// 只有完整匹配的一行明确诊断才触发探针。参数名、块名和端口号均取自 MATLAB 的返回。
+function synchronousEditError(exec, result) {
+  if (exec.name !== 'mcp__matlab__evaluate_matlab_code' || !result.isError || result.error?.info) return;
   const diagnostic = result.error?.message?.trim() ?? '';
-  if (diagnostic.length > 1024 || /[\r\n\u2028\u2029]/u.test(diagnostic)) return false;
+  if (diagnostic.length > 1024 || /[\r\n\u2028\u2029]/u.test(diagnostic)) return;
   // R2024b 会把块路径显示成可点击的 MATLAB 链接。仅提取已知诊断链接，
   // 链接实参与可见块路径必须完全相同；不执行链接，也不对任意 HTML 去标签。
   const blockLink = /<a href="matlab:open_and_hilite_hyperlink[ \t]*\('([^'"<>]+)',[ \t]*'error'\)">\1<\/a>/gu;
@@ -259,11 +259,16 @@ function synchronousParameterError(exec, result) {
   const missing = /^matlab error: ['"]?[\w /()-]+['"]? block (?:没有名为 ['"][\w.]+['"] 的参数|does not have a parameter named ['"][\w.]+['"])[.。]?$/iu;
   const invalidEnglish = /^matlab error: Invalid setting in '[^'<>]+' for parameter '[\w.]+'[.]?$/iu;
   const invalidChinese = /^matlab error: 参数 '[\w.]+' 的 '[^'<>]+' 中的设置无效[。.]?$/u;
-  return missing.test(plain) || invalidEnglish.test(plain) || invalidChinese.test(plain);
+  if (missing.test(plain) || invalidEnglish.test(plain) || invalidChinese.test(plain)) return 'parameter';
+  // #321 的错误引用常规信号端点，如 'Plant/2'。缺失块、任意 HTML、附带的
+  // 超时或传输诊断仍按未知终态处理。匹配只会启动核验，本身不能解除隔离。
+  // R2024b 的 Simulink:Commands:InvSimulinkObjectName 在中英文环境使用相同的端点参数。
+  const invalidPort = /^matlab error: (Simulink 对象名称无效|Invalid Simulink object name): '(?:[\p{L}\p{M}\p{N}_ ().+-]+\/)+[1-9]\d*'([。.])$/u.exec(diagnostic);
+  if (invalidPort && invalidPort[2] === (invalidPort[1].startsWith('Invalid') ? '.' : '。')) return 'wiring';
 }
 
 // 错误结果仍原样返回；记录的是专用资源可以承接下一次独立调用，而非本次任务成功。
-function recoveredParameterError(before, after, session) {
+function verifiedEditError(before, after, session) {
   if (!session?.identity || !session.session_id || !Number.isSafeInteger(session.pid)) return false;
   return [before, after].every(probe => probe?.kind === 'synchronous_adapter_return'
     && probe.producer === 'control_harness_terminal_probe-v1' && probe.session_id === session.session_id
@@ -271,28 +276,29 @@ function recoveredParameterError(before, after, session) {
     && before.nonce !== after.nonce;
 }
 
-async function finishParameterError({ exec, result, before, verifyTerminal, resource, lease }) {
+async function finishEditError({ category, exec, result, before, verifyTerminal, resource, lease }) {
   let retryable = false;
   try {
     // 留在同一租约内重新发出独立 nonce 的受信探针，避免其他任务在两次证明之间进入。
     const after = !exec.signal.aborted && verifyTerminal
       ? await resource.withInternalProbe(lease, () => verifyTerminal({exec, result, lease})) : undefined;
-    if (!exec.signal.aborted && recoveredParameterError(before, after, lease.session)) {
-      await lease.complete({...after, call_outcome:'synchronous_parameter_error'});
+    if (!exec.signal.aborted && verifiedEditError(before, after, lease.session)) {
+      await lease.complete({...after, call_outcome:`synchronous_${category}_error`});
       retryable = true;
     }
   } catch (error) {
     // 保留触发本次核验的原始 MATLAB 错误；探针拒绝、忙或 broker 拒绝完成时不允许重试。
-    resource.logger?.warn(`MATLAB parameter error could not be certified terminal: ${error.message}`);
+    resource.logger?.warn(`MATLAB ${category} error could not be certified terminal: ${error.message}`);
   } finally {
     if (!lease.closed) {
-      await lease.quarantine(exec.signal.aborted ? 'mcp_cancelled_state_unknown' : 'mcp_parameter_error_identity_or_idle_unverified');
+      await lease.quarantine(exec.signal.aborted ? 'mcp_cancelled_state_unknown' : `mcp_${category}_error_identity_or_idle_unverified`);
     }
   }
-  const text = retryable ? '已核验专用 MATLAB 会话身份和空闲状态，可修正参数后单独重试此操作。'
+  const correction = category === 'wiring' ? '请读回实际端口和已有连线，只纠正尚未完成的接线。' : '可修正参数后单独重试此操作。';
+  const text = retryable ? '已核验专用 MATLAB 会话身份和空闲状态，' + correction
     : '专用 MATLAB 终态复核未完成。请检查隔离状态后恢复专用会话。';
   return {...result, content:[...result.content,{type:'text',text}],
-    meta:{...result.meta, matlab_parameter_retryable:retryable}};
+    meta:{...result.meta, [`matlab_${category}_retryable`]:retryable}};
 }
 
 /** Native permissions and the shared broker lease cover the original call and its terminal probe. */
@@ -305,7 +311,7 @@ export function installMatlabResource(ctx, config, { verifyBeforeDispatch, verif
     const probe = internalProbe.getStore();
     if (probe?.resource === resource && !probe.lease.closed && probe.lease.started) return next();
     const scoped = scopedDispatch.getStore();
-    if (!scoped) checkInteractiveModelSave(exec);
+    if (!scoped) checkInteractiveModelEdits(exec);
     let lease;
     try { lease = await resource.acquire(`${exec.name}:${exec.callId}`, exec.signal); }
     catch (error) {
@@ -345,8 +351,9 @@ export function installMatlabResource(ctx, config, { verifyBeforeDispatch, verif
       }
       exec.signal.throwIfAborted();
       result = await next();
-      if (synchronousParameterError(exec, result)) {
-        return await finishParameterError({exec, result, before, verifyTerminal, resource, lease});
+      const category = synchronousEditError(exec, result);
+      if (category) {
+        return await finishEditError({category, exec, result, before, verifyTerminal, resource, lease});
       }
       const proof = !result.isError && !exec.signal.aborted && verifyTerminal
         ? await resource.withInternalProbe(lease, () => verifyTerminal({ exec, result, lease })) : undefined;

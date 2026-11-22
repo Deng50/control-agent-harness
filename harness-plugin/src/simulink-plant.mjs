@@ -55,6 +55,9 @@ export async function configureSimulinkPlant(ctx, config, args, {agent, signal})
   if (receipt.status !== 'configured' || receipt.stage !== 'readback' || receipt.parameters_applied !== true ||
       receipt.model !== model || receipt.block_path !== model + '/' + block ||
       receipt.states !== states || receipt.inputs !== inputs || receipt.outputs !== outputs ||
+      !Number.isSafeInteger(receipt.ports?.input_count) || receipt.ports.input_count < 1 ||
+      !Number.isSafeInteger(receipt.ports.output_count) || receipt.ports.output_count < 1 ||
+      receipt.ports.required_input_width !== inputs || receipt.ports.required_output_width !== outputs ||
       !Number.isFinite(receipt.sample_time) || receipt.sample_time <= 0 || receipt.diagram_update !== 'not_run') {
     throw new Error('Plant 读回记录与本次配置不匹配，请重新查询实际块参数。');
   }
@@ -68,7 +71,7 @@ export async function configureSimulinkPlant(ctx, config, args, {agent, signal})
 export function simulinkPlantTool(ctx, config) {
   return defineTool({
     name: 'control_configure_simulink_plant',
-    description: 'Configure a loaded Discrete State-Space block in one parameter group and return its actual numeric readback. Add the block first. Wire the declared input/output vectors and update the diagram after configuration.',
+    description: 'Configure a loaded Discrete State-Space block in one parameter group. Return numeric readback, physical port counts and required signal vector widths. Use control_wire_simulink for signal connections and update after wiring.',
     parameters: {
       model: {type: 'string', required: true, description: 'Loaded top-level model name without .slx'},
       block: {type: 'string', required: true, description: 'Block path relative to model, e.g. Dynamics/Plant'},

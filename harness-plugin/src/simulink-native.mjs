@@ -35,7 +35,9 @@ export async function runSimulinkHelper(tools, codeRoot, agent, signal, helper, 
   if (!result || result.isError) {
     const diagnostic = result?.error?.message ?? '原生 MATLAB 调用失败，请核对审批和专用资源状态。';
     // 原生中间件完成身份和空闲复核后才会附加提示。外层工具继续返回失败并保留这项结论。
-    const note = typeof result?.meta?.matlab_parameter_retryable === 'boolean' ? result.content?.at(-1)?.text : undefined;
+    const hasTerminalNote = typeof result?.meta?.matlab_parameter_retryable === 'boolean'
+      || typeof result?.meta?.matlab_wiring_retryable === 'boolean';
+    const note = hasTerminalNote ? result.content?.at(-1)?.text : undefined;
     throw new Error(note ? diagnostic + '\n' + note : diagnostic);
   }
   const lines = (result.value?.content ?? []).filter(item => item.type === 'text')

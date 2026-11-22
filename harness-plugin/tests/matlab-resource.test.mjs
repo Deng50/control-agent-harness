@@ -53,7 +53,7 @@ async function fixture(callback) {
 const state = directory => readFile(join(directory, 'resource.json'), 'utf8').then(JSON.parse);
 const mcpSuccess = text => ({ content: [{ type: 'text', text }] });
 
-// 重放两次真实会话的 MCP 错误：原生工具桥会在会话记录外层另加 "Error: "。
+// 重放实际会话中的 MCP 错误：原生工具桥会在会话记录外层另加 "Error: "。
 // 仅 MATLAB 服务端为替身；权限检查、探针解析和 Python 资源代理使用真实实现。
 const inport = {
   label: 'Inport Value',
@@ -67,9 +67,20 @@ const plant = {
   invalid: {code:"set_param('MPC_MassSpringDamper/Plant','A','eye(2)');"},
   corrected: {code:"set_param('MPC_MassSpringDamper/Plant','A','eye(2)','B','eye(2)','C','eye(2)','D','zeros(2)','InitialCondition','[1;0]','SampleTime','0.01');"},
 };
+const wiring = {
+  label: 'event 321 Plant/2', category:'wiring',
+  text: "matlab error: Simulink 对象名称无效: 'Plant/2'。\n \n",
+  invalid: {code:"add_line(modelName,'Disturbance/1','Plant/2');"},
+  corrected: {code:"add_line(modelName,'PlantInputMux/1','Plant/1');"},
+};
 const terminalConditions = ['none', 'busy', 'different-session', 'cancel-during-probe', 'timeout', 'transport', 'owner-exited'];
-const parameterScenarios = [
+const editScenarios = [
   {...inport, conditions:terminalConditions}, {...plant, conditions:terminalConditions},
+  {...wiring, conditions:[...terminalConditions,'probe-timeout','stale-proof']},
+  {...wiring, label:'nested signal port', text:"matlab error: Simulink 对象名称无效: '驱动器/执行器/3'。"},
+  {...wiring, label:'R2024b English signal port', text:"matlab error: Invalid Simulink object name: 'Motor/3'."},
+  {...wiring, label:'block without port', text:"matlab error: Simulink 对象名称无效: 'Plant'。", classified:false},
+  {...wiring, label:'mixed wiring and transport failure', text:wiring.text + 'MCP transport disconnected', classified:false},
   {...inport, label:'English Inport', text:"matlab error: Inport block does not have a parameter named 'Value'."},
   {...plant, label:'Chinese plain text', text:"matlab error: 参数 'B' 的 '模型/对象' 中的设置无效。"},
   {...inport, label:'mixed SDK failure', text:inport.text + 'SDK request deadline elapsed', classified:false},
@@ -77,7 +88,7 @@ const parameterScenarios = [
   {...plant, label:'conflicting link target', text:plant.text.replace('>MPC_MassSpringDamper/Plant<','>AnotherModel/Plant<'), classified:false},
   {...plant, label:'unrecognized markup', text:"matlab error: 参数 'B' 的 '<b>model/Plant</b>' 中的设置无效。", classified:false},
 ];
-for (const scenario of parameterScenarios) for (const fault of scenario.conditions ?? ['none']) {
+for (const scenario of editScenarios) for (const fault of scenario.conditions ?? ['none']) {
   test(`${scenario.label} diagnostic, terminal condition: ${fault}`, async () => fixture(async directory => {
     const identityFile = join(directory, 'identity.json'), sessionId = randomUUID();
     const bound = spawnSync(python, ['-m', 'control_harness.matlab_resource', 'bind-session',
@@ -92,11 +103,11 @@ for (const scenario of parameterScenarios) for (const fault of scenario.conditio
     await writeFile(identityFile, JSON.stringify({ schema_version:1, kind:'control-harness-dedicated-matlab-v1',
       status:'ready', project_root:project, matlab_pid:process.pid, session_id:sessionId }));
     const abort = new AbortController(), evalTool = 'mcp__matlab__evaluate_matlab_code';
-    let ctx, requested = 0, probes = 0, permissions = 0;
+    let ctx, firstNonce, requested = 0, probes = 0, permissions = 0;
     const verify = args => createMatlabTerminalVerifier(ctx, {identityFile, codeRoot:project})(args);
     const mounted = await context(directory, {verifyBeforeDispatch:verify, verifyTerminal:verify});
     ctx = mounted.ctx;
-    const {invalid, corrected, text:errorText} = scenario;
+    const {invalid, corrected, text:errorText, category='parameter'} = scenario;
     const qualified = scenario.classified !== false && !['timeout','transport'].includes(fault);
     const retryable = qualified && fault === 'none';
     try {
@@ -105,10 +116,12 @@ for (const scenario of parameterScenarios) for (const fault of scenario.conditio
         const nonce = code.match(/CONTROL_HARNESS_PROBE_([a-f0-9-]{36}):/)?.[1];
         if (nonce) {
           probes++;
+          if (probes === 1) firstNonce = nonce;
           assert.ok(code.includes(resolve(project,'matlab/control_harness_terminal_probe.m')));
           if (probes === 2 && fault === 'cancel-during-probe') abort.abort();
+          if (probes === 2 && fault === 'probe-timeout') throw new Error('SDK request deadline elapsed during terminal verification');
           return mcpSuccess(`CONTROL_HARNESS_PROBE_${nonce}:` + JSON.stringify({
-            nonce, schema_version:1, matlab_pid:process.pid,
+            nonce:probes === 2 && fault === 'stale-proof' ? firstNonce : nonce, schema_version:1, matlab_pid:process.pid,
             session_id:probes === 2 && fault === 'different-session' ? randomUUID() : sessionId,
             helper_file:resolve(project,'matlab/control_harness_terminal_probe'), idle:true, busy_models:[],
             background_futures:0, parallel_futures:0, running_timers:probes === 2 && fault === 'busy' ? 1 : 0,
@@ -119,19 +132,19 @@ for (const scenario of parameterScenarios) for (const fault of scenario.conditio
         if (fault === 'transport') throw new Error('MCP transport disconnected');
         if (code === invalid.code) return {isError:true, content:[{type:'text',text:errorText}]};
         assert.equal(code, corrected.code);
-        return mcpSuccess('corrected parameter');
+        return mcpSuccess('corrected operation');
       });
       const failed = await execute(ctx,evalTool,abort.signal,invalid);
       assert.equal(failed.isError,true);
       if (qualified) {
         assert.equal(failed.error.message,errorText);
-        assert.equal(failed.meta.matlab_parameter_retryable,retryable);
+        assert.equal(failed.meta[`matlab_${category}_retryable`],retryable);
       }
       const ledger = await state(directory);
       if (retryable) {
-        assert.match(failed.content.at(-1).text,/修正参数/);
+        assert.match(failed.content.at(-1).text,category === 'wiring' ? /读回实际端口和已有连线/ : /修正参数/);
         assert.equal(ledger.owner,null); assert.equal(ledger.quarantine,null);
-        assert.equal(ledger.last_completion.evidence.call_outcome,'synchronous_parameter_error');
+        assert.equal(ledger.last_completion.evidence.call_outcome,`synchronous_${category}_error`);
         assert.equal(ledger.last_completion.evidence.matlab_pid,process.pid);
         assert.equal((await execute(ctx,evalTool,undefined,corrected)).isError,false);
         assert.equal(requested,2); assert.equal(probes,4); assert.equal(permissions,6);

@@ -56,6 +56,11 @@ function receipt = control_harness_configure_discrete_plant(model, blockPath, A,
             assert(ischar(actual) && strcmp(strtrim(actual), literals{i}), 'ControlHarness:PlantReadback', ...
                 '参数 %s 的实际存储值与写入的数值字面量不一致。', names{i});
         end
+        % 物理端口数来自当前块的真实句柄。所需信号宽度来自已核对的 B 的列数、C 的行数。
+        % 接线时要按此顺序合并或拆分向量；父图可以仍有缺线，此处不触发编译。
+        physical = get_param(block, 'PortHandles');
+        receipt.ports = struct('input_count', numel(physical.Inport), 'output_count', numel(physical.Outport), ...
+            'required_input_width', m, 'required_output_width', r);
     catch exception
         % apply 阶段可能来自模型回调或非参数异常；保留原生 MATLAB 错误，
         % 让持有租约的 Host 判定是否可执行身份及空闲复核，不将未知异常伪装成业务拒绝。
