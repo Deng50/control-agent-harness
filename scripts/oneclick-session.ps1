@@ -27,7 +27,7 @@ function Get-ControlSessionAppData {
             $env:PYTHONPATH = Join-Path $ProjectRoot 'src'
             $state = Read-ControlStartupResource $python $ResourceDirectory
             if ($state.quarantine) {
-                if ($state.owner -or $state.queue) { throw '专用 MATLAB 已隔离，仍有占用者或排队任务。请等待现有任务结束后重试。' }
+                if ($state.owner) { throw '专用 MATLAB 仍有占用者，请等待现有任务结束后重试。' }
                 $ticket = $state.quarantine.token
                 $binding = $state.quarantine.owner.session
                 if ($null -eq $binding) { $binding = $state.session }
@@ -35,45 +35,40 @@ function Get-ControlSessionAppData {
                     -not $binding.host -or ($binding.pid -isnot [long] -and $binding.pid -isnot [int]) -or
                     $binding.pid -le 0 -or $binding.pid -gt [int]::MaxValue -or
                     $binding.identity -notmatch '^win32:[a-f0-9]{16}$') {
-                    throw '专用 MATLAB 已隔离，旧会话的绑定或隔离记录不完整。请按 docs/matlab-existing-session.md 核对资源记录。'
+                    throw '专用 MATLAB 正在等待核验，旧会话的进程绑定或调用记录不完整。请按 docs/matlab-existing-session.md 核对资源记录。'
                 }
-                if ($binding.host -ne [Environment]::MachineName) { throw '专用 MATLAB 已隔离。请在原电脑核实其进程并恢复该资源。' }
+                if ($binding.host -ne [Environment]::MachineName) { throw '专用 MATLAB 的调用记录属于另一台电脑，请在原电脑核实进程与调用状态。' }
                 if ($state.session -and ($state.session.host -cne $binding.host -or
                     $state.session.pid -ne $binding.pid -or $state.session.identity -cne $binding.identity -or
                     $state.session.session_id -cne $binding.session_id)) {
-                    throw '专用 MATLAB 已隔离，两份会话绑定记录不一致。请先核对原会话的归属再恢复。'
+                    throw '专用 MATLAB 的两份会话绑定记录不一致。请先核对原会话的归属，再恢复派发。'
                 }
                 # 恢复权限始终由 broker 决定。它在锁内复核本机进程创建标识、隔离票据及执行互斥锁并归档证据。
                 # PS 5.1 会将原生命令 stderr 包装成 ErrorRecord；此处只使用退出码，再读当前状态决定下一步。
-                $recoveryExit = & {
-                    $ErrorActionPreference = 'Continue'
-                    $PSNativeCommandUseErrorActionPreference = $false
-                    & $python -m control_harness.matlab_resource recover-after-session-exit --directory $ResourceDirectory --token $ticket 2>$null | Out-Null
-                    return $LASTEXITCODE
-                }
-                $state = Read-ControlStartupResource $python $ResourceDirectory
-                if ($state.quarantine) {
-                    if ($state.quarantine.token -ne $ticket) { throw '专用 MATLAB 的隔离记录已更新，请重新运行启动入口以核对新记录。' }
-                    $sameProcess = $false
-                    try {
-                        $process = Get-ControlLiveProcess $binding.pid
-                        if ($process -and $process.ProcessName -eq 'MATLAB') {
-                            $sameProcess = ('win32:{0:x16}' -f $process.StartTime.ToUniversalTime().ToFileTimeUtc()) -eq $binding.identity
-                        }
-                    } catch { $sameProcess = $false }
-                    if ($sameProcess) {
-                        throw "专用 MATLAB 已隔离，原进程 PID $($binding.pid) 仍在运行。请先保存该实例中的模型并关闭该实例，再重新运行一键启动。"
+                if ($state.session_alive -eq $true) {
+                    # 仅复用相同绑定启动 Host；普通 MATLAB 请求继续由 broker 拦住，直到在线核验通过。
+                    Write-Host "专用 MATLAB（PID $($binding.pid)）仍在运行。网页将核验上次调用的终态。"
+                } else {
+                    $recoveryExit = & {
+                        $ErrorActionPreference = 'Continue'
+                        $PSNativeCommandUseErrorActionPreference = $false
+                        & $python -m control_harness.matlab_resource recover-after-session-exit --directory $ResourceDirectory --token $ticket 2>$null | Out-Null
+                        return $LASTEXITCODE
                     }
-                    throw "专用 MATLAB 已隔离。系统尚不能确认 PID $($binding.pid) 对应的原进程已退出且执行锁已释放。请用原启动账户核实后重试，详见 docs/matlab-existing-session.md。"
+                    $state = Read-ControlStartupResource $python $ResourceDirectory
+                    if ($state.quarantine) {
+                        if ($state.quarantine.token -ne $ticket) { throw '专用 MATLAB 的待核验记录已更新，请重新运行启动入口以核对新记录。' }
+                        throw "系统尚不能确认 PID $($binding.pid) 对应的原进程已退出且执行锁已释放。请用原启动账户核实后重试，详见 docs/matlab-existing-session.md。"
+                    }
+                    if ($recoveryExit -ne 0) {
+                        throw '恢复期间资源记录已发生变化。请重新运行一键启动，以当前绑定重新核验。'
+                    }
+                    $retiredSessionId = $binding.session_id
+                    Write-Host "已核实原专用 MATLAB（PID $($binding.pid)）已退出，恢复证据已归档。"
                 }
-                if ($recoveryExit -ne 0) {
-                    throw '恢复期间资源记录已发生变化。请重新运行一键启动，以当前绑定重新核验。'
-                }
-                $retiredSessionId = $binding.session_id
-                Write-Host "已核实原专用 MATLAB（PID $($binding.pid)）已退出，隔离恢复证据已归档。"
             }
         } finally { $env:PYTHONPATH = $previousPythonPath }
-        if ($state.owner -or $state.queue) { throw '专用 MATLAB 正在处理任务。请使用当前网页，或在队列清空后重试。' }
+        if ($state.owner -or ($state.queue -and -not $state.quarantine)) { throw '专用 MATLAB 正在处理任务。请使用当前网页，或在队列清空后重试。' }
         if ($state.session) {
             if ($state.session.host -ne [Environment]::MachineName) { throw '资源记录属于另一台电脑。请使用本机的 Harness 数据目录。' }
             $process = Get-ControlLiveProcess $state.session.pid
@@ -107,7 +102,9 @@ function Get-ControlSessionAppData {
                 if (-not $process -or $process.ProcessName -ne 'MATLAB' -or
                     $process.StartTime.ToUniversalTime() -gt ([datetimeoffset]$marker.createdAt).UtcDateTime.AddSeconds(1)) { continue }
                 if ($boundSession -and $marker.matlab_pid -ne $boundSession.pid) { continue }
-                if ($launch.matlab_executable -ne $Components.MatlabExecutable -or $marker.toolkit_root -ne $Components.SimulinkToolkitRoot) {
+                if ($launch.matlab_executable -ne $Components.MatlabExecutable -or $marker.toolkit_root -ne $Components.SimulinkToolkitRoot -or
+                    ($marker.mcp_executable -and $marker.mcp_executable -ne $Components.MatlabMcpExecutable) -or
+                    ($marker.toolbox_root -and $marker.toolbox_root -ne $Components.MatlabMcpToolboxRoot)) {
                     throw "已有专用会话使用其他 MATLAB 或 Toolkit 版本。请先在该版本完成工作并退出，然后重试。目录：$appData"
                 }
                 $chosen = $directory.FullName

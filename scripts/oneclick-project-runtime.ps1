@@ -81,6 +81,19 @@ function Test-ControlBuild([string]$ProjectRoot) {
     return $true
 }
 
+function Test-ControlWebClientCurrent([string]$ProjectRoot) {
+    $pluginRoot = Join-Path $ProjectRoot 'harness-plugin'
+    $bundle = Join-Path $pluginRoot 'lib/client.js'
+    if (-not [IO.File]::Exists($bundle)) { return $false }
+    $builtAt = [IO.File]::GetLastWriteTimeUtc($bundle)
+    $inputs = @(Get-ChildItem -File -Recurse -LiteralPath (Join-Path $pluginRoot 'src'))
+    foreach ($name in 'tsdown.config.ts','package.json') {
+        $inputs += Get-Item -LiteralPath (Join-Path $pluginRoot $name)
+    }
+    $inputs += Get-Item -LiteralPath (Join-Path $ProjectRoot 'src/control_harness/stage_contracts.json')
+    return -not ($inputs | Where-Object LastWriteTimeUtc -gt $builtAt | Select-Object -First 1)
+}
+
 function Test-ControlProfile([string]$HarnessHome,[string]$ProjectRoot) {
     $profileDir = Join-Path $HarnessHome 'profiles/web'
     $bundle = '@control-engineering/harness-bundle'
@@ -111,12 +124,14 @@ function Initialize-ControlProjectRuntime {
     $pythonOK = Test-ControlPython $python
     $modulesOK = $pythonOK -and (Test-ControlPythonModules $python $ProjectRoot)
     $built = Test-ControlBuild $ProjectRoot
+    $staleClient = $built -and -not (Test-ControlWebClientCurrent $ProjectRoot)
     $registered = Test-ControlProfile $HarnessHome $ProjectRoot
     $missing = @(
         if (-not $node) { 'Node.js >= 24.9 x64' }
         if (-not $pythonOK) { '项目 .venv（CPython 3.10–3.13 x64）' }
         if (-not $modulesOK) { 'Python 数值依赖' }
         if (-not $built) { 'Harness 与网页插件构建' }
+        if ($staleClient) { '更新控制工程网页插件' }
         if (-not $registered) { '网页配置中的项目插件注册' }
     )
     if ($CheckOnly) { return [pscustomobject]@{Ready=($missing.Count -eq 0); Missing=$missing; NodePath=$node; PythonPath=$python} }
@@ -127,6 +142,14 @@ function Initialize-ControlProjectRuntime {
         if (-not $node) { throw '下载的 Node.js 无法运行。请确认使用 Windows x64，并检查安装输出。' }
     }
     $env:Path = (Split-Path -Parent $node) + ';' + $env:Path
+    if ($staleClient) {
+        Write-Host '[准备项目] 正在从此检出的源码更新网页插件…'
+        Push-Location (Join-Path $ProjectRoot 'harness-plugin')
+        try {
+            & $node (Join-Path $ProjectRoot 'vendor/deepseek-harness/node_modules/tsdown/dist/run.mjs') --config tsdown.config.ts | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw '控制工程网页插件更新失败，请检查上方构建输出。' }
+        } finally { Pop-Location }
+    }
     $creatingVenv = Join-Path $venv '.control-venv-setup'
     if (-not $pythonOK) {
         if ((Test-Path -LiteralPath $venv) -and -not (Test-Path -LiteralPath $creatingVenv -PathType Leaf)) {

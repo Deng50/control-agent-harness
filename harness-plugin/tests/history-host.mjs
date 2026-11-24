@@ -10,7 +10,7 @@ export const project = resolve(import.meta.dirname, '../..');
 const upstream = resolve(project, 'vendor/deepseek-harness');
 const built = async path => import(pathToFileURL(resolve(upstream, path)));
 
-export async function createHost(workspace, owner = 'durable-test-session', { confirmFixturePlans = true, policy, pythonPath } = {}) {
+export async function createHost(workspace, owner = 'durable-test-session', { confirmFixturePlans = true, policy, pythonPath, sandbox = {} } = {}) {
   const { Context } = await built('vendor/cordis/lib/index.js');
   const { Session } = await built('packages/core/session/lib/index.js');
   const { default: Projection } = await built('packages/session/session-projection/lib/index.js');
@@ -34,7 +34,7 @@ export async function createHost(workspace, owner = 'durable-test-session', { co
   // Native commands/projections preserve the real user-source receipt seam.
   // Only the unused model-facing tool registry is captured in this job fixture.
   apply({ jobs: ctx.jobs, subprocess: ctx.subprocess, logger: ctx.logger, on: ctx.on.bind(ctx), provide: ctx.provide.bind(ctx),
-    commands: ctx.commands, sessionProjections: ctx.sessionProjections, tools: { register() {} }, attachments: {}, sandbox: {},
+    commands: ctx.commands, sessionProjections: ctx.sessionProjections, tools: { register() {} }, attachments: {}, sandbox,
     sandboxPolicy: { resolve: policy ?? (() => ({ mode: 'danger-full-access', workspaceRoot: workspace })) },
   }, { codeRoot: project, pythonPath: pythonPath ?? resolve(project, process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python'),
     timeoutSeconds: 120, cancellationGraceMs: 5000, maxConcurrentWorkers: 1 });

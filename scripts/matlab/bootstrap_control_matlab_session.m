@@ -32,9 +32,19 @@ addpath(fullfile(projectRoot, 'matlab'));
 % Restore this process environment on success and on every MATLAB exception.
 restoreEnvironment = onCleanup(@() setenv('APPDATA', originalAppData));
 setenv('APPDATA', privateAppData);
-% 旧安装通过 satk_initialize 配置工具路径并分享当前 MATLAB。官方 .mltbx 安装包
-% 由 Add-On 管理器注册工具路径，此时用已安装的 MCP Toolbox 分享同一专用会话。
-if isfile(fullfile(toolkitRoot, 'satk_initialize.p')) || isfile(fullfile(toolkitRoot, 'satk_initialize.m'))
+% A private toolbox install uses the official package's declared path order.
+% No Add-On registration, user preferences or shared connector are modified.
+pathManifest = fullfile(fileparts(toolkitRoot), 'metadata', 'configuration.xml');
+if isfile(pathManifest)
+    nodes = xmlread(pathManifest).getElementsByTagName('matlabPath');
+    for n = nodes.getLength()-1:-1:0
+        rel = regexprep(char(nodes.item(n).getTextContent()), '^/', '');
+        addpath(fullfile(toolkitRoot, rel));
+    end
+    assert(strcmpi(fileparts(which('shareMATLABSession')), toolboxRoot), ...
+        'ControlHarness:UnexpectedConnector', 'The selected private connector was not resolved.');
+    shareMATLABSession();
+elseif isfile(fullfile(toolkitRoot, 'satk_initialize.p')) || isfile(fullfile(toolkitRoot, 'satk_initialize.m'))
     satk_initialize(MCPServerPath=serverExecutable);
 else
     assert(strcmpi(fileparts(which('shareMATLABSession')), toolboxRoot), ...
@@ -46,15 +56,15 @@ assert(strcmpi(fileparts(which('model_edit')), fullfile(toolkitRoot, 'tools', 'm
     'ControlHarness:ToolkitNotRegistered', ...
     'model_edit does not resolve to the selected toolkit. Enable the Simulink Agentic Toolkit in this MATLAB.');
 detailsPath = fullfile(privateAppData, 'MathWorks', 'MATLAB MCP Server', 'v1', 'sessionDetails.json');
-details = jsondecode(fileread(detailsPath));
-assert(double(details.pid) == feature('getpid'), 'ControlHarness:WrongSession', ...
-    'The private connection descriptor does not identify this dedicated MATLAB.');
+assert(isfile(detailsPath), 'ControlHarness:MissingConnector', ...
+    'The connector did not publish in the private directory.');
 clear restoreEnvironment;
 cd(projectRoot);
 marker = struct('schema_version', 1, 'kind', 'control-harness-dedicated-matlab-v1', 'status', 'ready', ...
     'session_id', sessionId, 'pid', feature('getpid'), 'matlab_pid', feature('getpid'), 'project_root', projectRoot, ...
     'private_appdata', privateAppData, 'matlab_release', version('-release'), ...
-    'toolkit_root', toolkitRoot, 'createdAt', char(datetime('now', 'TimeZone', 'UTC', ...
+    'toolkit_root', toolkitRoot, 'toolbox_root', toolboxRoot, ...
+    'mcp_executable', serverExecutable, 'createdAt', char(datetime('now', 'TimeZone', 'UTC', ...
     'Format', 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z''')));
 markerPath = fullfile(privateAppData, 'control-harness-session.json');
 % 先关闭临时文件再在同一目录发布；轮询就绪文件的启动器只会看到完整 JSON。

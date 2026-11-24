@@ -1,6 +1,7 @@
 ﻿# 用真实资源状态读取协议和模拟的 MATLAB 进程信息，验证重启、版本冲突与隔离边界。
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'oneclick-session.ps1')
+. (Join-Path $PSScriptRoot 'oneclick-web.ps1')
 $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $fixture = Join-Path $project ('test-output\oneclick-session-check-' + [guid]::NewGuid())
 $sessions = Join-Path $fixture 'matlab'
@@ -50,10 +51,25 @@ function Assert-QuarantinePreserved([string]$Diagnostic) {
 }
 $ticket = [guid]::NewGuid().ToString('N')
 $state.quarantine = @{reason='fixture';token=$ticket;owner=@{session=$binding.Clone()}}
-# broker 核对实际运行中的测试 PowerShell 进程。启动器不得关闭它或解除隔离。
-Assert-QuarantinePreserved "PID $PID 仍在运行"
+# 活实例可按原绑定进入网页核验，启动器本身不解除暂挂。
+Write-TestJson $stateFile $state
+if ((Get-ControlSessionAppData @request) -ne $appData) { throw 'Live pending instance was not reused for verification' }
+$after = Get-Content -LiteralPath $stateFile -Encoding UTF8 -Raw | ConvertFrom-Json
+if ($after.quarantine.token -ne $ticket -or $after.session.session_id -ne $sessionId) { throw 'Startup cleared pending verification' }
+$runId = [guid]::NewGuid().ToString('N')
+$ack = Join-Path $fixture "ready-$runId.json"
+$ready = @{launch_id=$runId;project_root=$project;port=12345;resource_directory=$resource;web_pid=2147483600;session=$binding}
+Write-TestJson $ack $ready
+foreach ($excluded in @(0,1,75,76,130,143,-1073741510)) {
+    if (Test-ControlHostCrashRecovery $excluded $ack $runId $project $resource 12345) { throw 'Normal stop, Ctrl+C or generic error triggered restart' }
+}
+$state.quarantine.owner.phase = 'running'
+Write-TestJson $stateFile $state
+if (-not (Test-ControlHostCrashRecovery -1073741819 $ack $runId $project $resource 12345)) { throw 'Matching fatal exit ignored' }
+if (Test-ControlHostCrashRecovery -1073741819 $ack 'previous-launch' $project $resource 12345) { throw 'Stale startup receipt accepted' }
 $state.queue = @($binding)
-Assert-QuarantinePreserved '排队任务'
+Write-TestJson $stateFile $state
+if ((Get-ControlSessionAppData @request) -ne $appData) { throw 'A queued caller blocked verification startup' }
 $state.queue = @()
 $state.quarantine.owner.session.session_id = 'another-session'
 Assert-QuarantinePreserved '绑定记录不一致'

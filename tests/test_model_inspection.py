@@ -95,7 +95,10 @@ class ModelInspectionTests(unittest.TestCase):
         self.assertEqual(len(report["simulink_structure"]["declared_port_blocks"]), 2)
         self.assertFalse(report["runtime"]["matlab_started"])
         self.assertEqual(report["runtime"]["license_status"], "not_checked")
-        self.assertFalse(report["runtime"]["native_execution_supported"])
+        self.assertIsNone(report["runtime"]["native_execution_supported"])
+        self.assertEqual(report["runtime"]["scope"], "static_material_inspection")
+        self.assertEqual(report["runtime"]["runtime_verification"], "dedicated_matlab_session_required")
+        self.assertEqual(report["runtime"]["blockers"], [])
         self.assertFalse(report["simulink_structure"]["compiled"])
 
     def test_slx_entity_xml_and_bogus_archive_are_reported(self):

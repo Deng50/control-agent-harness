@@ -12,7 +12,7 @@ function checkMatrix(name, rows, columns, value) {
   }
 }
 
-function matrixLiteral(name, rows, columns, value) {
+export function matrixLiteral(name, rows, columns, value) {
   checkMatrix(name, rows, columns, value);
   // 只由有限数字生成 MATLAB 字面量，保留列方向；不接收调用方提供的 MATLAB 表达式。
   return '[' + value.map(row => row.join(' ')).join(';') + ']';

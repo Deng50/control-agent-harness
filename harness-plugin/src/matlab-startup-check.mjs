@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import z from '@deepseek-ai/schemastery';
+import { superviseWebBinding } from './matlab-web-rebind.mjs';
 
 export const name = 'control-matlab-startup-check';
 // controlEngineering 仅在业务工具、资源锁及终态探针安装完毕后由主插件发布。
-export const inject = ['tools', 'controlEngineering', 'webServer'];
+export const inject = ['tools', 'controlEngineering', 'webServer', 'agents', 'jobs', 'appExit'];
 export const Config = z.object({ identityFile: z.string().required() });
 
 const evaluate = 'mcp__matlab__evaluate_matlab_code';
@@ -33,7 +34,7 @@ export async function checkStartupConnection(tools, identity, signal) {
   const result = batch.results[0]?.result;
   if (!result || result.isError) {
     const reason = result?.error?.message ?? '';
-    if (/quarantin|隔离/i.test(reason)) throw new Error('MATLAB 资源已隔离，请检查专用会话的隔离记录和恢复流程。');
+    if (/quarantin|隔离/i.test(reason)) throw new Error('上次 MATLAB 调用的终态待核验，请检查专用会话的恢复记录。');
     throw new Error('实际 MATLAB 调用失败，请检查专用会话日志、资源状态和 MCP 工具权限。');
   }
   const records = (result.value?.content ?? []).filter(item => item.type === 'text')
@@ -56,7 +57,32 @@ export async function apply(ctx, config) {
   ctx.on('dispose', () => stop.abort());
   const identity = JSON.parse(await readFile(config.identityFile, 'utf8'));
   const signal = AbortSignal.any([stop.signal, AbortSignal.timeout(120000)]);
-  const receipt = await checkStartupConnection(ctx.tools, identity, signal);
+  const recovery = ctx.get('controlEngineering')?.matlabRecovery;
+  let pending = await recovery?.pending({inspectOwner:true});
+  let receipt;
+  if (!pending) {
+    try { receipt = await checkStartupConnection(ctx.tools, identity, signal); }
+    catch (error) {
+      // A concurrent dispatch can enter recovery during the startup request.
+      // Keep the Web Host available if the broker now owns a pending record.
+      pending = await recovery?.pending({inspectOwner:true});
+      if (!pending || stop.signal.aborted) throw error;
+    }
+  }
+  if (pending) {
+    const binding = pending.owner?.session;
+    if (binding && (binding.session_id !== identity.session_id || binding.pid !== identity.matlab_pid)) {
+      throw new Error('待核验的 MATLAB 调用属于另一个实例，请检查专用进程绑定。');
+    }
+    // Keep the UI and file tools available. Only the Host verifier can settle
+    // the outstanding execution. Startup must not send a second normal call.
+    receipt = {status:'pending_verification', sessionId:identity.session_id, matlabPid:identity.matlab_pid};
+    void recovery.check();
+  }
+  if (process.env.CONTROL_ONECLICK_SUPERVISE === '1') {
+    await superviseWebBinding(ctx, identity, stop.signal, process.env);
+  }
   ctx.provide('controlMatlabReady', receipt);
-  console.log(`MATLAB 连接验证通过：R${receipt.release}，专用 PID ${receipt.matlabPid}，2 + 3 = ${receipt.sum}。`);
+  if (pending) console.log('网页已启动。上次 MATLAB 调用的结果待核实，工程文件和作业记录可用。');
+  else console.log(`MATLAB 连接验证通过：R${receipt.release}，专用 PID ${receipt.matlabPid}，2 + 3 = ${receipt.sum}。`);
 }

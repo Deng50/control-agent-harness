@@ -2,6 +2,9 @@ function control_harness_task_batch(helper, manifestPath, manifestHash, nonce, s
 % 一个已核对的工程步骤只进入一次原生工具。先证明进程与空闲状态，
 % 身份不符时不接触模型；数值函数返回后再复核，缺少终态证据时 Host 隔离资源。
 trustedRoot = fileparts(mfilename('fullpath'));
+% Publish only as this invocation unwinds, including a synchronous MATLAB
+% exception. The recovery verifier independently checks process identity and idle.
+completion = onCleanup(@() setappdata(groot,'ControlHarnessCompletedCall',nonce));
 allowed = {'control_harness_collect_batch','control_harness_expert_batch', ...
     'control_harness_policy_evaluation','control_evaluate_pgac_batch','control_harness_design_batch'};
 assert(any(strcmp(helper,allowed)), 'ControlHarness:TaskHelper','Unknown task helper.');

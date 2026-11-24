@@ -2,11 +2,58 @@
 import { link, lstat, mkdir, open, readFile, realpath, rename, rmdir, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { authorizeWorkspace } from './job-history.mjs';
 import { inspectHostSecurity, pinDirectoryPath } from './windows-host-security.mjs';
 import { WorkspacePreflightError } from './workspace-policy.mjs';
 export { WorkspacePreflightError };
+
+const pendingPreparations = new Map();
+
+function insideDirectory(parent, path) {
+  const child = relative(parent,path);
+  return child !== '' && !isAbsolute(child) && child !== '..' && !child.startsWith('..' + sep);
+}
+
+export function canPrepareSessionWorkspace(codeRoot, workspace, security) {
+  return typeof workspace === 'string' && isAbsolute(workspace) && insideDirectory(join(codeRoot,'workspaces'),workspace) &&
+    security?.owner_is_current_user === true && security.filesystem?.toUpperCase() === 'NTFS' &&
+    security.effective_rights?.WRITE_DAC === true && security.right_errors?.WRITE_OWNER === 5;
+}
+
+// The path comes from the verified native Session cwd. All callers share the
+// same bounded, idempotent ACL edit, then independently verify their own worker.
+function prepareOwnedWorkspace(ctx, config, workspace) {
+  const key = workspace.toLowerCase();
+  if (pendingPreparations.has(key)) return pendingPreparations.get(key);
+  const prepare = (async () => {
+    const executable = join(process.env.SystemRoot,'System32','WindowsPowerShell','v1.0','powershell.exe');
+    const proc = ctx.subprocess.spawn({argv:[executable,'-NoProfile','-NonInteractive','-File',
+      join(config.codeRoot,'scripts','prepare-workspace.ps1'),'-Workspace',workspace,'-PrepareForSession'],
+      cwd:config.codeRoot, signal:AbortSignal.timeout(12000), graceMs:1000,
+      stdio:{stdin:'ignore', stdout:{maxBytes:32768}, stderr:{maxBytes:4096}}});
+    const done = await proc.done;
+    await proc.waitForExit();
+    if (done.exitCode !== 0) throw new Error(proc.collected.stderr.readFrom(0).text.trim() || 'Workspace preparation failed');
+    const result = JSON.parse(proc.collected.stdout.readFrom(0).text);
+    if (relative(workspace,result.workspace) || !Array.isArray(result.added_leaf_rights) ||
+        !result.added_leaf_rights.every(r=>r === 'WRITE_OWNER')) throw new Error('Invalid workspace preparation receipt');
+    return result;
+  })().finally(()=>pendingPreparations.delete(key));
+  pendingPreparations.set(key,prepare);
+  return prepare;
+}
+
+function windowsRecovery(codeRoot, workspace, security) {
+  const quote = value => "'" + value.replaceAll("'", "''") + "'";
+  const command = '& ' + quote(join(codeRoot, 'scripts', 'prepare-workspace.ps1')) + ' -Workspace ' + quote(workspace);
+  const inside = ['workspaces', 'test-output'].some(folder => insideDirectory(join(codeRoot,folder),workspace));
+  const missing = Object.keys(security.right_errors);
+  const canPrepare = inside && security.owner_is_current_user && security.filesystem.toUpperCase() === 'NTFS' &&
+    missing.every(right => security.right_errors[right] === 5);
+  return {workspace, missing_rights:missing, diagnose_command:command, can_prepare:canPrepare,
+    ...(canPrepare ? {prepare_command:command + ' -Prepare'} : {})};
+}
 
 function failure(actor, operation, path, error, extra = {}) {
   const nativeCode = error.winerror ?? error.errno ?? error.message?.match(/\bWin32\s+(\d+)/i)?.[1];
@@ -132,7 +179,7 @@ async function runProbe({ctx, config, workspace, actor, stop, argv, expectedTemp
   }
 }
 
-export async function preflightWorkspace({ ctx, config, workspace, policy, signal, operation }) {
+export async function preflightWorkspace({ ctx, config, workspace, policy, signal, operation, agent }) {
   const timeout = AbortSignal.timeout(15000);
   const stop = signal ? AbortSignal.any([signal, timeout]) : timeout;
   let root;
@@ -146,7 +193,10 @@ export async function preflightWorkspace({ ctx, config, workspace, policy, signa
   const releases = [];
   try {
     releases.push(pinDirectoryPath(root, true));
-    return await checkAuthorizedWorkspace({ctx,config,root,policy,stop,releases,operation});
+    const cwd = agent?.session?.header?.cwd;
+    const prepareSessionWorkspace = typeof agent?.id === 'string' && agent.id === agent.session?.id &&
+      typeof cwd === 'string' && isAbsolute(cwd) && !relative(cwd,workspace) && !relative(cwd,root);
+    return await checkAuthorizedWorkspace({ctx,config,root,policy,stop,releases,operation,prepareSessionWorkspace});
   } catch (error) {
     if (error instanceof WorkspacePreflightError) throw error;
     throw failure('host',error.operation ?? 'pin_workspace',root,error);
@@ -155,9 +205,9 @@ export async function preflightWorkspace({ ctx, config, workspace, policy, signa
   }
 }
 
-async function checkAuthorizedWorkspace({ctx,config,root,policy,stop,releases,operation}) {
+async function checkAuthorizedWorkspace({ctx,config,root,policy,stop,releases,operation,prepareSessionWorkspace}) {
   // Preserve support for a fresh authorized workspace. Do not create ledger, plans,
-  // checkpoints, or an attempt during admission. Never chmod or alter an ACL here.
+  // checkpoints, or an attempt during admission.
   try {
     await mkdir(root, { recursive:true });
     releases.push(pinDirectoryPath(root));
@@ -183,15 +233,42 @@ async function checkAuthorizedWorkspace({ctx,config,root,policy,stop,releases,op
     let security;
     try { security = inspectHostSecurity(grantRoot); }
     catch (error) { throw failure('host', error.operation ?? 'inspect_security', grantRoot, error); }
-    host = { ...host, security };
     if (policy.mode === 'workspace-write') {
       if (security.filesystem.toUpperCase() !== 'NTFS') {
         throw failure('host', 'filesystem', grantRoot, new Error('Windows ACL backend requires local NTFS'), {security});
       }
+      let prepareError;
+      if (prepareSessionWorkspace && !relative(root,grantRoot) && canPrepareSessionWorkspace(config.codeRoot,root,security)) {
+        stop.throwIfAborted();
+        const before = security.effective_rights;
+        try {
+          const result = await prepareOwnedWorkspace(ctx,config,root);
+          host.workspace_preparation = {prepared:result.prepared === true, before, added_leaf_rights:result.added_leaf_rights,
+            ...(result.reason ? {reason:result.reason} : {})};
+        } catch (error) {
+          prepareError = error;
+          host.workspace_preparation = {prepared:false,before,reason:'prepare_failed'};
+        }
+        stop.throwIfAborted();
+        security = inspectHostSecurity(root);
+        if (!Object.keys(security.right_errors).length && (prepareError || !host.workspace_preparation.prepared ||
+            !security.owner_is_current_user || security.filesystem.toUpperCase() !== 'NTFS')) {
+          throw failure('host','verify_prepared_workspace',root,prepareError ?? new Error('The owner or preparation receipt changed during workspace setup.'),
+            {security,workspace_preparation:host.workspace_preparation});
+        }
+      }
       for (const [right, code] of Object.entries(security.right_errors)) {
-        throw failure('host', 'check_' + right, grantRoot, Object.assign(new Error(right), {winerror:code}), {security});
+        const recovery = windowsRecovery(config.codeRoot, grantRoot, security);
+        const denied = host.workspace_preparation?.reason === 'applicable_deny_ace';
+        if (denied) { recovery.can_prepare = false; delete recovery.prepare_command; }
+        const message = denied ? '目录 ACL 中存在针对当前账户的拒绝规则，请使用其他自有工作区或联系目录所有者。'
+          : prepareError ? right + '：自动准备失败。' + prepareError.message : right;
+        throw failure('host', 'check_' + right, grantRoot, Object.assign(new Error(message), {winerror:code}),
+          {security, ...(host.workspace_preparation ? {workspace_preparation:host.workspace_preparation} : {}),
+            ...(code === 5 ? {workspace_recovery:recovery} : {})});
       }
     }
+    host.security = security;
   }
   const directory = join(root, '.control-preflight-' + randomUUID());
   // Materialize native session grants before creating any Host-owned probe files.

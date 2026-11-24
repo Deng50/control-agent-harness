@@ -71,7 +71,7 @@ test('expired native receipt, wrong session, changed MCP program, restart and ca
   assert.equal(f.grants.status(f.card).state,'revoked');
 });
 
-test('a new confirmed scope for the same task revokes its old grant; quarantine blocks admission',async t=>{
+test('an unchanged confirmed task may prepare during pending verification; changed process binding still blocks dispatch',async t=>{
   const f=await fixture(t);f.grants.issue(f.card,f.source);
   f.request.config.sampling.steps=30;
   const current=await f.grants.review(f.request,f.agent,f.card.intent_id);
@@ -80,5 +80,8 @@ test('a new confirmed scope for the same task revokes its old grant; quarantine 
   assert.equal(f.grants.status(f.card).reason,'superseded_card');
   f.state.quarantine={reason:'unknown_outcome'};
   await writeFile(resolve(f.card.workspace,'resource.json'),JSON.stringify(f.state));
-  await assert.rejects(f.grants.reserve({...f,card:next}),/隔离/);
+  const queued=await f.grants.reserve({...f,card:next});
+  f.state.quarantine.owner={session:{...f.state.session,identity:'other'}};
+  await writeFile(resolve(f.card.workspace,'resource.json'),JSON.stringify(f.state));
+  await assert.rejects(queued.validate(f.state.session),/身份/);
 });

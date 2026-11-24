@@ -18,6 +18,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'oneclick-matlab-components.ps1')
 . (Join-Path $PSScriptRoot 'oneclick-project-runtime.ps1')
 . (Join-Path $PSScriptRoot 'oneclick-session.ps1')
+. (Join-Path $PSScriptRoot 'oneclick-web.ps1')
 . (Join-Path $PSScriptRoot 'windows-paths.ps1')
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if (-not $HarnessHome) { $HarnessHome = Join-Path $projectRoot '.dsh' }
@@ -50,12 +51,21 @@ $mutex = [Threading.Mutex]::new($false,$lockName)
 $acquired = $false
 try {
     try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
-    if (-not $acquired) { throw '这个项目的启动窗口已经打开。请回到原窗口查看安装进度或使用其中的网页地址。' }
+    if (-not $acquired) {
+        $existing = Get-ControlExistingWeb -ProjectRoot $projectRoot -Port $Port -FindOtherPort
+        if ($existing) { Show-ControlExistingWeb -Web $existing -NoOpen:$NoOpen -ProjectRoot $projectRoot -HarnessHome $HarnessHome }
+        else { Write-Host '项目正在准备启动。请稍候，或在原启动窗口查看安装进度。' }
+        return
+    }
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$Port)
     try {
         $listener.Server.ExclusiveAddressUse = $true
         $listener.Start()
-    } catch { throw "无法监听本机端口 $Port。若网页已启动，请回到原窗口；若端口被其他程序占用，可使用 -Port 指定空闲端口。" }
+    } catch {
+        $existing = Get-ControlExistingWeb -ProjectRoot $projectRoot -Port $Port
+        if ($existing) { Show-ControlExistingWeb -Web $existing -NoOpen:$NoOpen -ProjectRoot $projectRoot -HarnessHome $HarnessHome; return }
+        throw "无法监听本机端口 $Port。请检查该端口是否可用，或使用 -Port 指定空闲端口。"
+    }
     finally { $listener.Stop() }
 
     Write-Host '[1/4] 正在定位本机 MATLAB/Simulink 并补齐缺少的连接组件…'
@@ -75,12 +85,36 @@ try {
     }
     $sessionRoot = Join-Path $HarnessHome 'matlab'
     $resource = Join-Path $sessionRoot 'shared-resource'
-    $appData = Get-ControlSessionAppData -ProjectRoot $projectRoot -SessionRoot $sessionRoot -ResourceDirectory $resource -Components $launchPaths
-    Write-Host '[4/4] 正在从网页服务调用 MATLAB。验证完成后即可使用网页；Ctrl+C 停止网页服务。'
-    & (Join-Path $PSScriptRoot 'start-web.ps1') -Matlab -VerifyMatlab -HarnessHome $HarnessHome -Workspace $Workspace -Port $Port -NoOpen:$NoOpen `
-        -MatlabSessionAppData $appData -MatlabResourceDirectory $resource `
-        -MatlabMcpExecutable $components.MatlabMcpExecutable -SimulinkToolkitRoot $components.SimulinkToolkitRoot
-    if ($LASTEXITCODE -ne 0) { throw "网页服务退出（代码 $LASTEXITCODE）。请查看上面的连接检查或启动错误。" }
+    $crashRestarts = 0
+    do {
+        $appData = Get-ControlSessionAppData -ProjectRoot $projectRoot -SessionRoot $sessionRoot -ResourceDirectory $resource -Components $launchPaths
+        Write-Host '[4/4] 正在从网页服务调用 MATLAB。验证完成后即可使用网页；Ctrl+C 停止网页服务。'
+        $previousRun = $env:CONTROL_ONECLICK_HOST_RUN
+        $launchId = [guid]::NewGuid().ToString('N')
+        $readyFile = Join-Path (Join-Path $projectRoot '.dsh\oneclick') "ready-$launchId.json"
+        $retryCrash = $false
+        try {
+            $env:CONTROL_ONECLICK_HOST_RUN = $launchId
+            & (Join-Path $PSScriptRoot 'start-web.ps1') -Matlab -VerifyMatlab -SuperviseMatlab -HarnessHome $HarnessHome -Workspace $Workspace -Port $Port -NoOpen:$NoOpen `
+                -MatlabSessionAppData $appData -MatlabResourceDirectory $resource `
+                -MatlabMcpExecutable $components.MatlabMcpExecutable -SimulinkToolkitRoot $components.SimulinkToolkitRoot
+            $webExit = $LASTEXITCODE
+            if ($crashRestarts -lt 2) {
+                $retryCrash = Test-ControlHostCrashRecovery $webExit $readyFile $launchId $projectRoot $resource $Port
+            }
+        } finally {
+            $env:CONTROL_ONECLICK_HOST_RUN = $previousRun
+            if (Test-Path -LiteralPath $readyFile -PathType Leaf) { Remove-Item -LiteralPath $readyFile }
+        }
+        if ($webExit -in 75,76) {
+            $NoOpen = $webExit -eq 76
+            Write-Host '空闲网页已退出。正在核验旧专用 MATLAB 的退出记录并重新绑定。'
+        } elseif ($retryCrash) {
+            $crashRestarts++
+            $NoOpen = $true
+            Write-Host "已就绪的网页 Host 异常退出，专用 MATLAB 有待核实的调用。正在恢复网页（$crashRestarts/2）。"
+        } elseif ($webExit -ne 0) { throw "网页服务退出（代码 $webExit）。请查看上面的连接检查或启动错误。" }
+    } while (($webExit -in 75,76) -or $retryCrash)
 } finally {
     if ($acquired) { $mutex.ReleaseMutex() }
     $mutex.Dispose()

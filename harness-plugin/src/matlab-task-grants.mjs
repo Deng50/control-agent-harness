@@ -37,11 +37,13 @@ export class MatlabTaskGrants {
       fingerprint(this.env.CONTROL_MATLAB_BOUND_EXECUTABLE),fingerprint(this.env.CONTROL_MATLAB_MCP_EXECUTABLE),
     ]);
     const binding = state.session;
-    if (state.quarantine || marker.kind !== 'control-harness-dedicated-matlab-v1' || marker.status !== 'ready'
+    const pendingBinding = state.quarantine?.owner?.session;
+    if ((pendingBinding && !isDeepStrictEqual(pendingBinding,binding)) ||
+      marker.kind !== 'control-harness-dedicated-matlab-v1' || marker.status !== 'ready'
       || marker.schema_version !== 1 || !binding?.identity || !Number.isSafeInteger(binding.pid) || binding.pid <= 0
       || !/^[a-f0-9-]{36}$/i.test(binding.session_id ?? '') || binding.session_id !== marker.session_id
       || binding.pid !== marker.matlab_pid || await realpath(marker.project_root) !== await realpath(codeRoot)) {
-      throw new Error('专用 MATLAB 进程身份不匹配或资源处于隔离状态，请核查专用资源。');
+      throw new Error('专用 MATLAB 进程身份不匹配，请核查专用资源。');
     }
     const settings = {...request.config};
     delete settings.plan_refs;

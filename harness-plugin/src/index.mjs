@@ -7,9 +7,13 @@ import { JobHistory, authorizeWorkspace, recoveryRequest, persistedJob } from '.
 import { agents } from './roles.mjs';
 import { operationHelp, operations } from './catalog.mjs';
 import { installMatlabResource } from './matlab-resource.mjs';
+import { installMatlabRecovery } from './matlab-recovery.mjs';
 import { createMatlabTerminalVerifier } from './matlab-terminal.mjs';
 import { saveSessionSlx } from './simulink-save.mjs';
 import { simulinkPlantTool } from './simulink-plant.mjs';
+import { buildZohPlantTool } from './simulink-build.mjs';
+import { simulateModelTool } from './simulink-simulate.mjs';
+import { installPlantWorkspace } from './plant-workspace.mjs';
 import { simulinkWireTool } from './simulink-wire.mjs';
 import { MatlabTaskGrants } from './matlab-task-grants.mjs';
 import { preflightWorkspace } from './workspace-preflight.mjs';
@@ -22,7 +26,7 @@ import { requiresMatlabBatch, assertMatlabBatchAvailable, matlabCollectionJob } 
 export { agents } from './roles.mjs';
 
 export const name = 'control-engineering';
-export const inject = ['tools', 'commands', 'attachments', 'jobs', 'subprocess', 'sandbox', 'sandboxPolicy', 'sessionProjections', 'sessionProjectionCache', 'workspaceRegistry', 'agentPresets'];
+export const inject = ['tools', 'commands', 'attachments', 'jobs', 'subprocess', 'sandbox', 'sandboxPolicy', 'sessionProjections', 'sessionProjectionCache', 'workspaceRegistry', 'agentPresets', 'agents'];
 export const Config = z.object({
   pythonPath: z.string().required(),
   codeRoot: z.string().required(),
@@ -46,12 +50,16 @@ export function apply(ctx, config) {
   }
   const verifyMatlab = config.matlabResource?.identityFile
     ? createMatlabTerminalVerifier(ctx, { identityFile: config.matlabResource.identityFile, codeRoot:config.codeRoot }) : undefined;
-  installMatlabResource(ctx, config, { verifyBeforeDispatch: verifyMatlab, verifyTerminal: verifyMatlab });
+  const matlabResource=installMatlabResource(ctx,config,{verifyBeforeDispatch:verifyMatlab,verifyTerminal:verifyMatlab});
+  const matlabRecovery = verifyMatlab && installMatlabRecovery(ctx,matlabResource,verifyMatlab);
   // Propose all scopes in one Python transaction. Reviews have their own
   // bounded slot so a long training job cannot block a user trying to review.
   const reviewSlots = new WorkerSlots(1);
   const preflight = options => preflightWorkspace({ctx,config,...options});
   if (verifyMatlab) {
+    const {checkBuild,verifyReference}=installPlantWorkspace(ctx,config,preflight);
+    ctx.tools.register(buildZohPlantTool(ctx,config,checkBuild,verifyReference));
+    ctx.tools.register(simulateModelTool(ctx,config,preflight));
     ctx.tools.register(simulinkPlantTool(ctx, config));
     ctx.tools.register(simulinkWireTool(ctx, config));
     ctx.tools.register(defineTool({
@@ -68,7 +76,7 @@ export function apply(ctx, config) {
     const stop = signal ? AbortSignal.any([signal, timeout]) : timeout;
     stop.throwIfAborted();
     const policy = ctx.sandboxPolicy.resolve({session:agent.session});
-    await preflight({workspace:request.workspace,policy,signal:stop,operation:'propose_case_plans'});
+    await preflight({workspace:request.workspace,policy,signal:stop,operation:'propose_case_plans',agent});
     const worker = numericalJob({ctx, slots:reviewSlots, config:{...config, timeoutSeconds:30},
       policy, job:{updateProgress() {}, append() {}},
       request:{operation:'propose_case_plans',workspace:request.workspace,inputs:{},config:{intent_id,retire_scopes,
@@ -122,7 +130,7 @@ export function apply(ctx, config) {
     return card;
   }
   async function admitResources(request, agent, policy, signal, card) {
-    await preflight({workspace:request.workspace,policy,signal,operation:request.operation});
+    await preflight({workspace:request.workspace,policy,signal,operation:request.operation,agent});
     if (!await requiresMatlabBatch(request)) return null;
     assertMatlabBatchAvailable(ctx,config,agent);
     if (!card?.matlab_scope) throw new Error('MATLAB_TASK_GRANT_REQUIRED：请为本次操作生成确认卡，核对专用 MATLAB 的范围并点击授权。');
@@ -391,5 +399,5 @@ export function apply(ctx, config) {
     }));
   }
   // Preset roles wait for this service so restriction names always exist.
-  ctx.provide('controlEngineering', { operations: Object.keys(operations) });
+  ctx.provide('controlEngineering', { operations: Object.keys(operations), matlabRecovery });
 }

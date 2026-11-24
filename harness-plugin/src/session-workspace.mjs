@@ -52,7 +52,7 @@ export async function ensureSessionWorkspace(ctx, agent, args = {}, preflight, s
   if (typeof cwd !== 'string' || !isAbsolute(cwd)) throw new Error('Native Session has no stored absolute working directory');
   const policy = ctx.sandboxPolicy.resolve({ session: agent.session });
   const workspacePath = await authorizeWorkspace(cwd, policy, true);
-  const diagnostic = await preflight?.({workspace:workspacePath,policy,signal});
+  const diagnostic = await preflight?.({workspace:workspacePath,policy,signal,agent});
   const preset = await ensureProfessionalPreset(ctx, agent);
   const workspace = await ctx.workspaceRegistry.create(workspacePath);
   // The native entity independently checks the Session's immutable stored cwd.

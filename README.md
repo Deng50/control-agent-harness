@@ -12,7 +12,9 @@
 
 在 **Windows x64 新电脑**上安装并激活 MATLAB 与 Simulink（R2023a 或更新版），将完整仓库解压或克隆至当前用户可写的本地 NTFS 目录，然后双击根目录的 [Start-ControlHarness.cmd](Start-ControlHarness.cmd)。默认浏览器会在终端显示“MATLAB 连接验证通过”后打开。请保留启动窗口。
 
-首次启动会查找 MATLAB，只为缺少的 MCP Server、MATLAB MCP Server Toolbox 和 Simulink Agentic Toolkit 下载并校验 MathWorks 官方固定版本。随后准备 Python 环境、构建固定版本的 Harness 并注册插件。缺少兼容 Python 或 Git 时使用 Windows 的“应用安装程序”（WinGet）进行当前用户安装。首次下载依赖、特别是 PyTorch，需要网络和磁盘空间，后续启动复用已有组件。MATLAB 连通验证无需模型 API Key，之后使用自然语言对话时仍需在网页配置模型服务。
+网页已经运行时，可以再次双击同一入口，在默认浏览器中打开现有网页。首次启动仍在准备时，第二个窗口会报告进度状态，首次启动继续进行。
+
+首次启动会查找 MATLAB，在本检出的 `.control-matlab` 目录下载并核验 MathWorks 的 MCP Server v0.16.1、MATLAB MCP Server Toolbox 0.5.0 和 Simulink Agentic Toolkit 2026.11.c。专用 MATLAB 按官方包的搜索路径加载工具，Codex 可继续使用其用户级安装。随后准备 Python 环境、构建固定版本的 Harness 并注册插件。缺少兼容 Python 或 Git 时使用 Windows 的“应用安装程序”（WinGet）进行当前用户安装。首次下载依赖、特别是 PyTorch，需要网络和磁盘空间，后续启动复用已有组件。MATLAB 连通验证无需模型 API Key，之后使用自然语言对话时仍需在网页配置模型服务。
 
 默认使用端口 `5288`，并预检 `workspaces\project-01`。新建工程对话时可选择这个目录，或选择其他已准备的工作区。仅查看缺件可运行 `.\Start-ControlHarness.cmd -CheckOnly`。多版本选择、端口冲突及启动失败的处理见[一键启动与 MATLAB 连接](docs/matlab-existing-session.md)。下文保留手动安装和纯 Python 启动步骤。
 
@@ -74,7 +76,7 @@ python -m venv .venv
 
 这些排除规则已写入 `.gitignore`，不会删除本机文件。GitHub 源码备份不包含实验数据与训练成果；若需要保存它们，应另做独立的工作区备份。上游许可及提取来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-Windows ACL 沙箱使用本地 NTFS。Host 需要会话根目录上的有效 `WRITE_DAC` 和 `WRITE_OWNER`，以安装受限令牌所需的授权和低完整性标签。运行 `prepare-workspace.ps1 -Workspace <绝对路径>` 可只读检查。显式加 `-Prepare` 后，脚本仅在项目 `workspaces` 或 `test-output` 下当前用户拥有的工作区叶目录，为该用户补齐缺少的权限。外部工作区应由其管理者准备。
+Windows ACL 沙箱使用本地 NTFS。每个任务可在项目 `workspaces` 下选择新目录。选择工程工作区或首次受控建模时，如果当前账户拥有该目录、已具备 `WRITE_DAC` 且仅缺 `WRITE_OWNER`，Host 会准备目录并通过受限 worker 验证实际读写。已有的 Python 文件可直接在该工作区根目录读取、回放并转换为 Simulink。外部工作区的权限由其管理者准备；运行 `prepare-workspace.ps1 -Workspace <绝对路径>` 可只读检查。
 
 `start-web.ps1 -Workspace <绝对路径>` 会在启动 Web 前执行同一只读检查。网页里的工作区仍由用户选定。打开专业会话或提交数值作业时，Host 与原生受限 Python worker 会使用该会话的实际目录及私有 TEMP 验证文件操作。当前 Windows 沙箱的隔离范围为写入权限。
 

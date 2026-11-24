@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Workspace, [switch]$Prepare)
+param([Parameter(Mandatory=$true)][string]$Workspace, [switch]$Prepare, [switch]$PrepareForSession)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'windows-paths.ps1')
 $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -12,16 +12,17 @@ function Read-WorkspaceSecurity([string]$Directory) {
     return ($json | ConvertFrom-Json)
 }
 
-if (-not $Prepare) {
+if (-not ($Prepare -or $PrepareForSession)) {
     $state = Read-WorkspaceSecurity $path
     $state | ConvertTo-Json -Depth 6
     if (-not $state.ok) { throw ('Workspace preflight failed: ' + ($state.error | ConvertTo-Json -Compress -Depth 4)) }
     return
 }
 
-# Preparation is explicit. Lock the entire existing path against replacement
+# Lock the entire existing path against replacement
 # while checking for reparse points and adjusting the leaf security descriptor.
 $prefixes = @((Join-Path $project 'workspaces'), (Join-Path $project 'test-output'))
+if ($PrepareForSession) { $prefixes = @((Join-Path $project 'workspaces')) }
 if (-not ($prefixes | Where-Object { $path.StartsWith(($_ + '\'), [StringComparison]::OrdinalIgnoreCase) })) {
     throw 'Explicit preparation requires a dedicated child of this project workspaces or test-output directory.'
 }
@@ -52,6 +53,7 @@ try {
         if (-not [IO.Directory]::Exists($entryPath)) {
             # Each parent has been pinned and checked; only new work directories
             # get created here. We never change an ancestor's ACL.
+            if ($PrepareForSession) { throw 'The selected Session workspace no longer exists.' }
             [void][IO.Directory]::CreateDirectory($entryPath)
         }
         $pins.Push([ControlWorkspaceDirectoryPin]::Pin($entryPath))
@@ -72,6 +74,9 @@ try {
             }
         }
         if (-not $added.Count) { throw 'The preflight failure cannot be repaired with a leaf ACE.' }
+        if ($PrepareForSession -and ($added.Count -ne 1 -or $added[0] -ne 'WRITE_OWNER' -or -not $before.effective_rights.WRITE_DAC)) {
+            throw 'Automatic preparation requires effective WRITE_DAC and only a missing WRITE_OWNER.'
+        }
         $mask = 0
         if ('WRITE_DAC' -in $added) { $mask = $mask -bor 0x40000 }
         if ('WRITE_OWNER' -in $added) { $mask = $mask -bor 0x80000 }
@@ -81,6 +86,21 @@ try {
         else { $acl = $leaf.GetAccessControl($sections) }
         $user = [Security.Principal.WindowsIdentity]::GetCurrent().User
         if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $user.Value) { throw 'Workspace owner changed.' }
+        # Adding an explicit allow must not override an inherited denial. Include
+        # deny-only token groups and the special OWNER RIGHTS principal.
+        $principals = @($user.Value, 'S-1-3-4') + @([Security.Principal.WindowsIdentity]::GetCurrent().Groups | ForEach-Object { $_.Value })
+        $denial = $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | Where-Object {
+            $_.AccessControlType -eq 'Deny' -and $principals -contains $_.IdentityReference.Value -and
+            -not ($_.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -and
+            (([int64]$_.FileSystemRights -band ($mask -bor 0x10000000)) -ne 0)
+        }
+        if ($denial) {
+            if ($PrepareForSession) {
+                [ordered]@{prepared=$false; workspace=$path; reason='applicable_deny_ace'; added_leaf_rights=@()} | ConvertTo-Json -Compress
+                return
+            }
+            throw 'Workspace ACL denies the requested right to this account. Preserve the denial and select another workspace.'
+        }
         $rule = [Security.AccessControl.FileSystemAccessRule]::new($user,
             [Security.AccessControl.FileSystemRights]$mask, 'None', 'None', 'Allow')
         $acl.AddAccessRule($rule)

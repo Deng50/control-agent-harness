@@ -105,8 +105,6 @@ export function apply(ctx) {
           evidence.expectedOutcome = 'One short real MATLAB call, admitted through the shared FIFO and terminal verifier';
         } else {
           const nonce = randomUUID();
-          const secondaryMarker = resolve(evidence.workspace, 'matlab-lifecycle-rejected-secondary.started.json');
-          assert.equal(await doesExist(secondaryMarker), false, 'Use a fresh fixture workspace; preserve pre-existing markers');
           if (phase === 'fault') {
             result = await call('actual-matlab-exception', `error('${FAILURE}','${FAILURE}: Fixed S02 acceptance exception');`);
             assert.equal(result.isError, true, 'The actual MATLAB exception must produce a native error outcome');
@@ -131,19 +129,17 @@ export function apply(ctx) {
               : 'The real cancelled SDK invocation must settle as an error, not proof that MATLAB stopped');
           }
           evidence.resourceAfterFailure = await snapshot();
-          assert.ok(evidence.resourceAfterFailure.quarantine, 'An error/cancel/disconnect must quarantine the MATLAB resource');
-          // Deliberately use the original, non-locally-aborted command signal.
-          // A second fresh native call must fail due to quarantine itself.
-          const rejected = await call('quarantine-rejects-secondary', startedCode(secondaryMarker,
-            { kind: 'must-not-execute-after-quarantine', confirmation_source: 'test_fixture', nonce }), signal);
-          assert.equal(rejected.isError, true);
-          assert.match(resultText(rejected), /quarantin/i, 'The second call must be rejected by shared resource quarantine');
-          assert.equal(await doesExist(secondaryMarker), false, 'The rejected second MATLAB body must not write its marker');
-          evidence.secondaryDidNotExecute = true;
+          const secondary = await call('inspect-after-failure', "fprintf('CONTROL_HARNESS_S02_FOLLOWUP:%d',6*7);", signal);
           evidence.resourceAfter = await snapshot();
-          assert.equal(evidence.resourceAfter.quarantine.token, evidence.resourceAfterFailure.quarantine.token);
-          evidence.expectedOutcome = 'Real expected negative case: error diagnostic plus durable isolation, secondary body did not execute';
-          evidence.recovery = 'Not attempted. Root must verify dedicated-session stop/exit and coordinate explicit recovery.';
+          if (phase === 'fault' || !secondary.isError) {
+            assert.ok(!secondary.isError && JSON.stringify(secondary.value).includes('CONTROL_HARNESS_S02_FOLLOWUP:42'),
+              'A fresh follow-up must run after the synchronous error or certified recovery');
+            assert.equal(evidence.resourceAfter.quarantine, null);
+            evidence.expectedOutcome = 'Original command failed; an independent follow-up completed on the bound resource';
+          } else {
+            assert.ok(evidence.resourceAfter.quarantine, 'An unsettled execution needs an outstanding resource record');
+            evidence.expectedOutcome = 'MATLAB execution remains pending verification; the original command was not replayed';
+          }
         }
         evidence.status = 'PASS';
       } catch (error) {

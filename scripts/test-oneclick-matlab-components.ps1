@@ -24,10 +24,10 @@ try {
     $versions=Join-Path $matlabRoot 'VersionInfo.xml'
     [IO.File]::WriteAllText($versions,'<MathWorks_version_info><release>R2022b</release></MathWorks_version_info>')
     $denied=$false
-    try { Resolve-ControlMatlabComponents -MatlabExecutable $matlab -CheckOnly } catch { $denied=$_.Exception.Message -match 'R2023a' }
+    try { Resolve-ControlMatlabComponents -MatlabExecutable $matlab -ComponentDirectory (Join-Path $fixture 'private') -CheckOnly } catch { $denied=$_.Exception.Message -match 'R2023a' }
     Assert-Test $denied 'unsupported installation selected'
     [IO.File]::WriteAllText($versions,'<MathWorks_version_info><release>R2024b</release></MathWorks_version_info>')
-    $result=Resolve-ControlMatlabComponents -MatlabExecutable $matlab -CheckOnly
+    $result=Resolve-ControlMatlabComponents -MatlabExecutable $matlab -ComponentDirectory (Join-Path $fixture 'private') -CheckOnly
     Assert-Test ($result.Missing.Count -eq 3) 'missing components were not detected'
     Assert-Test (-not (Test-Path -LiteralPath $env:LOCALAPPDATA)) 'check created a cache'
     # 使用替身测试完整散列检验与原子发布逻辑，包括断网、错误文件、已有缓存修复。
@@ -47,50 +47,46 @@ try {
     $cached=Get-ControlMatlabAsset $cache 'candidate.bin' 'ok' $digest
     Assert-Test ((Get-FileHash -LiteralPath $cached).Hash -eq $digest) 'damaged cache not repaired'
     $cached=Get-ControlMatlabAsset $cache 'candidate.bin' 'offline' $digest
-    # 透明模拟自定义目录已经注册了 MCP Toolbox，只有额外的 SATK 需要安装。
-    $server=Join-Path $fixture 'custom server.exe'
-    $fakeToolbox=Join-Path $fixture 'custom addons\MCP'
-    $fakeToolkit=Join-Path $fixture 'custom addons\SATK'
+    $server=Join-Path $fixture 'explicit server.exe'
+    $toolbox=Join-Path $fixture 'explicit connector'
+    $toolkit=Join-Path $fixture 'explicit toolkit'
     New-TestFile $server
-    New-TestFile (Join-Path $fakeToolbox 'shareMATLABSession.m')
-    $script:requests=@()
-    function Get-ControlMatlabAsset { param($Directory,$Filename,$Uri,$Digest)
-        $script:requests+=$Filename
-        return (Join-Path $fixture $Filename)
-    }
-    function Invoke-ControlMatlabAddonSetup { param($MatlabExecutable,$McpPackage,$SimulinkPackage)
-        if ($McpPackage) {throw 'existing MCP Toolbox should not be reinstalled'}
-        if ($SimulinkPackage) {
-            New-TestFile (Join-Path $fakeToolkit 'tools\tools.json')
-            New-TestFile (Join-Path $fakeToolkit 'tools\model_edit\model_edit.p')
-        }
-        return [pscustomobject]@{mcpRoot=$fakeToolbox;toolkitRoot=$fakeToolkit}
-    }
-    $result=Resolve-ControlMatlabComponents -MatlabExecutable $matlab -MatlabMcpExecutable $server
-    Assert-Test ($result.Missing.Count -eq 0 -and $result.SimulinkToolkitRoot -eq $fakeToolkit -and $result.MatlabMcpToolboxRoot -eq $fakeToolbox) 'post-install discovery failed'
-    Assert-Test ($script:requests.Count -eq 1 -and $script:requests[0] -eq 'simulink-agentic-toolkit.mltbx') 'unexpected component updated'
-    $result=Resolve-ControlMatlabComponents -MatlabExecutable $matlab -MatlabMcpExecutable $server -SimulinkToolkitRoot $fakeToolkit -MatlabMcpToolboxRoot $fakeToolbox
-    Assert-Test ($script:requests.Count -eq 1 -and $result.Missing.Count -eq 0) 'installed layout was downloaded twice'
-    # 三项全部缺失时检查下载目标及传给 MATLAB 的包，防止布尔分支只处理第一项。
+    New-TestFile (Join-Path $toolbox 'shareMATLABSession.m')
+    New-TestFile (Join-Path $toolkit 'tools/tools.json')
+    New-TestFile (Join-Path $toolkit 'tools/model_edit/model_edit.p')
+    $private=Join-Path $fixture 'private'
+
+    # 验证独立解包、配置文件与显式覆盖，使用小型本地 mltbx 结构检验路径布局。
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
     $script:requests=@()
     function Get-ControlMatlabAsset { param($Directory,$Filename,$Uri,$Digest)
         Assert-Test ($Uri.StartsWith('https://github.com/matlab/') -and $Digest -match '^[a-f0-9]{64}$') 'unverified package requested'
-        $script:requests+=$Filename
+        $script:requests += $Filename
         $candidate=Join-Path $Directory $Filename
-        New-TestFile $candidate
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+        if ($Filename.EndsWith('.exe')) { New-TestFile $candidate; return $candidate }
+        $source=Join-Path $fixture $Filename
+        New-TestFile (Join-Path $source 'metadata/configuration.xml')
+        if ($Filename -eq 'MATLABMCPServerToolbox.mltbx') {
+            New-TestFile (Join-Path $source 'fsroot/shareMATLABSession.m')
+        } else {
+            New-TestFile (Join-Path $source 'fsroot/tools/tools.json')
+            New-TestFile (Join-Path $source 'fsroot/tools/model_edit/model_edit.p')
+        }
+        [void][IO.Directory]::CreateDirectory($Directory)
+        [IO.Compression.ZipFile]::CreateFromDirectory($source,$candidate)
         return $candidate
     }
-    function Invoke-ControlMatlabAddonSetup { param($MatlabExecutable,$McpPackage,$SimulinkPackage)
-        if ($McpPackage -or $SimulinkPackage) {
-            Assert-Test ((Split-Path -Leaf $McpPackage) -eq 'MATLABMCPServerToolbox.mltbx') 'missing MCP Toolbox package'
-            Assert-Test ((Split-Path -Leaf $SimulinkPackage) -eq 'simulink-agentic-toolkit.mltbx') 'missing Simulink package'
-            return [pscustomobject]@{mcpRoot=$fakeToolbox;toolkitRoot=$fakeToolkit}
-        }
-        return [pscustomobject]@{mcpRoot='';toolkitRoot=''}
-    }
-    $result=Resolve-ControlMatlabComponents -MatlabExecutable $matlab
-    Assert-Test ($script:requests.Count -eq 3 -and $result.Missing.Count -eq 0 -and (Test-Path -LiteralPath $result.MatlabMcpExecutable)) 'incomplete fresh installation'
-    Write-Host 'PASS: MATLAB discovery, read-only checks, download failures, SHA-256, cache repair, fresh/selective installation and reuse.'
+    $options=@{MatlabExecutable=$matlab;ComponentDirectory=$private}
+    $result=Resolve-ControlMatlabComponents @options -MatlabMcpExecutable $server -MatlabMcpToolboxRoot $toolbox
+    Assert-Test ($result.Missing.Count -eq 0 -and $result.SimulinkToolkitRoot.StartsWith($private)) 'private install failed'
+    Assert-Test ($script:requests.Count -eq 1 -and $script:requests[0] -eq 'simulink-agentic-toolkit.mltbx') 'unexpected component download'
+    $result=Resolve-ControlMatlabComponents @options -MatlabMcpExecutable $server -MatlabMcpToolboxRoot $toolbox -SimulinkToolkitRoot $toolkit
+    Assert-Test ($script:requests.Count -eq 1 -and $result.SimulinkToolkitRoot -eq $toolkit) 'explicit override not honored'
+    $script:requests=@()
+    $result=Resolve-ControlMatlabComponents @options
+    Assert-Test ($script:requests.Count -eq 3 -and $result.Missing.Count -eq 0 -and $result.MatlabMcpExecutable.StartsWith($private)) 'incomplete fresh installation'
+    Write-Host 'PASS: R2024b discovery, read-only checks, asset hashes, partial download, private installation and explicit overrides.'
 } finally {
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name,$previous[$name],'Process') }
     $target=[IO.Path]::GetFullPath($fixture)

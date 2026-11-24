@@ -45,4 +45,17 @@ result = struct('schema_version', 1, 'nonce', nonce, ...
     'running_timers', runningTimers, 'background_available', backgroundAvailable, ...
     'idle', isempty(busyModels) && backgroundFutures == 0 && parallelFutures == 0 && runningTimers == 0, ...
     'probe_scope', 'dedicated-session synchronous calls, Simulink, local futures, timers');
+% Report the independently observed value. Never echo the value a Host is
+% looking for: a probe may arrive before an older, timed-out business call.
+result.completion_nonce = '';
+if isappdata(groot,'ControlHarnessCompletedCall')
+    observed = getappdata(groot,'ControlHarnessCompletedCall');
+    if ischar(observed) && isrow(observed)
+        result.completion_nonce = observed;
+    elseif isstruct(observed) && isscalar(observed) && all(isfield(observed,{'nonce','outcome','identifier','message'}))
+        result.completion_nonce = observed.nonce;
+        result.completion_outcome = observed.outcome;
+        result.completion_identifier = observed.identifier;
+    end
+end
 end

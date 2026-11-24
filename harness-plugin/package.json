@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Control model correction, MPC design and neural controller tools for DeepSeek Harness",
-  "exports": {".": "./src/index.mjs", "./role": "./src/role.mjs", "./matlab-startup-check": "./src/matlab-startup-check.mjs", "./client": "./lib/client.js", "./cordis.patch.yml": "./cordis.patch.yml", "./package.json": "./package.json"},
+  "exports": {".": "./src/index.mjs", "./role": "./src/role.mjs", "./matlab-mcp-client": "./src/matlab-mcp-client.mjs", "./matlab-startup-check": "./src/matlab-startup-check.mjs", "./client": "./lib/client.js", "./cordis.patch.yml": "./cordis.patch.yml", "./package.json": "./package.json"},
   "files": ["src", "skills", "lib/client.js", "cordis.patch.yml"],
   "scripts": {
     "check:presets": "node ../scripts/sync-control-presets.mjs --check",

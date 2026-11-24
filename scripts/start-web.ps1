@@ -10,6 +10,7 @@ param(
   [switch]$ValidateOnly,
   [string]$Workspace,
   [switch]$VerifyMatlab,
+  [switch]$SuperviseMatlab,
   [string]$HarnessHome
 )
 $ErrorActionPreference='Stop'
@@ -37,7 +38,7 @@ $patches = @($overlay)
 $matlabSessionPid = $null
 if ($Matlab) {
   foreach ($variable in @('MW_MCP_SERVER_MATLAB_SESSION_CONNECTION_DETAILS','MW_MCP_SERVER_MATLAB_ROOT','MW_MCP_SERVER_INITIAL_WORKING_FOLDER','MW_MCP_SERVER_MATLAB_DISPLAY_MODE')) {
-    if (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($variable,'Process'))) { throw ($variable + ' conflicts with private existing-session discovery; clear it in this launch environment. Its value was not printed.') }
+    if (Test-Path -LiteralPath ('Env:' + $variable)) { throw ($variable + ' conflicts with private existing-session discovery; clear it in this launch environment.') }
   }
   foreach ($entry in @(
     @{Name='MatlabMcpExecutable';Value=$MatlabMcpExecutable},
@@ -56,10 +57,12 @@ if ($Matlab) {
   $detailsPath = Join-Path $privateAppData 'MathWorks/MATLAB MCP Server/v1/sessionDetails.json'
   if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf) -or -not (Test-Path -LiteralPath $detailsPath -PathType Leaf)) { throw 'Dedicated MATLAB is not initialized. Run the explicit session bootstrap first.' }
   $marker = Get-Content -LiteralPath $markerPath -Raw -Encoding UTF8 | ConvertFrom-Json
-  # This file contains connector credentials. Read only for PID agreement; never print it.
-  try { $details = Get-Content -LiteralPath $detailsPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop }
-  catch { throw 'The private MATLAB connection descriptor is unreadable or invalid; its contents were not printed.' }
-  if ($marker.kind -ne 'control-harness-dedicated-matlab-v1' -or $marker.status -ne 'ready' -or [int]$marker.pid -ne [int]$details.pid) { throw 'Dedicated MATLAB marker and connector PID do not agree.' }
+  # Only the official connector consumes its private descriptor. The Host
+  # verifies the actual remote PID and UUID over MCP before dispatch.
+  if ($marker.kind -ne 'control-harness-dedicated-matlab-v1' -or $marker.status -ne 'ready' -or
+      [IO.Path]::GetFullPath($marker.private_appdata).TrimEnd('\') -ne $privateAppData) { throw 'Invalid dedicated MATLAB marker or discovery directory.' }
+  if ([IO.Path]::GetFullPath($marker.toolkit_root) -ne [IO.Path]::GetFullPath($SimulinkToolkitRoot) -or
+      ($marker.mcp_executable -and $marker.mcp_executable -ne [IO.Path]::GetFullPath($MatlabMcpExecutable))) { throw 'MCP server or toolkit differs from this dedicated session.' }
   if ([IO.Path]::GetFullPath($marker.project_root).TrimEnd('\') -ne $projectRoot.TrimEnd('\')) { throw 'Dedicated MATLAB was prepared for a different project checkout.' }
   $matlabProcess = Get-Process -Id ([int]$marker.pid) -ErrorAction Stop
   if ($matlabProcess.ProcessName -ne 'MATLAB') { throw 'The dedicated MATLAB PID no longer identifies MATLAB.' }
@@ -103,11 +106,19 @@ if ($Matlab) {
   $previousPythonPath = [Environment]::GetEnvironmentVariable('PYTHONPATH','Process')
   try {
     $env:PYTHONPATH = Join-Path $projectRoot 'src'
-    & $pythonPath -m control_harness.matlab_resource bind-session --directory $env:CONTROL_MATLAB_RESOURCE_DIRECTORY --pid ([string]$marker.matlab_pid) --session-id ([string]$marker.session_id) | Out-Null
+    & $pythonPath -m control_harness.matlab_resource bind-session --directory $env:CONTROL_MATLAB_RESOURCE_DIRECTORY --pid ([string]$marker.matlab_pid) --session-id ([string]$marker.session_id) --allow-existing-pending | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Dedicated MATLAB resource binding was rejected; inspect the existing binding before starting another Host.' }
   } finally {
     [Environment]::SetEnvironmentVariable('PYTHONPATH',$previousPythonPath,'Process')
   }
 }
 Push-Location $projectRoot
-try { & node @launchArgs; exit $LASTEXITCODE } finally { Pop-Location }
+try {
+  $previousSupervisor = $env:CONTROL_ONECLICK_SUPERVISE
+  $env:CONTROL_ONECLICK_SUPERVISE = if ($SuperviseMatlab -and $VerifyMatlab) { '1' } else { '0' }
+  & node @launchArgs
+  exit $LASTEXITCODE
+} finally {
+  $env:CONTROL_ONECLICK_SUPERVISE = $previousSupervisor
+  Pop-Location
+}

@@ -36,7 +36,7 @@ async function fixture(behavior=async f=>{
       return {results:[{result:{isError:false,value:{content:[{type:'text',text:marker+JSON.stringify(record)}]}}}]};
     }}};
   const preflight=async options=>{
-    seen.push('preflight');assert.equal(options.workspace,workspace);assert.equal(options.policy,policy);
+    seen.push('preflight');assert.equal(options.workspace,workspace);assert.equal(options.policy,policy);assert.equal(options.agent,agent);
   };
   return {ctx,config,seen,agent,workspace,target,policy,abort,
     save:(args={model})=>saveSessionSlx(ctx,config,args,{agent,signal:abort.signal},preflight)};
@@ -71,5 +71,14 @@ test('refusals, wrong path, missing files and non-SLX contents never report a su
     await writeFile(f.target,'text');
     return {status:'saved',model:f.model,path:f.target,bytes:4};
   });
-  await assert.rejects(invalid.save(),/ZIP/);
+  await assert.rejects(invalid.save(), error => {
+    const record=JSON.parse(error.message);
+    assert.match(record.reason,/ZIP/);
+    assert.equal(record.stage,'host_file_check');
+    assert.deepEqual(record.verified,['matlab_save']);
+    assert.equal(record.session_verified,true);
+    assert.equal(record.file_exists,true);
+    assert.equal(record.path,invalid.target);
+    return true;
+  });
 });

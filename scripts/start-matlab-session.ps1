@@ -19,6 +19,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $MatlabMcpToolboxRoot 'shareMATLABSe
 $sessionRoot = [IO.Path]::GetFullPath($SessionDirectory)
 if ((Test-Path -LiteralPath (Join-Path $sessionRoot 'launch.json')) -or (Test-Path -LiteralPath (Join-Path $sessionRoot 'appdata/control-harness-session.json'))) { throw 'Session directory has a prior launch. Inspect that PID and choose a fresh directory; do not start a duplicate.' }
 $privateAppData = Join-Path $sessionRoot 'appdata'
+if (Test-Path -LiteralPath $privateAppData) { throw 'Use a fresh dedicated discovery directory for this launch.' }
 if ($ValidateOnly) {
   [ordered]@{valid=$true;starts_matlab=$false;session_directory=$sessionRoot;private_appdata=$privateAppData;mode='Dedicated new process, then MCP existing binding'}|ConvertTo-Json
   return

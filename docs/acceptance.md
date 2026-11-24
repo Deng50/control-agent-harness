@@ -1,5 +1,55 @@
 # 当前验收状态
 
+## MATLAB 同轮纠错与交付复核
+
+2026-11-24，在独立测试工作区使用官方 DeepSeek 和专用 MATLAB R2024b 完成以下对话。三次聊天均在第 1 轮结束。错误和后续工具序列保存在 `test-output/retry-live-23b017d8a160/`，专用进程 PID 为 `16116`，会话 UUID 为 `b4f41da9-3234-455f-b513-25a48893fb34`。
+
+| 对话入口 | 注入的错误 | 实测结果 |
+| --- | --- | --- |
+| 原生 evaluate_matlab_code | add_block 使用 mpc_lib/MPC Controller | 第 34 个事件返回错误。智能体读回现场、查询已安装库、完成模型。最终保存回执为第 304 个事件。绝对路径重载后，4 秒闭环仿真得到 41 个采样点，初值 0、末值 1.0000000000000024。详见 controller-eval-dialogue.json 与 independent-replay.json。 |
+| Toolkit model_edit | 相同的旧库块路径 | 智能体从 INVALID_PARAM 诊断开始纠错。交付 SLX 独立重载后同样得到 41 个采样点，末值 1.0000000000000018。两个控制器会话均确认另一个聊天已打开模型中的未保存变量值仍为 1701。详见 controller-dialogue.json。 |
+| 受控保存与仿真 | 先保存 SLX，再传入不存在的求解器 | 智能体改正设置，输出 2.5。保存调用一次，SLX 字节摘要及修改时间相同。详见 partial-dialogue.json。 |
+
+真实对话的复现入口为 `scripts/accept-matlab-repair-dialogue.mjs`。本机确定性工具链通过 `scripts/accept-matlab-repair-native.mjs` 单独验收。并发、取消、超时及活动计时器通过 `scripts/accept-matlab-fault.ps1` 在不同的专用实例验收，每次核实另一角色已入队、本地诊断可用、原写操作恰好执行一次，以及恢复后的 PID 和 UUID。
+
+原生文件工具也做了独立故障注入。`run_matlab_file` 的等待预算为 20 秒，合成脚本需 31 秒。调用者先收到超时，Host 随后凭原连接的 RPC 回执及新探针恢复队列，轻量化控制角色在同一进程执行了下一条命令。见 `test-output/host-fault-file-timeout-23cca410d9/fault.json` 与该目录的 `resource/recoveries/`。
+
+本地批处理用无效质量参数触发 MATLAB 工程错误。失败任务保留清单和错误栈。新授权及新 nonce 对应的修正任务在原进程完成，result 和归档摘要均经核对。quadprog 返回 exitflag 1，首个控制量为 -1.059365283072116，约束违反量为 0。见 `test-output/batch-live-d712f7c082/workspace-yR1mXt/batch-repair-evidence.json`。
+
+## Python 对象生成 SLX
+
+### 新工作区已有源码，首次使用自动准备
+
+原网页会话 `session-908a3d46-3941-420c-81a5-b4f64b177337` 的 #37–40 使用原生文件工具读取工作区已有的两个 Python 文件。#73 的本次 Windows 核验显示所有者匹配、已有 `WRITE_DAC`、缺 `WRITE_OWNER`。#95 是沿用该诊断的拦截。此前一键启动只准备启动时的目录，回放工具也只接受上传附件。
+
+独立回归覆盖了预先建好的自有 NTFS 目录、Host 首次创建的多层目录、直接工程作业、旧错误会话和重复使用同一目录。Host 在符合资格的 Session 根目录上补齐缺失项，然后运行低完整性子进程验证读写。另一个会话的目录、身份不匹配或有拒绝规则时继续拒绝。各目录与父目录的 ACL 证据在 `test-output/managed-workspace-hHdciF/evidence.json`。
+
+真实 DeepSeek Flash 普通角色网页验收使用两轮纯文本消息，在一个新工作区读取 `plant_numpy.py` 和 `plant_torch.py`，没有上传附件或手工设置 ACL。#53 回放本地 NumPy 源码的 51 个状态时刻，#60 在 R2024b 完成受控建模、保存、关闭重载和数值对照。模型质量 1、阻尼 0.8、刚度 2、采样周期 0.1 秒，初态 [1, 0]。控制力自 0.5 秒起为 1 N，扰动力恒为零。原生仿真和冷启动从独立交付路径重新仿真各自的最大绝对误差均为 2.42861286636753e-16，容差 1e-12。原生会话与逐点数据在 `test-output/plant-path-web-f0122c8b-d8a8-42dd-8c12-d966a3437e7e`，其 `delivery` 子目录含最终 SLX 和 5 秒工况脚本。
+
+上线版本完整插件回归 219 项通过，日志为 `test-output/managed-workspace-hHdciF/deployed-suite.log`。确认无开放回合或待结作业后，本机 5288 已从 PID 7908 切换至 31152，继续使用原 MATLAB PID 20488。生产网页重新打开原会话并显示输入框。切换时没有在原会话发送建模请求，归档中全部既有事件核对一致，当前会话由 Harness 追加了一条原生 `session/end-seed` 事件。上线与归档证明在 `test-output/host-rollout-112201`。
+
+### 缺少 WRITE_OWNER 后切换会话权限
+
+网页会话 `session-01fefd54-0fe5-41cc-9220-6823236738e5` 的 #34 在 Windows 实际读到 `check_WRITE_OWNER` 返回错误 5。会话随后切至 `danger-full-access`。#57 的显式复检沿用了 #34 的诊断。后续工具在 MATLAB 派发前被 Host 拒绝。修复后的 Host 在较宽权限模式下仍以原生 `workspace-write` 做建模预检和 Python 源回放，并给复检结果与历史拦截添加不同标记。原工作区普通账户的两项权限在复核时均已具备，22 个目录条目和既有 SLX 摘要一致。
+
+独立工作区实测了未修、切权限模式仍未修、仅补叶目录 `WRITE_OWNER` 后通过三个状态。通过时，同一 Host 和低完整性 Python 子进程完成文件交接。证据位于 `test-output/live-workspace-preflight-20261122-vMdnYe/result.json`。最终完整插件回归 217 项通过，失败和跳过均为 0，见同目录的 `final-plugin-suite.log`。
+
+使用本次上传的 `plant_numpy.py`，质量 1、阻尼 0.5、刚度 10、周期 0.01 秒、默认初态 [0, 0]。R2024b 进程 49928 通过受控工具保存、关闭重载并对照三条轨迹的 120 个状态时刻，最大绝对误差 3.33e-16。另起 R2024b 进程 32620，从交付的绝对路径打开该文件，与 Python 核对另三条轨迹的 96 个状态时刻，最大绝对误差 1.78e-15。绝对容差均为 1e-12。文件位于 `test-output/matlab-inport-verified-01fefd54/delivery/SpringMassDamper_m1_c05_k10_Ts001.slx`。同级上层目录的 `controlled-build.json` 和 `test-output/delivered-zoh-verify-a08c1d8e-fc08-4c81-b1ed-e2f962115d15/independent-simulation.json` 分别保存两次回执。
+
+真实 DeepSeek Flash 对话又暴露了交付后的问题。第一次对照会话在 #67 成功交付后，#73 又发起自由 MATLAB 查询，#74 返回错误并触发 `mcp_failed_state_unknown`。此前的验收程序只判断 SLX 成功回执，现在还会等待整个回合结束，并检查成功后的工具是否真正派发。
+
+最终测试会话 `session-a857efd3-b876-44d8-b8fe-6cdf6bf20ca9` 通过网页原生上传和自然语言接口完成了真实付费模型的两个回合。首轮 #29 因实际缺权停止。两个回合之间仅重新加载本次专用 Web Host，以载入最终代码。第二轮沿用原会话、原附件和专用 MATLAB PID 3568。智能体完成实际复检、受限 Python 回放和 SLX 建模，#75 返回保存、重载、仿真和逐点比较成功，#82 记录额外工具调用在派发前停止。Chrome 展示了目录修复指引、重载仿真结果和 SLX 下载入口。
+
+最终网页交付物是 `test-output/web-agent-zoh-final-2211/plant_numpy_zoh.slx`。同一回合比较 75 个采样时刻，最大绝对误差 8.33e-17。另一 R2024b 进程 PID 46108 从交付的绝对路径打开该文件，与相同字节的原 Python 源码对照 96 个新采样时刻，最大绝对误差 7.77e-16。两组容差均为 1e-12。会话回执和截图保存在 `test-output/matlab-inport-paid-final-2211`，冷启动轨迹及摘要保存在 `test-output/independent-web-final-2211`。
+
+### 先前的 R2024b 对照
+
+R2024b 已通过官方 stdio、Harness 原生工具和项目受管会话三层对照。程序验收复现了 Ac 作用域错误，在同一进程读回部分模型，纠正后保存、关闭并重载。两组物理参数分别用原 NumPy step 对照三条轨迹，各 63 个状态采样时刻，最大绝对误差分别为 2.22e-16 和 1.11e-16，容差 1e-12。[操作方法](matlab-model-save.md)
+
+2026 年 11 月 22 日，终端通过原生文件上传与会话 API 实测已配置的 DeepSeek Flash。新工作区在缺少 WRITE_OWNER 时拒绝了 PowerShell 和写文件请求。Chrome 展示实际目录、只读诊断及仅针对该目录的准备命令。正式执行准备后，同一模型对话重新验证权限，回放原始附件并提交受控建模。测试中为载入开发中的新代码，恢复前重新启动了专用 Web Host，使用同一专用 MATLAB PID 25760。编译、落盘、关闭重载、仿真及状态比较均完成。三条轨迹共 75 个时刻，最大绝对误差 1.8041124150158794e-16。独立冷启动 R2024b PID 53584 用相同字节的 SLX 和新的三条轨迹再核对 96 个时刻，最大绝对误差 5.551115123125783e-16，容差均为 1e-12。
+
+本机记录保存在 `test-output/matlab-inport-native-agent-20261122/paid-plant-dialogue.json` 和 `test-output/delivered-zoh-verify-6ade9401-4b82-468c-88ca-79ceba0a476b/independent-simulation.json`。真实模型产物为 `test-output/web-agent-zoh-20261122/spring_mass_damper_zoh.slx`。历史端口宽度错误的两个嵌套 MATLAB 诊断和已保存模型的无效求解器均在独立回归中复现，Host 核验同一进程空闲后允许纠正。执行中 SDK 超时另用专用 PID 52884 验证，20 秒超时后资源持久隔离。
+
 ## V2 增量开发
 
 本轮实际验收包括 S13 原 20 项 GUI 用例、MATLAB 真实 SDK 超时/隔离/受控恢复、四个浏览器下载及独立加载；S13 的 281 份源码归档已逐成员 CRC/SHA 验证。S14 E01 完整 Python 629/629、Node 120/120、预设与构建，以及旧线性/非线性各完整八阶段和已完成阶段复用通过。E02 三角色使用真实 deepseek-official/deepseek-flash（low），完成 13 个业务回合和 1 个纯文字解释更正、7 个明确 test_fixture 确认；NN、数值仅设计 MPC、仅模仿三包独立加载误差均为 0。E03 以 7341 项原始字节/数组/父链复核区分历史真实运行与本次新执行。E04 的仓库外新目录含 53 项主交付文件、三个独立推理进程和三个新原生专业会话，另有真实 PINN 独立重载及原始报告数据。原始只读误键、元数据标签纠正、观察器错误、初次自动审批拒绝与同边界合成来源复核、原错误解释及原会话真实更正均保留，未重训已通过角色或降低数值门限。E05 源码/文档/交付一致性及最终归档由 `S14/E05-final-delivery-consistency.json`、`S14/archive-verification.json` 和 `S14/S14-summary.json` 发布；总阶段与原 45 项必需门状态以本 run 的 `acceptance.json` 为准。

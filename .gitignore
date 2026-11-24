@@ -29,6 +29,7 @@ _netrc
 
 # Sessions, uploaded assets, datasets, trained weights and worker state.
 .dsh/
+.control-matlab/
 workspaces/
 test-output/
 .control-jobs/

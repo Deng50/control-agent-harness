@@ -227,8 +227,9 @@ export function matlabCollectionJob({ ctx, job, agent, slots, config, request, p
         helperRoot:resolve(config.codeRoot,'matlab')});
       const result = batch.results[0]?.result;
       if (!result || result.isError) {
-        const phase=matlabDispatched ? '已派发，终态未验证，需检查专用资源隔离状态' : '未派发，未进入 MATLAB 数值计算';
-        const reason=timeout.aborted ? '任务等待或执行预算已到期' : (result?.error?.info?.code ?? '原生审批拒绝、资源身份变化或执行失败');
+        matlabReturned = result?.meta?.matlab_session_verified === true;
+        const phase=matlabReturned ? '执行失败，专用 MATLAB 可继续使用' : matlabDispatched ? '已派发，原调用终态待核验' : '未派发，未进入 MATLAB 数值计算';
+        const reason=result?.error?.message || (timeout.aborted ? '任务等待或执行预算已到期' : '原生调用未返回可验证的结果');
         throw new Error(`MATLAB 批任务${phase}（${reason}）。`);
       }
       const certificate = marker(result.value, nonce);

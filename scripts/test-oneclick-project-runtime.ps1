@@ -48,4 +48,15 @@ $profile.dependencies.'@control-engineering/harness-bundle' = 'link:' + (Join-Pa
 $profile | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifest -Encoding UTF8
 if (-not (Test-ControlProfile $userHome $project)) { throw 'Profile link to the current checkout rejected' }
 if (Test-ControlProfile (Join-Path $project '.dsh') $project) { throw 'A second home incorrectly reused another profile' }
-Write-Output 'PASS: official archive hash rejection, offline preflight, partial venv preservation, per-home plugin registration'
+foreach ($dir in 'harness-plugin/lib','src/control_harness') {
+    [void][IO.Directory]::CreateDirectory((Join-Path $project $dir))
+}
+foreach ($file in 'harness-plugin/tsdown.config.ts','harness-plugin/package.json','src/control_harness/stage_contracts.json','harness-plugin/lib/client.js') {
+    [IO.File]::WriteAllText((Join-Path $project $file), 'fixture')
+}
+$client = Join-Path $project 'harness-plugin/lib/client.js'
+[IO.File]::SetLastWriteTimeUtc($client, [DateTime]::UtcNow.AddMinutes(1))
+if (-not (Test-ControlWebClientCurrent $project)) { throw 'Current web plugin build rejected' }
+[IO.File]::SetLastWriteTimeUtc((Join-Path $bundlePath 'src/index.mjs'), [DateTime]::UtcNow.AddMinutes(2))
+if (Test-ControlWebClientCurrent $project) { throw 'Outdated web plugin would hide updated chat features' }
+Write-Output 'PASS: archive hash rejection, offline preflight, partial venv preservation, per-home plugin registration, web plugin freshness'

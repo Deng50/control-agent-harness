@@ -15,7 +15,8 @@ function receipt = control_harness_configure_discrete_plant(model, blockPath, A,
             '块路径必须相对于该模型，例如 Plant 或 Dynamics/Plant。');
         receipt.model = model;
         receipt.block_path = [model '/' blockPath];
-        block = get_param(receipt.block_path, 'Handle');
+        block = getSimulinkBlockHandle(receipt.block_path, false);
+        assert(block ~= -1, 'ControlHarness:PlantPath', '模型中找不到指定的块。');
         assert(strcmp(getfullname(bdroot(block)), model) && ...
             strcmp(get_param(block, 'BlockType'), 'DiscreteStateSpace'), 'ControlHarness:PlantBlockType', ...
             '目标必须是该模型中的 Discrete State-Space 块。');
@@ -64,7 +65,7 @@ function receipt = control_harness_configure_discrete_plant(model, blockPath, A,
     catch exception
         % apply 阶段可能来自模型回调或非参数异常；保留原生 MATLAB 错误，
         % 让持有租约的 Host 判定是否可执行身份及空闲复核，不将未知异常伪装成业务拒绝。
-        if strcmp(receipt.stage, 'apply')
+        if strcmp(receipt.stage, 'apply') || ~startsWith(exception.identifier, 'ControlHarness:Plant')
             rethrow(exception);
         end
         receipt.identifier = exception.identifier;

@@ -112,6 +112,21 @@ test('native error never runs finalize or claims MATLAB cleanup', async t => {
   assert.deepEqual(f.phases, ['prepare']);
 });
 
+test('a certified synchronous MATLAB error leaves the job failed and preserves its diagnostic', async t => {
+  const f = await fixture(t);
+  const p = protocol(f);
+  p.dispatch = async ({onDispatch}) => {
+    onDispatch();
+    return {results:[{result:{isError:true, error:{message:'fixture MPC dimension mismatch'},
+      meta:{matlab_session_verified:true}}}]};
+  };
+  const outcome = await matlabCollectionJob({...f,...p}).done;
+  assert.equal(outcome.status,'failed');
+  assert.equal(outcome.cleanupVerified,true);
+  assert.match(outcome.detail,/fixture MPC dimension mismatch/);
+  assert.deepEqual(f.phases,['prepare']);
+});
+
 test('cancel during the MCP phase preserves uncertainty and never finalizes', async t => {
   const f = await fixture(t), p = protocol(f, { hold: true });
   const producer = matlabCollectionJob({ ...f, ...p });

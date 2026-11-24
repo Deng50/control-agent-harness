@@ -10,6 +10,15 @@ export class WorkspacePreflightError extends Error {
   }
 }
 
+/** Controlled plant capabilities keep the native Session workspace-write boundary
+ * even when the user permits broader access for other tools. Never raise read-only.
+ */
+export function plantWorkspacePolicy(ctx, session, original = ctx.sandboxPolicy.resolve({session})) {
+  return original.mode === 'danger-full-access'
+    ? ctx.sandboxPolicy.resolve({session, mode:'workspace-write'})
+    : original;
+}
+
 /** Reject ambiguous Windows native paths before resolve() can silently anchor them to the Host drive. */
 export async function assertWorkspacePolicyPath(workspace, policy, write = false) {
   const validate = path => {

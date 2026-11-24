@@ -1,4 +1,5 @@
 import { ControlPanel, ControlIcon } from './panel.jsx';
+import { PlantResult, WorkspaceRecheck, WorkspaceGateTail, plantGateDefinition, workspaceRecoveryView } from './plant-chat.jsx';
 import { ChatReviewTool, ChatReviewTail, reviewTurnDefinition } from './confirmation-card.jsx';
 
 export const inject = ['slots', 'layout', 'remote', 'remote.session', 'remote.workspace', 'remote.commands', 'jobs', 'uiWorkspace', 'fileUpload', 'uiConversation', 'sessions'];
@@ -19,7 +20,8 @@ export function apply(ctx) {
       try { diagnostic = JSON.parse(message); } catch { /* Other commands return ordinary text. */ }
       if (diagnostic?.code === 'WORKSPACE_PREFLIGHT_FAILED') {
         const actor = {host:'主机进程',worker:'数值进程',sandbox:'沙箱启动器',policy:'会话写入策略'}[diagnostic.actor] ?? diagnostic.actor;
-        throw new Error(`工作区预检失败，计算尚未开始。${actor}在 ${diagnostic.path} 执行 ${diagnostic.operation} 失败（${diagnostic.os_code ?? '无系统错误码'}）。${diagnostic.detail}。${diagnostic.hint}`);
+        throw Object.assign(new Error(`工作区预检失败，计算尚未开始。${actor}在 ${diagnostic.path} 执行 ${diagnostic.operation} 失败（${diagnostic.os_code ?? '无系统错误码'}）。${diagnostic.detail}。${diagnostic.hint}`),
+          {workspaceRecovery:workspaceRecoveryView(diagnostic,'fresh')});
       }
       throw new Error(message);
     }
@@ -90,7 +92,7 @@ export function apply(ctx) {
       } catch (failure) {
         // Native creation has already succeeded. Keep the same id for repair
         // so each failed filesystem probe cannot create another chat.
-        throw Object.assign(new Error(failure.message),{pendingSessionId:id});
+        throw Object.assign(failure,{pendingSessionId:id});
       }
     },
     async openSession(sessionId) {
@@ -124,9 +126,16 @@ export function apply(ctx) {
       if (!execution || execution.result.kind !== 'success') throw new Error(execution?.result.text ?? 'Upload admission is unavailable');
       return JSON.parse(execution.result.text);
     },
-    async prompt(sessionId, text) {
+    async prompt(sessionId, text, files = [], signal) {
       await execute(sessionId, 'control-workspace', {});
-      unwrap(await ctx.remote.session.prompt({ sessionId, requestId: crypto.randomUUID(), mode: 'queue', content: [{ type: 'text', text }] }));
+      const content: ({type:'text', text:string} | {type:'file', receiptId:string})[] = [{ type: 'text', text }];
+      for (const file of files) {
+        signal?.throwIfAborted();
+        const receipt = unwrap(await ctx.fileUpload.upload(sessionId, file, file.name, signal));
+        content.push({ type: 'file', receiptId: receipt.receiptId });
+      }
+      signal?.throwIfAborted();
+      unwrap(await ctx.remote.session.prompt({ sessionId, requestId: crypto.randomUUID(), mode: 'queue', content }));
       ctx.uiWorkspace.openSession(sessionId);
     },
     watchJobs: sessionId => ctx.jobs.watchRows(sessionId),
@@ -135,6 +144,19 @@ export function apply(ctx) {
     hooks: { jobs: ctx.jobs.state },
   };
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: panelId, inject: () => actions }, ControlPanel));
+  ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
+    name:'tool.call.toolview', key:'control_build_zoh_plant', inject:() => ({download:actions.downloadVerifiedFile}),
+  },PlantResult));
+  ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
+    name:'tool.call.toolview', key:'control_recheck_plant_workspace', inject:() => ({}),
+  },WorkspaceRecheck));
+  ctx.slots.inject('conversation.chat.turnTail', () => {
+    ctx.effect(()=>ctx.uiConversation.events.register(plantGateDefinition),'control: plant workspace gate');
+    return ctx.slots.register({name:'conversation.chat.turnTail',id:'control-plant-workspace-gate',inject:sessionId=>{
+      const chat=ctx.uiConversation.binding(ctx.sessions.binding(sessionId)).target('chat');
+      return {keyedHooks:{workspaceGates:turn=>chat.getSnapshot().nodes.turnDataSource(Number(turn),plantGateDefinition.kind)}};
+    }},WorkspaceGateTail);
+  });
   ctx.slots.inject('tool.call.toolview', () => ctx.slots.register({
     name:'tool.call.toolview',key:'control_prepare_review',inject:chatReviewActions,
   },ChatReviewTool));

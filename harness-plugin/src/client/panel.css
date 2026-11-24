@@ -28,6 +28,7 @@
 .control-panel summary { cursor: pointer; font-weight: 600; }
 .control-panel details button { margin: 8px 8px 0 0; }
 .control-error { border-left: 3px solid #bf6351; background: #b94e3c13; padding: 12px; margin: 14px 0; overflow-wrap: anywhere; }
+.control-workspace-recovery pre { white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; }
 .control-logs { background: #1b292e; color: #d4e4e8; padding: 14px; border-radius: 8px; height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.6 Consolas, monospace; }
 .control-status { padding: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .control-status small { flex-basis: 100%; }

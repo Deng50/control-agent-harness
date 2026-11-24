@@ -17,7 +17,7 @@
       pollIntervalMs: 50
 - insert:
     - id: mcp-matlab
-      name: '@deepseek-ai/dsh-mcp-client'
+      name: '@control-engineering/harness-bundle/matlab-mcp-client'
       config:
         serverName: matlab
         transport: stdio

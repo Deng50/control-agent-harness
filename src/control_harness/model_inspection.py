@@ -201,8 +201,9 @@ def matlab_runtime_status() -> dict:
     return {"matlab_executable_found": executable is not None, "matlab_executable": executable,
             "matlab_started": False, "license_status": "not_checked",
             "required_products": ["MATLAB", "Simulink"], "product_availability": "not_checked",
-            "native_execution_supported": False,
-            "blockers": ["native_simulink_execution_adapter_not_implemented", "MATLAB_and_Simulink_licenses_not_verified"]}
+            "scope": "static_material_inspection", "native_execution_supported": None,
+            "runtime_verification": "dedicated_matlab_session_required",
+            "blockers": []}
 
 
 def _slx_structure(content: bytes, context: OperationContext) -> dict:

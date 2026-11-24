@@ -14,7 +14,12 @@ if (process.argv.length !== (prepare ? 4 : 3)) throw new Error('用法：node sc
 const fixture = await realpath(resolve(process.argv[2]));
 assert.equal(dirname(fixture), testOutput);
 assert.match(basename(fixture), /^matlab-inport-[\w-]+$/);
-const appdata = join(fixture, 'session', 'appdata');
+let launch = 'session';
+try {
+  launch = (await readFile(join(fixture,'active-test-launch.txt'),'utf8')).trim();
+  assert.match(launch,/^session-[a-zA-Z0-9-]+$/);
+} catch (error) { if (error.code !== 'ENOENT') throw error; }
+const appdata = join(fixture, launch, 'appdata');
 assert.equal(await realpath(appdata), appdata);
 const identityFile = join(appdata, 'control-harness-session.json');
 const marker = JSON.parse(await readFile(identityFile, 'utf8'));
@@ -65,7 +70,7 @@ try {
     agents.default, jobs.default, commands.default, sandbox.default]) await ctx.plugin(component);
   await ctx.plugin(policy.default, {mode:'workspace-write',workspaceRoot:workspace});
   await ctx.plugin(mcp, {transport:'stdio',serverName:'matlab',
-    command:process.env.CONTROL_MATLAB_MCP_EXECUTABLE || resolve(marker.toolkit_root,'../bin/matlab-mcp-server.exe'),
+    command:marker.mcp_executable || process.env.CONTROL_MATLAB_MCP_EXECUTABLE || resolve(marker.toolkit_root,'../bin/matlab-mcp-server.exe'),
     args:['--matlab-session-mode=existing','--extension-file='+resolve(marker.toolkit_root,'tools/tools.json'),'--disable-telemetry=true'],
     env:{APPDATA:appdata},cwd:project,toolCallTimeoutMs:120000,failOnStartupError:true});
   apply(ctx, {codeRoot:project,pythonPath,maxConcurrentWorkers:1,timeoutSeconds:120,cancellationGraceMs:5000,

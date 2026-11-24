@@ -60,20 +60,18 @@ test('fixed queue arithmetic uses the native MATLAB tool and records a reusable 
   assert.equal(calls.length, 1);
 }));
 
-test('expected fault is PASS only with its diagnostic, quarantine and a fresh secondary rejection', async () => fixture(async ({ invoke, state, save, setExecute }) => {
+test('synchronous MATLAB failure preserves the error and admits a fresh subsequent call', async () => fixture(async ({ invoke, setExecute }) => {
   setExecute(async (request, count) => {
     assert.equal(request.signal.aborted, false, 'Secondary quarantine test must not reuse a locally aborted signal');
     if (count === 1) {
       assert.match(JSON.parse(request.calls[0].arguments).code, /error\('ControlHarness:S02FixtureFailure'/);
-      state.quarantine = { token: 'unit-fixture-quarantine', reason: 'expected-exception' };
-      await save();
       return { isError: true, error: { message: 'ControlHarness:S02FixtureFailure: explicit command-unit diagnostic' }, content: [] };
     }
-    return { isError: true, error: { message: 'MATLAB resource is quarantined: unit-fixture-quarantine' }, content: [] };
+    return {isError:false,value:{content:[{type:'text',text:'CONTROL_HARNESS_S02_FOLLOWUP:42'}]}};
   });
   const result = await invoke('fault');
   assert.equal(result.status, 'PASS');
-  assert.equal(result.secondaryDidNotExecute, true);
+  assert.equal(result.resourceAfter.quarantine, null);
   assert.equal(result.calls.length, 2);
 }));
 
@@ -81,8 +79,8 @@ test('a MATLAB error alone cannot pass the lifecycle isolation acceptance', asyn
   setExecute(async () => ({ isError: true, error: { message: 'ControlHarness:S02FixtureFailure' }, content: [] }));
   const result = await invoke('fault');
   assert.equal(result.status, 'FAIL');
-  assert.match(result.error, /must quarantine/);
-  assert.equal(calls.length, 1);
+  assert.match(result.error, /fresh follow-up/);
+  assert.equal(calls.length, 2);
 }));
 
 test('a pre-existing quarantine is never reset or bypassed by the fixture command', async () => fixture(async ({ invoke, state, save, calls }) => {

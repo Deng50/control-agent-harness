@@ -3,6 +3,7 @@ import './panel.css';
 import { ArtifactReport } from './report.jsx';
 import { ParameterFields } from './form-fields.jsx';
 import { ConfirmationCard } from './confirmation-card.jsx';
+import { PlantChat, WorkspaceRecovery } from './plant-chat.jsx';
 import { initialDraft as newDraft, inputLabel, labels, normalizedResult, operationDefaults, operationGroups, operations, parseObject, reportReadOperation, requestSignature, roles as roleMetadata, setPath, signature, summaryConfig, trainingOps, uploadAccept, workspaceKey } from './form-schema.mjs';
 
 const roles = roleMetadata.map(role => ({ ...role, operations: [...operationGroups(role.id).flatMap(group => group.names).map(name => [name, labels[name] ?? name]), ['plan_workflow','预检显式工作流'], ['run_workflow','执行已审阅工作流'],['demo','完整仿真演示（需摘要确认）']] }));
@@ -83,7 +84,7 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     }).catch(failure => { if (current) setError(`持久任务记录读取失败：${failure.message}`); });
     return () => { current = false; };
   }, [observed?.error, draft.attemptId, draft.sessionId, key, history]);
-  async function action(fn) { setBusy(true); setError(''); try { await fn(); } catch (failure) { setError(failure.message ?? String(failure)); } finally { setBusy(false); } }
+  async function action(fn) { setBusy(true); setError(''); try { await fn(); } catch (failure) { setError(failure.workspaceRecovery ?? failure.message ?? String(failure)); } finally { setBusy(false); } }
   async function createOrAttach(forceNew=false) {
     const saved = stateRef.current.projects[key]?.pendingSessionId;
     try {
@@ -317,10 +318,12 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     <button disabled={busy} onClick={() => action(async () => setDirectory(await listDirectory(state.workspace.trim() || undefined)))}>浏览工作目录</button>
     {directory && <section className="control-card" aria-label="工作目录浏览"><div className="control-row">{directory.crumbs.map(crumb => <button key={crumb.path} onClick={() => action(async () => setDirectory(await listDirectory(crumb.path)))}>{crumb.name}</button>)}</div><div className="control-directory">{directory.entries.map(entry => <button key={entry.path} onClick={() => action(async () => setDirectory(await listDirectory(entry.path)))}>{entry.name}</button>)}</div>{directory.truncated && <small>目录过多，当前仅显示前一部分。</small>}<div className="control-row"><button onClick={() => { setState(value => ({ ...value, workspace: directory.path })); setDirectory(null); }}>选择此目录</button><button onClick={() => setDirectory(null)}>关闭浏览</button></div></section>}
     <nav className="control-stages">{roles.map((item,index) => <button key={item.id} aria-pressed={role.id === item.id} onClick={() => setState(value => ({ ...value, role: item.id }))}><span>0{index+1}</span><strong>{item.title}</strong><small>{item.sub}</small></button>)}</nav>
-    {error && <div role="alert" className="control-error">{error}</div>}
+    {error && <div role="alert" className="control-error">{typeof error === 'string' ? error : <WorkspaceRecovery recovery={error}/>}</div>}
     <div className="control-columns"><section className="control-card"><h2>{role.title}</h2>
       <div className="control-row"><label>操作<select aria-label="任务 / 阶段" disabled={busy} value={draft.operation} onChange={event => selectOperation(event.target.value)}>{role.operations.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><button disabled={busy} onClick={() => action(async () => openSession(await session(true)))}>打开独立会话</button><button disabled={busy} onClick={()=>action(newProfessionalSession)}>新建专业会话并保留旧记录</button></div><small>新会话保留当前输入与数值配置；旧任务可在“查看会话任务”中读取，旧摘要确认不会迁移，新计算需重新确认。</small>
       <div className="control-row" role="group" aria-label="配置显示模式">{[['normal','普通模式'],['expert','专家模式']].map(([mode,label])=><button key={mode} aria-pressed={(draft.mode??'normal')===mode} onClick={()=>patch({mode})}>{label}</button>)}<small>显示模式共用同一份配置，切换不改变参数或确认。</small></div>
+      {role.id === 'model' && <PlantChat key={key} busy={busy} submit={(text, files, signal) =>
+        action(async () => prompt(await session(true), text, files, signal))}/>}
       <p>{operations[draft.operation]?.summary}</p>
       <fieldset disabled={busy}><legend>明确输入</legend>{Object.keys({...operations[draft.operation]?.inputsSchema?.properties,...(()=>{try{return json(draft.inputs);}catch{return {};}})()}).map(name=><label key={name}>{inputLabel(name)}<input list={name.endsWith('path')?undefined:'artifact-options-'+role.id} value={(()=>{try{return json(draft.inputs)[name]??'';}catch{return '';}})()} onChange={event=>editRequest({inputs:pretty({...json(draft.inputs),[name]:event.target.value})})}/></label>)}</fieldset><datalist id={'artifact-options-'+role.id}>{Object.entries(artifactOptions).map(([id,item])=><option key={id} value={id}>{item.kind} · {item.status}</option>)}</datalist>
       <details open={draft.mode==='expert'}><summary>高级输入 JSON</summary><label>输入产物<textarea disabled={busy} aria-label="输入产物" rows={5} spellCheck={false} value={draft.inputs} onChange={event=>editRequest({inputs:event.target.value})}/></label></details>
