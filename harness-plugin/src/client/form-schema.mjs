@@ -4,9 +4,9 @@ import {agents} from '../roles.mjs';
 
 export {operations};
 export const roles=[
-  {id:'model',title:'模型与数据',sub:'数据 NN · 单对象预测 · 条件 PINN'},
-  {id:'controller',title:'控制器设计',sub:'仅设计 · 目标调参 · 独立验证'},
-  {id:'lightweight',title:'控制器轻量化',sub:'外部专家 · 模仿 · 可选 PGAC'},
+  {id:'model',title:agents.model.title,sub:'数据 NN · 单对象预测 · 条件 PINN'},
+  {id:'controller',title:agents.controller.title,sub:'仅设计 · 目标调参 · 独立验证'},
+  {id:'lightweight',title:agents.lightweight.title,sub:'外部专家 · 模仿 · 可选 PGAC'},
 ];
 export const labels={inspect_workspace:'查看工作区',inspect_artifact:'检查产物与报告',read_artifact_file:'读取产物文件',prepare_handoff:'准备下一阶段',
   convert_plant_predictor:'从采样对象核验预测模型',verify_design_delivery:'验收控制器交付',

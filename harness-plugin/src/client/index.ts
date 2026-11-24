@@ -1,4 +1,5 @@
-import { ControlPanel, ControlIcon } from './panel.jsx';
+import { ControlPanel } from './panel.jsx';
+import { WorkbenchEntry } from './workbench-entry.jsx';
 import { PlantResult, WorkspaceRecheck, WorkspaceGateTail, plantGateDefinition, workspaceRecoveryView } from './plant-chat.jsx';
 import { ChatReviewTool, ChatReviewTail, reviewTurnDefinition } from './confirmation-card.jsx';
 
@@ -167,7 +168,8 @@ export function apply(ctx) {
       return {...chatReviewActions(sessionId),keyedHooks:{reviewCards:turn=>chat.getSnapshot().nodes.turnDataSource(Number(turn),'control-engineering-review')}};
     }},ChatReviewTail);
   });
-  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-    name: 'sidebar.panellist', id: panelId, order: -50, label: () => '控制工程',
-  }, ControlIcon));
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action', id: panelId, order: -50,
+    inject: () => ({ panelId, openWorkbench: () => ctx.layout.selectPanel(panelId) }),
+  }, WorkbenchEntry));
 }

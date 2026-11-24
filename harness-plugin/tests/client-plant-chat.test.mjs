@@ -1,3 +1,4 @@
+import {clientRequire} from './client-require.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -15,7 +16,7 @@ function client(rejectFile, commandError) {
   const calls = [];
   const ok = value => ({ok:true, value});
   vm.runInNewContext(bundle, {window:{__ModuleLoader__:{load: module => { descriptor = module; }}}, crypto:{randomUUID}, structuredClone});
-  descriptor.factory(require).apply({
+  descriptor.factory(clientRequire).apply({
     slots:{
       inject: (name, setup) => { if (['main','tool.call.toolview','conversation.chat.turnTail'].includes(name)) setup(); },
       register: (spec, view) => {

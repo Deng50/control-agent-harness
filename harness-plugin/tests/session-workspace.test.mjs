@@ -1,8 +1,8 @@
 /** Actual native SessionStore + WorkspaceRegistry + durable JSON domain; no Host/LLM/RPC. */
+import {clientRequire} from './client-require.mjs';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-import {createRequire} from 'node:module';
 import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import vm from 'node:vm';
@@ -16,7 +16,6 @@ const [cordis,storage,jsonStorage,domain,sessions,workspaces]=await Promise.all(
   built('vendor/cordis/lib/index.js'),built('packages/storage/storage/lib/index.js'),
   built('packages/storage/storage-json/lib/index.js'),built('packages/storage/storage-domain/lib/index.js'),
   built('packages/core/session/lib/index.js'),built('packages/workspace/workspace/lib/index.js')]);
-const require=createRequire(resolve(import.meta.dirname,'../package.json'));
 const bundle=await readFile(process.env.CONTROL_TEST_CLIENT_BUNDLE??resolve(import.meta.dirname,'../lib/client.js'),'utf8');
 const root=resolve(import.meta.dirname,'../../test-output/session-workspace-tests');await mkdir(root,{recursive:true});
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -39,7 +38,7 @@ async function fixture(){
       session:{create:async request=>{assert.equal(request.cwd,undefined,'Client must use native Workspace creation, not cwd-only');const w=ctx.workspaceRegistry.get(request.workspaceId);assert.ok(w);const live=ctx.sessions.create('unit-new-role-'+(++created),{meta:{cwd:w.path}});await w.attachSession(live.id);return {ok:true,value:{sessionId:live.id,agentPreset:request.agentPreset}};},rename:async()=>({ok:true,value:{}})},
       commands:{execute:async(sessionId,raw)=>{commands++;const live=ctx.sessions.get(sessionId);assert.ok(live);assert.match(raw,/^\/control-workspace /);return {ok:true,value:{result:await command.handler({agent:{id:live.id,session:live},rawInput:raw.slice('/control-workspace '.length)})}};}}},
     uiWorkspace:{openSession:sessionId=>navigations.push(sessionId)}};
-  descriptor.factory(require).apply(client);
+  descriptor.factory(clientRequire).apply(client);
   return {ctx,cwd,other,original,agent,command,actions,navigations,get created(){return created;},get commands(){return commands;},setPolicy:value=>policy=value,
     close:async()=>{await ctx.fiber.dispose();await backend.close();}};
 }

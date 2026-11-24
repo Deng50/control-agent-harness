@@ -1,4 +1,5 @@
 /** Actual compiled React form; isolated native transport peers, no jobs/provider/Host. */
+import {clientRequire} from './client-require.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
@@ -23,7 +24,7 @@ test('only an explicit migration creates a new professional Session, keeps old h
       if(line.startsWith('/control-history '))return {ok:true,value:{result:{kind:'success',text:JSON.stringify({attempts:[]})}}};
       if(line.startsWith('/control-status '))return {ok:true,value:{result:{kind:'success',text:JSON.stringify({record:{state:'completed',owner:old,nativeJobId:'old-job',request:{operation:'train_supervised'},outcome:{cleanupVerified:true}}})}}};
       throw new Error('Unexpected native call '+line);}}},uiWorkspace:{openSession:id=>navigation.push(id)}};
-  descriptor.factory(require).apply(ctx);const root=createRoot(dom.window.document.getElementById('root'));
+  descriptor.factory(clientRequire).apply(ctx);const root=createRoot(dom.window.document.getElementById('root'));
   const button=text=>{const node=[...dom.window.document.querySelectorAll('button')].find(item=>item.textContent===text);assert.ok(node,'Missing actual migration button '+text);return node;};
   const click=node=>node.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));const press=async text=>act(async()=>{click(button(text));await new Promise(done=>setTimeout(done,0));});
   try{await act(async()=>root.render(React.createElement(Panel,{...actions,useJobs:pick=>pick({rows:{},observed:{}})})));

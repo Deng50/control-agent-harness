@@ -66,12 +66,12 @@ Set-Location D:\projects\control-agent-harness
 
 使用启动终端输出的本地链接进入前端。对话执行需先在 Harness 的“设置 → 模型”中配置模型服务；确定性工作流本身不消耗对话模型 API。启动链接中的认证信息及 API Key 不应写入案例配置。
 
-1. 打开“控制工程”，工作目录填写 `D:/projects/control-agent-harness/workspaces/spring-damper-my-run`。
+1. 打开“控制工程工作台”，工作目录填写 `D:/projects/control-agent-harness/workspaces/spring-damper-my-run`。
 2. 使用“用户项目串联工作流”，工作流路径填写 `D:/projects/control-agent-harness/examples/spring-damper/workflow.json`。
 3. 先执行预检，确认八个阶段均就绪；再运行完整工作流。预检验证文件、接口与依赖，数值可行性和性能在实际运行中验证。
 4. 在作业面板查看进度、训练曲线和日志。结束后查看工作流记录及各产物的报告。八阶段编号依次为 `nominal`、`reference`、`data`、`corrected`、`controller`、`expert`、`imitation`、`optimized`。
-5. 若要逐角色演示，先运行 `model-phase-workflow.json`（前四阶段），记录名义模型、参考对象、数据和校正模型 ID；切换“控制器设计”角色，选择“设计与调参”，输入校正模型 ID 与参考对象 ID，配置区粘贴 `controller.json` 内容。
-6. 控制器完成后切换“控制器轻量化”角色：先“采集专家数据”，输入控制器 ID 和参考对象 ID，使用 `expert.json`；再“训练模仿策略”，输入专家数据 ID，使用 `imitation.json`；最后“物理策略优化”，输入模仿策略 ID 和原控制器使用的同一校正模型 ID，使用 `optimize.json`。
+5. 若要逐角色演示，先运行 `model-phase-workflow.json`（前四阶段），记录名义模型、参考对象、数据和校正模型 ID；切换“控制算法设计与调优”角色，选择“设计与调参”，输入校正模型 ID 与参考对象 ID，配置区粘贴 `controller.json` 内容。
+6. 控制器完成后切换“控制算法轻量化”角色：先“采集专家数据”，输入控制器 ID 和参考对象 ID，使用 `expert.json`；再“训练模仿策略”，输入专家数据 ID，使用 `imitation.json`；最后“物理策略优化”，输入模仿策略 ID 和原控制器使用的同一校正模型 ID，使用 `optimize.json`。
 
 完整工作流内嵌了各阶段配置，便于作为固定配方执行。单独的六份配置供表单逐步演示使用；修改参数时，须同步修改工作流内对应阶段的 `config`，两者不会自动读取彼此。
 

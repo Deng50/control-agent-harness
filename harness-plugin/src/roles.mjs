@@ -5,21 +5,21 @@ export const sharedOperations = ['inspect_workspace', 'inspect_artifact', 'read_
 
 export const agents = {
   model: {
-    preset: 'control-model', title: '模型与数据智能体',
+    preset: 'control-model', title: '对象模型自动化训练',
     skill: 'train-object-model',
     description: 'Inspect model source and explicit dimensions, collect from supported single-plant adapters, prepare measured or explicitly synthetic CSV/XLSX data, and train/export data-only or next-state MLPs. With an explicit supported thermal ODE, train a conditional trajectory PINN using real equation, time derivative, collocation and initial-condition losses. Preserve distinct signal semantics, grouped splits and causal features. Also identify linear dynamics or train an optional nominal residual correction. A residual NN is not a PINN and the thermal template is not a generic PDE solver.',
     operations: [...sharedOperations, 'convert_plant_predictor', 'inspect_model_source', 'register_model', 'register_python_model', 'import_transitions', 'simulate_transitions', 'train_residual', 'identify_linear_model', 'prepare_supervised_dataset', 'train_supervised', 'train_predictive_model', 'prepare_pinn_problem', 'train_pinn', 'validate_differentiable_model'],
     sequence: 'Choose the requested task before choosing operations: analyze materials, collect data, fit a data or next-state network, solve a supported explicit conditional ODE with PINN, or correct a nominal model. Data-only intent does not require a nominal model. PINN requires trusted equations and explicit units/conditions; use prepare_pinn_problem and review its resolved signal/normalization contract before train_pinn. A conditional trajectory solution is not a verified arbitrary state-transition model and cannot be automatically handed to MPC/PGAC. Physics-off ablation must be labeled and cannot be reported as a true PINN. Inspect source without running it first; resolve engineering semantics and execution prerequisites. The current catalog determines which branch can execute. Deliver the requested result and stop there; controller handoff is optional.',
   },
   controller: {
-    preset: 'control-controller', title: '控制器设计与调参智能体',
+    preset: 'control-controller', title: '控制算法设计与调优',
     skill: 'design-and-tune-mpc',
     description: 'Design constrained MPC with the selected model, simulate real optimization candidates, verify independent conditions, and validate KF/EKF state estimation. Registered Torch dynamics support the numerical MPC path. Declared Python/MATLAB/Simulink single-plant adapters support confirmed sampling; an arbitrary uploaded project is not automatically executable or differentiable.',
     operations: [...sharedOperations, 'convert_plant_predictor', 'synthesize_mpc', 'verify_design_delivery', 'check_matlab_design', 'tune_controller', 'design_controller', 'validate_estimator'],
     sequence: 'Distinguish design-only, tuning an existing controller, and evaluation. A natural-language design can use explicit assumptions or a parameterized template; design-only intent does not require an evaluation plant, GA, or test scenarios. Preference tuning uses tune_controller with an executable evaluation model, disjoint tuning/verification/test conditions and a separate evaluation recipe with fixed positive scales and hard gates. Internal q/r/s are not external evaluation weights. Current energy is an action-squared proxy only; no-step overshoot and unsettled response need explicit unavailable states. A finite successful simulation does not prove stability. Check the current operation catalog before execution, and state an unavailable branch precisely rather than forcing the old full design flow. Downstream expert collection is optional.',
   },
   lightweight: {
-    preset: 'control-lightweight', title: '轻量化控制智能体',
+    preset: 'control-lightweight', title: '控制算法轻量化',
     skill: 'distill-controller',
     description: 'Collect expert closed-loop data, train MLP/RNN/LSTM imitation policies, and optimize a shared checkpoint through differentiable dynamics. Compare held-out expert, imitation and optimized results without assuming improvement. This optimizer is not PPO/SAC.',
     operations: [...sharedOperations, 'inspect_model_source', 'register_model', 'register_python_model', 'train_predictive_model', 'validate_differentiable_model', 'register_expert', 'collect_external_expert', 'import_expert_data', 'train_external_imitation', 'prepare_imitation_evaluation', 'evaluate_external_imitation', 'optimize_external_policy', 'evaluate_external_pgac', 'collect_expert', 'train_imitation', 'optimize_policy'],

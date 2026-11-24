@@ -1,4 +1,5 @@
 /** Actual built client + React DOM flow. Native results are isolated, shaped fixtures. */
+import {clientRequire} from './client-require.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
@@ -25,7 +26,7 @@ async function fixture({deferSupport=false}={}){
   const projects=Object.fromEntries(['model','controller'].map(role=>[workspaceKey(workspace,role),{operation:'inspect_table',inputs:JSON.stringify({data_path:csv}),config:'{}',sessionId:role+'-session',roleSessionId:role+'-session',lastUpload:role==='model'?{path:xlsx,name:'model-actual.xlsx'}:null}]));
   dom.window.localStorage.setItem(storageKey,JSON.stringify({version:1,workspace,role:'model',projects}));
   vm.runInNewContext(source,{window:{__ModuleLoader__:{load:value=>descriptor=value}},document:dom.window.document,localStorage:dom.window.localStorage,console,structuredClone,AbortController,setTimeout,clearTimeout},{filename:'actual-built-control-client.js'});
-  descriptor.factory(require).apply({slots:{inject:(name,fn)=>{if(name==='main')fn();},register:(spec,component)=>{Panel=component;actions=spec.inject();}},jobs:{state:()=>{}}});
+  descriptor.factory(clientRequire).apply({slots:{inject:(name,fn)=>{if(name==='main')fn();},register:(spec,component)=>{Panel=component;actions=spec.inject();}},jobs:{state:()=>{}}});
   const root=createRoot(dom.window.document.getElementById('root'));
   const props={...actions,useJobs:pick=>pick(jobs),watchJobs:()=>()=>{},observeJob:()=>()=>{},review:async()=>({requirements:[]}),
     submit:async(sessionId,request)=>{const n=++number,jobId='unit-table-job-'+n,attemptId='unit-table-attempt-'+n;
@@ -50,17 +51,17 @@ test('support XLSX header is superseded by the actual direct CSV inspect result 
     await f.press('读取本角色刚上传文件的实际表头');assert.equal(f.actual().source.path,xlsx);assert.equal(f.actual().worksheets[0].worksheet,'Frozen_F03');
     await f.press('执行阶段');assert.equal(f.requests.length,2);assert.equal(f.requests[1].request.operation,'inspect_table');assert.equal(f.requests[1].request.inputs.data_path,csv);
     assert.equal(f.actual().source.path,csv,'A retained support preview must not shadow a later direct result');assert.equal(f.actual().worksheets[0].worksheet,null);assert.equal(f.actual().worksheets[0].columns[0].header,'csv_actual_column');
-    await f.role('控制器设计');assert.equal(f.actual(),null,'Another role must not inherit the model preview');
-    await f.role('模型与数据');assert.equal(f.actual().source.path,csv);assert.equal(f.actual().worksheets[0].worksheet,null);
+    await f.role('控制算法设计与调优');assert.equal(f.actual(),null,'Another role must not inherit the model preview');
+    await f.role('对象模型自动化训练');assert.equal(f.actual().source.path,csv);assert.equal(f.actual().worksheets[0].worksheet,null);
   }finally{await f.close();}
 });
 
 test('late support header response stays in its originating role while another role completes a direct CSV request',async()=>{
   const f=await fixture({deferSupport:true});try{
-    await f.press('读取本角色刚上传文件的实际表头');await f.role('控制器设计');await f.press('执行阶段');
+    await f.press('读取本角色刚上传文件的实际表头');await f.role('控制算法设计与调优');await f.press('执行阶段');
     assert.equal(f.actual().source.path,csv);assert.equal(f.actual().worksheets[0].worksheet,null);
     await f.act(async()=>{f.release();await new Promise(done=>setTimeout(done,0));});
     assert.equal(f.actual().source.path,csv);assert.equal(f.actual().worksheets[0].worksheet,null);
-    await f.role('模型与数据');assert.equal(f.actual().source.path,xlsx);
+    await f.role('对象模型自动化训练');assert.equal(f.actual().source.path,xlsx);
   }finally{await f.close();}
 });

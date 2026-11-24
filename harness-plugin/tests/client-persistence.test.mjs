@@ -1,4 +1,5 @@
 /** Real React + jsdom unmount boundary; all Native calls are isolated stubs. */
+import {clientRequire} from './client-require.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
@@ -26,7 +27,7 @@ async function fixture({deferCreate=false,refuseFirst=false}={}){
     jobs:{state:()=>{},watchRows:()=>()=>{},observe:()=>()=>{}},
     remote:{workspace:{create:async()=>({ok:true,value:{workspace:{workspaceId:'unit-native-workspace'}}})},session:{create:async request=>{assert.equal(request.workspaceId,'unit-native-workspace');assert.equal(request.cwd,undefined);created++;const value={ok:true,value:{sessionId:'unit-created-session-'+created,agentPreset:request.agentPreset}};if(deferCreate)await new Promise(done=>releaseCreate=done);return value;},rename:async()=>({ok:true,value:{}})},commands:{execute:async(sessionId,command)=>{assert.match(command,/^\/control-workspace /);if(refuseFirst){refuseFirst=false;return {ok:true,value:{result:{kind:'error',text:JSON.stringify({code:'WORKSPACE_PREFLIGHT_FAILED',actor:'worker',operation:'replace',path:workspace,os_code:5,detail:'denied',hint:'修复后重试'})}}};}return {ok:true,value:{result:{kind:'success',text:JSON.stringify({sessionId,attached:true})}}};}}},
     uiWorkspace:{openSession:sessionId=>{navigations.push({sessionId,storage:JSON.parse(dom.window.localStorage.getItem(storageKey))});root.unmount();onOpen?.();}}};
-  descriptor.factory(require).apply(ctx);
+  descriptor.factory(clientRequire).apply(ctx);
   async function mount(){root=createRoot(dom.window.document.getElementById('root'));await act(async()=>root.render(React.createElement(Panel,{...actions,useJobs:pick=>pick({rows:{},observed:{}})})));}
   function button(text){const value=[...dom.window.document.querySelectorAll('button')].find(node=>node.textContent===text);assert.ok(value,'Button missing: '+text);return value;}
   function click(node){node.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));}
@@ -57,7 +58,7 @@ test('deferred Session creation merges into latest drafts without losing same-ke
   const f=await fixture({deferCreate:true});try{
     await f.act(async()=>f.click(f.button('打开独立会话')));
     const chat=f.dom.window.document.querySelector('textarea[placeholder="说明目标和希望修改的参数…"]');assert.ok(chat);await f.changeText(chat,'edited while Session create was pending');
-    await f.act(async()=>{const role=[...f.dom.window.document.querySelectorAll('nav button')].find(node=>node.textContent.includes('控制器设计'));f.click(role);});
+    await f.act(async()=>{const role=[...f.dom.window.document.querySelectorAll('nav button')].find(node=>node.textContent.includes('控制算法设计与调优'));f.click(role);});
     const config=f.dom.window.document.querySelector('textarea[aria-label="阶段配置"]');assert.ok(config);await f.changeText(config,'{"seed":73}');
     await f.act(async()=>{f.release();await new Promise(done=>setTimeout(done,0));});
     assert.equal(f.navigations.length,1);const saved=f.navigations[0].storage;assert.equal(saved.role,'controller');assert.equal(saved.projects[modelKey].chat,'edited while Session create was pending');assert.deepEqual(JSON.parse(saved.projects[controllerKey].config),{seed:73});assert.equal(saved.projects[modelKey].roleSessionId,'unit-created-session-1');

@@ -1,4 +1,5 @@
 /** Exercises the built Web plugin in React/jsdom with a deterministic native transport. */
+import {clientRequire} from './client-require.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -33,7 +34,7 @@ async function fixture({attempt,professionalSession=sessionId,matlab=false}={}) 
       operation:'prepare_supervised_dataset',inputs:'{"material":"input"}',config:'{}'}}}));
   vm.runInNewContext(source,{window:{__ModuleLoader__:{load:value=>descriptor=value}},document:dom.window.document,localStorage:dom.window.localStorage,
     crypto:globalThis.crypto,structuredClone,AbortController,setTimeout,clearTimeout,console});
-  const plugin=descriptor.factory(require);
+  const plugin=descriptor.factory(clientRequire);
   plugin.apply({slots:{inject:(name,fn)=>fn(),register:(spec,component)=>entries.set(spec.name,{spec,component})},
     effect:(fn)=>fn(),uiConversation:{events:{register:value=>{definition=value;return ()=>{};}}},
     jobs:{state:()=>{},watchRows:()=>()=>{},observe:()=>()=>{}},

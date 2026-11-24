@@ -313,18 +313,32 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
     liveCard.requirements.some(row=>liveCard.statuses?.[row.scope]?.confirmation_state!=='confirmed') ||
     liveCard.matlab_scope && liveCard.matlab_grant?.state!=='active');
   return <div className="control-panel">
-    <header><p className="control-kicker">CONTROL ENGINEERING / HARNESS</p><h1>模型、控制器与轻量化</h1><p>按所需阶段开始或结束。三个角色各自使用原生会话，计算由 Harness 后台作业执行。</p></header>
-    <label className="control-workspace">项目工作目录<input placeholder="D:\projects\control-agent-harness\workspaces\project-01" value={state.workspace} onChange={event => setState(value => ({ ...value, workspace: event.target.value }))}/><small>选择本机任务目录。打开会话和开始计算前会检查主机与数值进程的实际读写、替换和清理权限。路径改变会切换会话与草稿。</small></label>
-    <button disabled={busy} onClick={() => action(async () => setDirectory(await listDirectory(state.workspace.trim() || undefined)))}>浏览工作目录</button>
+    <header className="control-masthead">
+      <div className="control-partners"><span>天津大学</span><i aria-hidden="true"/><span>上海联合汽车电子有限公司</span></div>
+      <h1>控制工程工作台</h1>
+      <p>选择工程工作目录，进入智能体会话并查看作业结果。</p>
+    </header>
+    <div className="control-workspace">
+      <label htmlFor="control-project-workspace">项目工作目录</label>
+      <div className="control-path-row">
+        <input id="control-project-workspace" aria-describedby="control-workspace-hint" spellCheck={false} placeholder="D:\projects\control-agent-harness\workspaces\project-01" value={state.workspace} onChange={event => setState(value => ({ ...value, workspace: event.target.value }))}/>
+        <button disabled={busy} onClick={() => action(async () => setDirectory(await listDirectory(state.workspace.trim() || undefined)))}>浏览工作目录</button>
+      </div>
+      <small id="control-workspace-hint">会话与草稿按目录保存，执行前会核验目录权限。</small>
+    </div>
     {directory && <section className="control-card" aria-label="工作目录浏览"><div className="control-row">{directory.crumbs.map(crumb => <button key={crumb.path} onClick={() => action(async () => setDirectory(await listDirectory(crumb.path)))}>{crumb.name}</button>)}</div><div className="control-directory">{directory.entries.map(entry => <button key={entry.path} onClick={() => action(async () => setDirectory(await listDirectory(entry.path)))}>{entry.name}</button>)}</div>{directory.truncated && <small>目录过多，当前仅显示前一部分。</small>}<div className="control-row"><button onClick={() => { setState(value => ({ ...value, workspace: directory.path })); setDirectory(null); }}>选择此目录</button><button onClick={() => setDirectory(null)}>关闭浏览</button></div></section>}
-    <nav className="control-stages">{roles.map((item,index) => <button key={item.id} aria-pressed={role.id === item.id} onClick={() => setState(value => ({ ...value, role: item.id }))}><span>0{index+1}</span><strong>{item.title}</strong><small>{item.sub}</small></button>)}</nav>
+    <nav className="control-stages" aria-label="工程智能体">{roles.map(item =>
+      <button key={item.id} aria-pressed={role.id === item.id} onClick={() => setState(value => ({ ...value, role: item.id }))}>
+        <span className={'stage-symbol stage-' + item.id} aria-hidden="true"><i/><i/><i/></span>
+        <span className="stage-copy"><strong>{item.title}</strong><small>{item.sub}</small></span>
+      </button>)}</nav>
     {error && <div role="alert" className="control-error">{typeof error === 'string' ? error : <WorkspaceRecovery recovery={error}/>}</div>}
-    <div className="control-columns"><section className="control-card"><h2>{role.title}</h2>
+    <div className="control-columns"><section className="control-card"><h2>任务配置</h2>
       <div className="control-row"><label>操作<select aria-label="任务 / 阶段" disabled={busy} value={draft.operation} onChange={event => selectOperation(event.target.value)}>{role.operations.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><button disabled={busy} onClick={() => action(async () => openSession(await session(true)))}>打开独立会话</button><button disabled={busy} onClick={()=>action(newProfessionalSession)}>新建专业会话并保留旧记录</button></div><small>新会话保留当前输入与数值配置；旧任务可在“查看会话任务”中读取，旧摘要确认不会迁移，新计算需重新确认。</small>
       <div className="control-row" role="group" aria-label="配置显示模式">{[['normal','普通模式'],['expert','专家模式']].map(([mode,label])=><button key={mode} aria-pressed={(draft.mode??'normal')===mode} onClick={()=>patch({mode})}>{label}</button>)}<small>显示模式共用同一份配置，切换不改变参数或确认。</small></div>
       {role.id === 'model' && <PlantChat key={key} busy={busy} submit={(text, files, signal) =>
         action(async () => prompt(await session(true), text, files, signal))}/>}
-      <p>{operations[draft.operation]?.summary}</p>
+      <p>{draft.operation === 'inspect_workspace' ? '读取当前工作区的产物清单、标识和状态。' : operations[draft.operation]?.summary}</p>
       <fieldset disabled={busy}><legend>明确输入</legend>{Object.keys({...operations[draft.operation]?.inputsSchema?.properties,...(()=>{try{return json(draft.inputs);}catch{return {};}})()}).map(name=><label key={name}>{inputLabel(name)}<input list={name.endsWith('path')?undefined:'artifact-options-'+role.id} value={(()=>{try{return json(draft.inputs)[name]??'';}catch{return '';}})()} onChange={event=>editRequest({inputs:pretty({...json(draft.inputs),[name]:event.target.value})})}/></label>)}</fieldset><datalist id={'artifact-options-'+role.id}>{Object.entries(artifactOptions).map(([id,item])=><option key={id} value={id}>{item.kind} · {item.status}</option>)}</datalist>
       <details open={draft.mode==='expert'}><summary>高级输入 JSON</summary><label>输入产物<textarea disabled={busy} aria-label="输入产物" rows={5} spellCheck={false} value={draft.inputs} onChange={event=>editRequest({inputs:event.target.value})}/></label></details>
       {['register_material','inspect_material','inspect_table','inspect_model_source','register_model','register_python_model','import_transitions'].includes(draft.operation) && <label>上传{draft.operation === 'import_transitions' ? '数据 NPZ' : '对象材料'}<input type="file" disabled={busy} accept={uploadAccept} onChange={event => { const file = event.target.files?.[0]; if (!file) return; action(async () => { const id = await session(true); const controller = new AbortController(); setUploadController(controller); try { const receipt = await upload(id, file, controller.signal, progress => setUploadProgress(`已上传 ${(progress.loaded/1024).toFixed(0)} KB`)); patch({ inputs: pretty({ ...json(draft.inputs), [['import_transitions','inspect_table'].includes(draft.operation) ? 'data_path' : ['register_material','inspect_material'].includes(draft.operation) ? 'local_path' : 'model_path']: receipt.path }) }); if(draft.operation==='register_material') patch({config:pretty({...json(draft.config),source_kind:'upload',original_name:receipt.name}),review:null});patch({lastUpload:receipt});setUploadProgress(`${receipt.name} · ${receipt.bytes} 字节 · SHA-256 ${receipt.sha256}`); } finally { setUploadController(null); } }); }}/><small>{uploadProgress}</small>{uploadController && <button onClick={() => uploadController.abort()}>取消上传</button>}</label>}
@@ -390,7 +404,8 @@ export function ControlPanel({ createSession, openSession, listDirectory, submit
       {job && <div className="control-status"><strong>{job.status}</strong><span>{job.progress}</span>{!terminal && <button onClick={() => action(() => cancel(draft.sessionId, job.id))}>取消作业</button>}{terminal && job.status !== 'completed' && <small>读取原任务记录后显式重试 / 恢复；不自动重复派发。</small>}<small>{job.detail}</small></div>}
       {(observed?.error || observed?.gapBefore) && <p className="control-error">{observed.error ?? '较早日志已超出显示窗口，请查看工作区文件。'}</p>}
       <LossChart values={progress}/>
-      <pre className="control-logs">{visibleLog || '执行阶段后，这里显示原生作业日志和指标。'}</pre>
+      {visibleLog || job ? <pre className="control-logs">{visibleLog || '等待作业日志…'}</pre>
+        : <div className="control-log-empty"><ControlIcon size={26}/><strong>暂无作业日志</strong><small>选择已有作业或启动任务后，可在此查看日志与指标。</small></div>}
       {logLines.length > 60 && <small>当前显示最近60行；较早的事件保存在工作目录的 .control-jobs 中。</small>}
       {selectedAttempt && <><p>已读取持久任务记录 · {selectedAttempt.request.operation} · {selectedAttempt.state}</p><details><summary>持久记录详情</summary><pre className="control-logs">{pretty(selectedAttempt)}</pre></details></>}
       {(tablePreview||((selectedAttempt?.request?.operation??draft.operation)==='inspect_table'&&result))&&<details open aria-label="实际数据表头"><summary>实际数据表头、列位置与工作表</summary><pre className="control-logs">{pretty(tablePreview??result)}</pre><small>只展示实际文件数据；名称不自动决定单位、信号角色或可观测性，请在数据接口中明确绑定。</small></details>}

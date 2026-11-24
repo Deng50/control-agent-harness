@@ -3,6 +3,7 @@ import { readFile, writeFile, stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { agents } from '../harness-plugin/src/roles.mjs';
 
 export const project = resolve(import.meta.dirname, '..');
 export const upstream = resolve(project, 'vendor/deepseek-harness');
@@ -86,6 +87,7 @@ export async function expectedPatch() {
   for (const role of roleIds) {
     const preset = targetRows.items.find(row => row.get('id') === `preset-control-${role}`);
     if (!preset) throw new Error(`Missing control-${role} declaration`);
+    preset.setIn(['config', 'name'], agents[role].title);
     const copied = plugins.clone();
     const persona = findRow(copied, 'persona');
     const jobs = findRow(copied, 'tool-jobs');

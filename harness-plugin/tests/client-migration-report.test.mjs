@@ -1,4 +1,5 @@
 /** Actual React race: an old Session report response cannot overwrite a migrated Session. */
+import {clientRequire} from './client-require.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
@@ -23,7 +24,7 @@ test('migration releases old report selection and invalidates an older pending i
       if(line.startsWith('/control ')){const request=JSON.parse(line.slice('/control '.length));assert.equal(sessionId,old);assert.equal(request.operation,'inspect_artifact');pending=true;return {ok:true,value:{result:{kind:'success',text:JSON.stringify({jobId:'old-inspect',attemptId:'old-inspect-attempt'})}}};}
       if(line.startsWith('/control-status ')){assert.equal(sessionId,old);await new Promise(done=>releaseOld=done);return {ok:true,value:{result:{kind:'success',text:JSON.stringify({record:{owner:old,nativeJobId:'old-inspect',state:'completed',outcome:{cleanupVerified:true},result:A}})}}};}
       throw new Error('Unexpected native fixture request');}}}};
-  descriptor.factory(require).apply(ctx);const root=createRoot(dom.window.document.getElementById('root'));
+  descriptor.factory(clientRequire).apply(ctx);const root=createRoot(dom.window.document.getElementById('root'));
   const click=node=>node.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));
   try{await act(async()=>{root.render(React.createElement(Panel,{...actions,useJobs:pick=>pick(jobs)}));await new Promise(done=>setTimeout(done,0));});assert.equal(pending,true);
     await act(async()=>{const button=[...dom.window.document.querySelectorAll('button')].find(row=>row.textContent==='新建专业会话并保留旧记录');assert.ok(button);click(button);await new Promise(done=>setTimeout(done,0));});

@@ -17,7 +17,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: control-model
-        name: 模型与数据智能体
+        name: 对象模型自动化训练
         description: 被控对象检查、数据导入、线性辨识与物理约束残差网络
         order: 10
         plugins:
@@ -152,7 +152,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: control-controller
-        name: 控制器设计与调参智能体
+        name: 控制算法设计与调优
         description: MPC 控制器设计、真实候选仿真调参与 KF/EKF 验证
         order: 11
         plugins:
@@ -287,7 +287,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: control-lightweight
-        name: 轻量化控制智能体
+        name: 控制算法轻量化
         description: 专家数据采集、神经网络模仿与可微控制策略优化
         order: 12
         plugins:
