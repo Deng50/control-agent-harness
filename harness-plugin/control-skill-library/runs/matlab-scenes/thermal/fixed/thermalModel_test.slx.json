@@ -1,0 +1,29 @@
+{
+  "source": "遗传算法热模型参数辨识/thermalModel_test.slx",
+  "file": "thermalModel_test.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "b312a49c3ddbfa20c324cbdba808c41ca806843b3e02a23a57f9a763c8c6e6d8",
+  "source_sha256": "ec8a8776e801f5bc2625a445b14f07eaff8c96c5cc3f1e6b9fe46d4f1369f782",
+  "metrics": {
+    "time_samples": 5973,
+    "start_s": 0,
+    "end_s": 5972,
+    "signals": {
+      "sid309": {
+        "min": 9.0494585559156554E-6,
+        "max": 11.587478964775761,
+        "final": 0.13730140893123477,
+        "final_channels": 0.13730140893123477
+      },
+      "sid279": {
+        "min": 9.9711203146105252E-6,
+        "max": 19.328698271217096,
+        "final": 0.20726573810473634,
+        "final_channels": 0.20726573810473634
+      }
+    }
+  },
+  "seconds": 10.1655431
+}

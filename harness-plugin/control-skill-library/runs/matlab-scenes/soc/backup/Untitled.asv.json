@@ -1,0 +1,15 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/Untitled.asv",
+  "file": "Untitled.m",
+  "mode": "backup",
+  "matlab": "2024b",
+  "success": false,
+  "executed_sha256": "b3c5256ff32d3727049932d3f43660a62bdcd2338ed9f5a071cb76a5e47341ba",
+  "source_sha256": "b3c5256ff32d3727049932d3f43660a62bdcd2338ed9f5a071cb76a5e47341ba",
+  "error": "错误: 文件: <historical-directory>/Untitled.m 行: 16 列: 3\n该语句不完整。",
+  "stack": [
+    "runProgram",
+    "run_scene"
+  ],
+  "seconds": 0.020346
+}

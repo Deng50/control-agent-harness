@@ -1,0 +1,23 @@
+{
+  "source": "07 - Dyamic_model - engine speed model/plant_model_with_dither_input.slx",
+  "file": "plant_model_with_dither_input.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "392464d75eaac9c5e12f0b180cba70fa4d6b46b0bdf362e673c597227c250de5",
+  "source_sha256": "b6019eeb61797fbe66d004d86ee03200d5ba1be2461e37e84e03aa1457ba046a",
+  "metrics": {
+    "time_samples": 6001,
+    "start_s": 0,
+    "end_s": 60,
+    "signals": {
+      "sid39": {
+        "min": 639.3499866031533,
+        "max": 1196.744217006787,
+        "final": 639.35044522546639,
+        "final_channels": 639.35044522546639
+      }
+    }
+  },
+  "seconds": 0.8550805
+}

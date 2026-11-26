@@ -1,0 +1,53 @@
+{
+  "source": "Run_MPC_For_2nd_order_Plant_auto_tuning.m",
+  "file": "Run_MPC_For_2nd_order_Plant_auto_tuning.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "f30eedd7540f861f9c1abd54e33ba021f3da0696790782f8ad63a26c6df6a17e",
+  "source_sha256": "df8cdaab185feb20713c7d399ac0efe37c738c702c3faa7b75935d6b8313ba34",
+  "metrics": {
+    "x_model": {
+      "size": [
+        1,
+        4
+      ],
+      "finite_real": true,
+      "last": 0.98278564483602537,
+      "values": [
+        -4.16238198246756,
+        -8.8566102760027423,
+        8.8625881234882726,
+        0.98278564483602537
+      ]
+    },
+    "x_opt": {
+      "size": [
+        1,
+        2
+      ],
+      "finite_real": true,
+      "last": 0.068729372601958313,
+      "values": [
+        0.0068356296082605879,
+        0.068729372601958313
+      ]
+    },
+    "fval": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 5.9809067950248807,
+      "values": 5.9809067950248807
+    },
+    "diagnostics": {
+      "baseline_cost": 29.388242046996055,
+      "tuned_cost": 5.9809067950248807,
+      "exitflag": 1
+    },
+    "mat_file": "Run_MPC_For_2nd_order_Plant_auto_tuning.mat"
+  },
+  "seconds": 20.7320988
+}

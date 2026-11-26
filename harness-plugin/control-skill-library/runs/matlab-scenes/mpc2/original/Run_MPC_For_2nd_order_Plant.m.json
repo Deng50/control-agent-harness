@@ -1,0 +1,34 @@
+{
+  "source": "Run_MPC_For_2nd_order_Plant.m",
+  "file": "Run_MPC_For_2nd_order_Plant.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "c7b8ebe186f6f80f938c10b5f68d277cc220a498a9a80f6a2fc1dcd59901370d",
+  "source_sha256": "c7b8ebe186f6f80f938c10b5f68d277cc220a498a9a80f6a2fc1dcd59901370d",
+  "metrics": {
+    "x_model": {
+      "size": [
+        1,
+        4
+      ],
+      "finite_real": true,
+      "last": 0.98278564483602537,
+      "values": [
+        -4.16238198246756,
+        -8.8566102760027423,
+        8.8625881234882726,
+        0.98278564483602537
+      ]
+    },
+    "Data_collect": {
+      "size": [
+        2001,
+        3
+      ],
+      "finite_real": true,
+      "last": 0.11017948349207415
+    }
+  },
+  "seconds": 24.5103557
+}

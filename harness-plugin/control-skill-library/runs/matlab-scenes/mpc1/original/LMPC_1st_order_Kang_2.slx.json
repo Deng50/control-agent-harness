@@ -1,0 +1,32 @@
+{
+  "source": "LMPC_1st_order_Kang_2.slx",
+  "file": "LMPC_1st_order_Kang_2.slx",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "3588d5f833305c01900372a0c2f5e0a17f437a845068e6c7ff2261317129190b",
+  "source_sha256": "3588d5f833305c01900372a0c2f5e0a17f437a845068e6c7ff2261317129190b",
+  "metrics": {
+    "time_samples": 2001,
+    "start_s": 0,
+    "end_s": 20,
+    "signals": {
+      "sid1654": {
+        "min": 105,
+        "max": 120,
+        "final": 120
+      },
+      "sid1737": {
+        "min": 0,
+        "max": 119.99999999999872,
+        "final": 119.99999999999872
+      },
+      "sid1676": {
+        "min": 4.1541222826784949,
+        "max": 159.99999999999974,
+        "final": 159.99999999999974
+      }
+    }
+  },
+  "seconds": 18.4541321
+}

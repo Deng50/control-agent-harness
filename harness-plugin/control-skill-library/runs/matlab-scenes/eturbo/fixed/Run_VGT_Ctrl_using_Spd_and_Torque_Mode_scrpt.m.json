@@ -1,0 +1,18 @@
+{
+  "source": "Run_VGT_Ctrl_using_Spd_and_Torque_Mode_scrpt.m",
+  "file": "Run_VGT_Ctrl_using_Spd_and_Torque_Mode_scrpt.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "7921766bc68f078fe73f4a5fb67ed90549e54653249716f1b85ad404e9d79c0b",
+  "source_sha256": "0794606147d12e5ca37a959d9fb88e35703eff1a72c7260555d031f52f60d0c8",
+  "metrics": {
+    "diagnostics": {
+      "end_s": 50,
+      "dt_s": 0.001,
+      "wn": 5.3701712153452439,
+      "damping": 1.5
+    }
+  },
+  "seconds": 2.1149608
+}

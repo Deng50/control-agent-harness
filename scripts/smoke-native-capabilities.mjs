@@ -14,6 +14,11 @@ import { connectHarness, command, smokeOptions, writeSmokeEvidence } from './har
 export const name = 'control-native-capability-acceptance';
 export const inject = ['commands', 'tools', 'workingDirectory', 'agentPresets'];
 const entries = { model: 'train-object-model', controller: 'design-and-tune-mpc', lightweight: 'distill-controller' };
+const referenceTasks = {
+  model: ['仅有温度和功率的时序 CSV，按整条工况训练并留出测试', 'audit-train-tabular-model', 'controlkit/table.py'],
+  controller: ['用 Simulink 搭二阶对象做闭环 MPC，和 ADRC 比较', 'build-native-mpc', 'cases/matlab-scenes/mpc2/Run_MPC_For_2nd_order_Plant_auto_tuning.m'],
+  lightweight: ['把耗时的 MPC 蒸馏成一个实时可运行的小网络', 'clone-control-policy', 'controlkit/policy.py'],
+};
 const fixtureName = 'native-capability-fixture.txt';
 const marker = 'CONTROL_NATIVE_CAPABILITY_FIXTURE';
 const sha256 = value => createHash('sha256').update(value).digest('hex');
@@ -26,7 +31,8 @@ export function apply(ctx) {
     async handler({ agent, signal, rawInput }) {
       const evidence = { sessionId: agent.id, checkedAt: new Date().toISOString(), calls: [] };
       try {
-        assert.equal(rawInput.trim(), '', 'This acceptance command accepts no tool names, code, or paths.');
+        const libraryOnly = rawInput.trim() === 'library';
+        assert.ok(libraryOnly || !rawInput.trim(), 'Use no arguments or the fixed library checklist.');
         const preset = ctx.agentPresets.presetForSession(agent.session);
         const role = preset?.replace(/^control-/, '');
         assert.ok(entries[role], 'Use a real control-model/controller/lightweight preset Session.');
@@ -52,6 +58,29 @@ export function apply(ctx) {
             resultSha256: sha256(JSON.stringify(result)), ...(result.isError ? { error: result.error ?? null } : {}) });
           assert.equal(!!result.isError, expectError, `${tool} failed: ${JSON.stringify(result.error ?? result.content)}`);
           return result.value;
+        }
+        const [query, expectedSkill, expectedCode] = referenceTasks[role];
+        const result = await call('control_library_search', { role, query, limit: 1 });
+        const first = result.matches[0];
+        assert.equal(first?.skill, expectedSkill);
+        assert.equal(first.code, expectedCode);
+        assert.equal(first.role, role);
+        const loaded = await call('skill', { name: first.skill });
+        assert.equal(loaded.name, first.skill);
+        assert.ok(loaded.content.length > 100);
+        const lib = resolve(import.meta.dirname, '../harness-plugin/control-skill-library');
+        const skillSource = await readFile(resolve(lib, first.instructions), 'utf8');
+        assert.ok(skillSource.includes(loaded.content.trim()), 'The native skill must match the bundled instructions.');
+        const code = await call('control_library_read', { path: first.code, length: 1000 });
+        assert.equal(code.path, first.code);
+        assert.equal(code.snapshot_sha256, result.snapshot_sha256);
+        assert.equal(code.sha256, sha256(await readFile(resolve(lib, first.code))));
+        assert.ok(code.text.length > 100);
+        evidence.library = { query, skill: loaded.name, provider: loaded.provider, code: code.path,
+          codeSha256: code.sha256, snapshotSha256: result.snapshot_sha256 };
+        if (libraryOnly) {
+          evidence.status = 'PASS';
+          return { kind: 'success', text: JSON.stringify(evidence) };
         }
         evidence.skills = [];
         for (const skill of [entries[role], 'simulating-simulink-models']) {

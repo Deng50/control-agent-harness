@@ -1,0 +1,51 @@
+[
+  {
+    "id": "engine",
+    "file": "demo_ident.slx",
+    "source": "07 - Dyamic_model - engine speed model/demo_ident.slx.r2018b",
+    "sha256": "e55eb8ac3bca4ca9827ae4db7343a54ebcc80fc6b6ae6045e66ee911a574f3cb",
+    "archive": "demo_ident.slx.r2018b"
+  },
+  {
+    "id": "ident4",
+    "file": "Linear_2nd_order_Sys_Model4Datacollection.m",
+    "source": "55-系统辨识MPC-ADRC-PID/Linear_2nd_order_Sys_Model4Datacollection.asv",
+    "sha256": "ed10c787710576c44392e466212b1cd2cf94d600cae07ac245277ef763e7f84b",
+    "archive": "Linear_2nd_order_Sys_Model4Datacollection.asv"
+  },
+  {
+    "id": "ident4",
+    "file": "Model_parameters_Ident.m",
+    "source": "55-系统辨识MPC-ADRC-PID/Model_parameters_Ident.asv",
+    "sha256": "c42436f23df153f1525df36adb627cc9a36a44423915ac639a7dd94d3b72d4aa",
+    "archive": "Model_parameters_Ident.asv"
+  },
+  {
+    "id": "soc",
+    "file": "SOCekf.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/SOCekf.asv",
+    "sha256": "141737c60a65e81cdde4e750ade5def3b9e04d65fd2afb3428fdea6f1b933011",
+    "archive": "SOCekf.asv"
+  },
+  {
+    "id": "soc",
+    "file": "two_RC_model.slx",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/two_RC_model.slx.original",
+    "sha256": "91d92c1bb8e83e950d35aafdf096295cdc0c78551592143f9fd59f09755b16a9",
+    "archive": "two_RC_model.slx.original"
+  },
+  {
+    "id": "soc",
+    "file": "two_RC_model.slx",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/two_RC_model.slx.r2021b",
+    "sha256": "8d689a66baed5302987b6a4b7e7d33ac7b810bff960d2ce0a490001766d11796",
+    "archive": "two_RC_model.slx.r2021b"
+  },
+  {
+    "id": "soc",
+    "file": "Untitled.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/Untitled.asv",
+    "sha256": "b3c5256ff32d3727049932d3f43660a62bdcd2338ed9f5a071cb76a5e47341ba",
+    "archive": "Untitled.asv"
+  }
+]

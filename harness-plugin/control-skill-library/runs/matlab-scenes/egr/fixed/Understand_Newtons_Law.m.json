@@ -1,0 +1,13 @@
+{
+  "source": "06 - Nonlinear LS_EGR mass flow rate model/Understand_Newtons_Law.m",
+  "file": "Understand_Newtons_Law.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "fa4f8c1beb93b076555d115f82380589e1839d149763a412066dab6852b64b34",
+  "source_sha256": "5551cac50f1503b3774191fc970a0fcdec719d48659227dfb8c7cd96e8d528ff",
+  "metrics": {
+    "axes": 3
+  },
+  "seconds": 1.2463112
+}

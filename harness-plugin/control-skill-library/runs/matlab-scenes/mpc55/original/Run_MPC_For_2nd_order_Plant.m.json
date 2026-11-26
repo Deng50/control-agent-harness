@@ -1,0 +1,34 @@
+{
+  "source": "55-系统辨识MPC-ADRC-PID/Run_MPC_For_2nd_order_Plant.m",
+  "file": "Run_MPC_For_2nd_order_Plant.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "fc57c801f8f8081b332718e9deeb8448a83d3f6157886e13ab55e7abd60b487b",
+  "source_sha256": "fc57c801f8f8081b332718e9deeb8448a83d3f6157886e13ab55e7abd60b487b",
+  "metrics": {
+    "x_model": {
+      "size": [
+        1,
+        4
+      ],
+      "finite_real": true,
+      "last": 0.98278564483602537,
+      "values": [
+        -4.16238198246756,
+        -8.8566102760027423,
+        8.8625881234882726,
+        0.98278564483602537
+      ]
+    },
+    "Data_collect": {
+      "size": [
+        2001,
+        3
+      ],
+      "finite_real": true,
+      "last": 0.11017948349207415
+    }
+  },
+  "seconds": 6.5976116
+}

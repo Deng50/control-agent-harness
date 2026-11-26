@@ -1,0 +1,83 @@
+"""Harness vocabulary for the source index and MATLAB cases with no index entry."""
+
+# Key by source path as several implementations share the same specialist skill.
+ALIASES = {
+    "train-object-model": ("被控对象建模", "对象模型训练", "plant modeling", "plant modelling", "train a plant model"),
+    "design-and-tune-mpc": ("控制器设计", "控制器调参", "controller design", "model predictive control"),
+    "distill-controller": ("控制器轻量化", "策略蒸馏", "控制器蒸馏", "policy distillation", "controller distillation"),
+    "controlkit/table.py": ("表格", "xlsx", "时序数据", "滑动窗口", "神经网络基线", "数据驱动基线", "tabular", "supervised baseline", "time series window"),
+    "controlkit/thermal.py": ("热过程", "热方程", "thermal pinn", "thermal balance", "constant power", "physics residual"),
+    "controlkit/identify.py": ("greybox", "gray box", "grey box", "parameter identification", "system identification"),
+    "controlkit/prediction.py": ("预测增益矩阵", "prediction matrix", "lifted prediction", "increment matrix", "control increments"),
+    "controlkit/linearize.py": ("jacobian", "lookup table", "operating point", "linearize", "linearization"),
+    "controlkit/spring.py": ("约束MPC", "MPC调参", "权重搜索", "constrained mpc", "tune mpc", "mpc tuning"),
+    "cases/object-plant/train.py": ("下一状态", "状态转移", "变步输入", "next state", "state transition", "piecewise constant", "rollout training"),
+    "controlkit/parity.py": ("模型移植", "逐拍对齐", "迁移到python", "转成python", "port to python", "simulink to python", "reset step", "hidden state"),
+    "cases/native-mpc/run_native_mpc.m": ("原生控制器", "native mpc", "simulink mpc", "matlab mpc", "增量MPC控制器"),
+    "cases/heat-policy/train_policy.py": ("热管理蒸馏", "thermal expert", "thermal management policy", "nmpc imitation"),
+    "cases/matlab/replay_second_order.m": ("对象采数", "采集训练轨迹", "sample plant", "collect plant trajectories", "simulink replay"),
+    "cases/matlab-scenes/mpc1/MPC_QP_1st.m": ("first order mpc", "一阶对象MPC"),
+    "cases/matlab-scenes/mpc2/Run_MPC_For_2nd_order_Plant_auto_tuning.m": ("二阶MPC", "second order mpc", "mpc versus adrc"),
+    "cases/matlab-scenes/egr/NLS.m": ("egr", "exhaust gas recirculation"),
+    "cases/matlab-scenes/engine/P_ident.m": ("发动机转速", "engine speed"),
+    "collect-expert-trajectories": ("采集专家轨迹", "采集专家闭环", "采集闭环轨迹", "expert collection", "collect expert trajectories"),
+    "clone-control-policy": ("策略模仿", "模仿控制器", "专家数据训练", "behavior cloning", "behaviour cloning", "imitation learning", "imitate the expert"),
+    "warmstart-pgac": ("warm start", "warmstart", "perception residual", "policy gradient"),
+}
+
+# Independent clues can be separated by qualifiers or words from another language.
+# All groups for a rule must match. Bare "模型", "网络" or "训练" is ambiguous.
+CONCEPTS = {
+    "train-object-model": (("建模", "模型", "plant model"), ("被控对象", "拟合", "对象训练")),
+    "distill-controller": (("轻量化", "蒸馏", "压缩", "distill"),
+                           ("控制器", "控制算法", "mpc", "策略", "实时", "controller")),
+    "controlkit/table.py": (("csv", "表格", "数据", "dataset"), ("监督", "纯数据", "留出", "神经网络基线")),
+    "controlkit/prediction.py": (("预测", "prediction"), ("矩阵", "matrix"),
+                                 ("增量", "核验", "验证", "检查", "递推", "verify", "check")),
+    "controlkit/parity.py": (("simulink", "slx"), ("python",), ("转换", "转成", "移植", "迁移", "port")),
+    "cases/matlab-scenes/mpc1/MPC_QP_1st.m": (("一阶", "first order"), ("mpc",)),
+    "cases/matlab-scenes/mpc2/Run_MPC_For_2nd_order_Plant_auto_tuning.m":
+        (("二阶", "second order"), ("mpc",), ("adrc", "闭环", "整定", "tuning")),
+    "cases/heat-policy/train_policy.py": (("电池热管理", "热管理", "thermal management"),
+                                         ("蒸馏", "模仿", "轻量化", "专家", "pgac", "distill", "imitation")),
+    "clone-control-policy": (("小网络", "学生网络", "学生策略", "student"),
+                             ("蒸馏", "模仿", "克隆", "distill", "imitate")),
+}
+
+# Scene, closest skill, knowledge chapter, readable implementation, measured report,
+# and phrases distinguishing this scene. SLX-only scenes link the MATLAB driver.
+SCENES = (
+    ("mpc55", "build-native-mpc", "controller-decisions",
+     "Run_MPC_For_2nd_order_Plant.m", "Run_MPC_For_2nd_order_Plant.m",
+     ("55版", "55版MPC", "R1端口", "mpc55")),
+    ("pi", "design-and-tune-mpc", "controller-decisions",
+     "Run_PID_For_2nd_order_Plant_auto_tuning.m", "Run_PID_For_2nd_order_Plant_auto_tuning.m",
+     ("PI整定", "PI调参", "PI控制器", "PI增益", "比例积分", "PI tuning", "tune a PI", "PI controller")),
+    ("online-adrc", "identify-greybox-parameters", "estimation",
+     None, "RLS_ADRC_2nd_order_Kang.slx",
+     ("在线辨识与ADRC", "在线ADRC", "RLS与ADRC", "参数切换", "online adrc", "rls adrc")),
+    ("eturbo", "sample-plant-trajectories", "signals",
+     "Run_VGT_Ctrl_using_Spd_and_Torque_Mode_scrpt.m", "Run_eTurbo_with_Torque_mode_2018bp.slx",
+     ("电增压", "电涡轮", "eturbo", "electric turbo", "vgt")),
+    ("ident4", "identify-greybox-parameters", "estimation",
+     "Model_parameters_Ident.m", "Model_parameters_Ident.m",
+     ("二阶灰箱", "二阶四参数", "四参数辨识", "second order greybox", "four parameter identification")),
+    ("ident-root", "identify-greybox-parameters", "estimation",
+     "Linear_2nd_order_Sys_Model.m", "Linear_2nd_order_Sys_Model.m",
+     ("同名回调", "四参数与六参数", "四参数六参数", "参数接口冲突", "parameter callback mismatch")),
+    ("sfunction", "sample-plant-trajectories", "signals",
+     "Plant_Model.m", "Plant_Model.m",
+     ("状态空间S-function", "二状态S-function", "Level-2", "DWork", "state space s-function")),
+    ("pulse", "identify-greybox-parameters", "estimation",
+     "RLS_U.m", "RLS_U.m",
+     ("二阶RC在线", "脉冲工况", "电池RLS", "battery rls", "等效电路参数辨识", "RC在线辨识")),
+    ("soc", "identify-greybox-parameters", "estimation",
+     "SOCekf.m", "SOCekf.m",
+     ("SOC", "荷电状态", "松弛标定", "state of charge", "SOC EKF")),
+    ("thermal", "identify-greybox-parameters", "estimation",
+     None, "Identification_ThermalModel.m",
+     ("热参数遗传辨识", "电池热参数", "Simscape热网络", "电池热容", "battery thermal identification")),
+    ("dekf", "identify-greybox-parameters", "estimation",
+     "DEKF_Rs_1_10_20.m", "DEKF_Rs_1_10_20.m",
+     ("DEKF", "双EKF", "热阻估计", "热阻辨识", "dual ekf", "dual extended kalman")),
+)

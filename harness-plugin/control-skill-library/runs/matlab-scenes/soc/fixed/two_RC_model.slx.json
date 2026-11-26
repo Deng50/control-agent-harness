@@ -1,0 +1,29 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/two_RC_model.slx",
+  "file": "two_RC_model.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "8e39bd653e21338726ec88d723257d4e7a6be8cf7e1e221c70581cac4be0a24a",
+  "source_sha256": "25ee85dd817e6a8531a3067e6ac961c01decd877f85e5de56fa7db39afdd9605",
+  "metrics": {
+    "time_samples": 5039,
+    "start_s": 0,
+    "end_s": 5000,
+    "signals": {
+      "sid143": {
+        "min": 3.3094473745440469,
+        "max": 3.3262655000000003,
+        "final": 3.3094473745440469,
+        "final_channels": 3.3094473745440469
+      },
+      "sid157": {
+        "min": 0.81263157529240582,
+        "max": 1,
+        "final": 0.81263157529240582,
+        "final_channels": 0.81263157529240582
+      }
+    }
+  },
+  "seconds": 2.2509294
+}

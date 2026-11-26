@@ -1,0 +1,28 @@
+{
+  "source": "06 - Nonlinear LS_EGR mass flow rate model/NLS.m",
+  "file": "NLS.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "655262ed02c6ed37caab3702225458defbae65f470990514f9d9f7a170f21ab6",
+  "source_sha256": "0d377ec0a1d288e73bfdd8450b640a3872233e9d9b7c8cf61fb5161ee434672a",
+  "metrics": {
+    "HpEGR_MassFlow_est": {
+      "size": [
+        195,
+        1
+      ],
+      "finite_real": true,
+      "last": 0
+    },
+    "flow_rmse": 0.001514177579151678,
+    "diagnostics": {
+      "total": 195,
+      "heldout_rows": 39,
+      "heldout_rmse_kg_s": 0.0015528614555221588,
+      "min_flow_kg_s": 0
+    },
+    "mat_file": "NLS.mat"
+  },
+  "seconds": 3.8973343
+}

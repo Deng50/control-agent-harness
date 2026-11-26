@@ -1,0 +1,70 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/RLS_V1.m",
+  "file": "RLS_V1.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "0a0cc1248f01d097a9a30b6a8c9842c7a22b15a0f88cbd983fb50f023b7c5874",
+  "source_sha256": "f30e8311b327006572f7fcb746fe5b200bf16bda7dd5cc0a9e6a9950d8a6ed77",
+  "metrics": {
+    "R2": {
+      "size": [
+        1,
+        15339
+      ],
+      "finite_real": true,
+      "last": 0.00075877671533094808
+    },
+    "V_error_mean": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.010238442033444409,
+      "values": 0.010238442033444409
+    },
+    "V_error_max": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.045805589922336409,
+      "values": 0.045805589922336409
+    },
+    "R1": {
+      "size": [
+        1,
+        15339
+      ],
+      "finite_real": true,
+      "last": 6.7769230846026073E-5
+    },
+    "C1": {
+      "size": [
+        1,
+        15339
+      ],
+      "finite_real": true,
+      "last": 39825.840072131286
+    },
+    "C2": {
+      "size": [
+        1,
+        15339
+      ],
+      "finite_real": true,
+      "last": 958612.34305184
+    },
+    "diagnostics": {
+      "first_physical_sample": 540,
+      "accepted": 15338,
+      "total": 15878,
+      "dt_s": 1.3299999999999272,
+      "voltage_rmse_V": 0.013335773487296892
+    },
+    "mat_file": "RLS_V1.mat"
+  },
+  "seconds": 0.3597977
+}

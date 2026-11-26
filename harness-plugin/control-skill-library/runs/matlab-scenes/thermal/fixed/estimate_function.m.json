@@ -1,0 +1,21 @@
+{
+  "source": "遗传算法热模型参数辨识/estimate_function.m",
+  "file": "estimate_function.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "1f6c4d99dbc27b0998e7b6b38fa53278ac7f51fa78b81ab42acee6bf7c37551c",
+  "source_sha256": "004e13671fd3991dd24d78db5553bb99ddc9986ff3438eeeac4966e778fcafbb",
+  "metrics": {
+    "res": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.3762503191654461,
+      "values": 0.3762503191654461
+    }
+  },
+  "seconds": 0.1039592
+}

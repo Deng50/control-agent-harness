@@ -1,0 +1,23 @@
+{
+  "source": "Linear_2nd_order_model4Ident.slx",
+  "file": "Linear_2nd_order_model4Ident.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "81ed8d41fd8a19f92107629ef588b4f1d769829b3ca54220f7926ec87db1a56f",
+  "source_sha256": "bb2847d54c9cd432865bc7d4579e27424d2d2979d5830c5ea0cc7e837d25f990",
+  "metrics": {
+    "time_samples": 2001,
+    "start_s": 0,
+    "end_s": 20,
+    "signals": {
+      "sid251": {
+        "min": 0,
+        "max": 1.163060043328991,
+        "final": 0.1097118514029166,
+        "final_channels": 0.1097118514029166
+      }
+    }
+  },
+  "seconds": 1.095214
+}

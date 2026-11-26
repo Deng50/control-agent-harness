@@ -1,0 +1,922 @@
+[
+  {
+    "source": "55-系统辨识MPC-ADRC-PID/LMPC_2nd_order_Kang_2.slx",
+    "mode": "original",
+    "implementation": "LMPC_2nd_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 1.6444007999999999,
+      "failed_increment_columns": [
+        2,
+        3,
+        4
+      ],
+      "first_prediction_step": 3,
+      "first_channel": 1,
+      "matrix_value": 0,
+      "recurrence_value": 0.090000000000000011,
+      "mixed_increments": {
+        "passed": false,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.144706,
+            -0.020895200000000003
+          ],
+          [
+            0.16511648,
+            0.294145384
+          ],
+          [
+            0.18553101840000003,
+            0.46479949072000004
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 1.422,
+        "first_step": 3,
+        "first_channel": 1,
+        "matrix_value": 0.144706,
+        "recursion_value": 0.23470600000000003,
+        "signed_error": -0.090000000000000024
+      }
+    }
+  },
+  {
+    "source": "55-系统辨识MPC-ADRC-PID/LMPC_2nd_order_Kang_2.slx",
+    "mode": "fixed",
+    "implementation": "LMPC_2nd_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048000000002
+          ],
+          [
+            0.37481648,
+            1.5824053839999999
+          ],
+          [
+            0.53305701840000008,
+            1.84046029072
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 2.2204460492503131E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "LMPC_1st_order_Kang_2.slx",
+    "mode": "original",
+    "implementation": "LMPC_1st_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0.88560000000000016,
+      "failed_increment_columns": [
+        2,
+        3,
+        4
+      ],
+      "first_prediction_step": 3,
+      "first_channel": 1,
+      "matrix_value": 0,
+      "recurrence_value": 0.54,
+      "mixed_increments": {
+        "passed": false,
+        "matrix": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.13832000000000005,
+          0.27265600000000012,
+          0.35912480000000013
+        ],
+        "recursion": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832000000000015,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "max_abs": 0.7566,
+        "first_step": 3,
+        "first_channel": 1,
+        "matrix_value": 0.13832000000000005,
+        "recursion_value": 0.67832000000000015,
+        "signed_error": -0.54
+      }
+    }
+  },
+  {
+    "source": "LMPC_1st_order_Kang_2.slx",
+    "mode": "original",
+    "implementation": "LMPC_1st_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL1",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0.88560000000000016,
+      "failed_increment_columns": [
+        2,
+        3,
+        4
+      ],
+      "first_prediction_step": 3,
+      "first_channel": 1,
+      "matrix_value": 0,
+      "recurrence_value": 0.54,
+      "mixed_increments": {
+        "passed": false,
+        "matrix": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.13832000000000005,
+          0.27265600000000012,
+          0.35912480000000013
+        ],
+        "recursion": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832000000000015,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "max_abs": 0.7566,
+        "first_step": 3,
+        "first_channel": 1,
+        "matrix_value": 0.13832000000000005,
+        "recursion_value": 0.67832000000000015,
+        "signed_error": -0.54
+      }
+    }
+  },
+  {
+    "source": "LMPC_1st_order_Kang_2.slx",
+    "mode": "fixed",
+    "implementation": "LMPC_1st_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "recursion": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832000000000015,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "max_abs": 1.1102230246251565E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "LMPC_1st_order_Kang_2.slx",
+    "mode": "fixed",
+    "implementation": "LMPC_1st_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL1",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "recursion": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832000000000015,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "max_abs": 1.1102230246251565E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "LMPC_2nd_order_Kang_2.slx",
+    "mode": "original",
+    "implementation": "LMPC_2nd_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 1.6444007999999999,
+      "failed_increment_columns": [
+        2,
+        3,
+        4
+      ],
+      "first_prediction_step": 3,
+      "first_channel": 1,
+      "matrix_value": 0,
+      "recurrence_value": 0.090000000000000011,
+      "mixed_increments": {
+        "passed": false,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.144706,
+            -0.020895200000000003
+          ],
+          [
+            0.16511648,
+            0.294145384
+          ],
+          [
+            0.18553101840000003,
+            0.46479949072000004
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 1.422,
+        "first_step": 3,
+        "first_channel": 1,
+        "matrix_value": 0.144706,
+        "recursion_value": 0.23470600000000003,
+        "signed_error": -0.090000000000000024
+      }
+    }
+  },
+  {
+    "source": "LMPC_2nd_order_Kang_2.slx",
+    "mode": "fixed",
+    "implementation": "LMPC_2nd_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048000000002
+          ],
+          [
+            0.37481648,
+            1.5824053839999999
+          ],
+          [
+            0.53305701840000008,
+            1.84046029072
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 2.2204460492503131E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "MPC_QP.m",
+    "mode": "original",
+    "implementation": "MPC_QP.m",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 1.6444007999999999,
+      "failed_increment_columns": [
+        2,
+        3,
+        4
+      ],
+      "first_prediction_step": 3,
+      "first_channel": 1,
+      "matrix_value": 0,
+      "recurrence_value": 0.090000000000000011,
+      "mixed_increments": {
+        "passed": false,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.144706,
+            -0.020895200000000003
+          ],
+          [
+            0.16511648,
+            0.294145384
+          ],
+          [
+            0.18553101840000003,
+            0.46479949072000004
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 1.422,
+        "first_step": 3,
+        "first_channel": 1,
+        "matrix_value": 0.144706,
+        "recursion_value": 0.23470600000000003,
+        "signed_error": -0.090000000000000024
+      }
+    }
+  },
+  {
+    "source": "MPC_QP.m",
+    "mode": "fixed",
+    "implementation": "MPC_QP.m",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048000000002
+          ],
+          [
+            0.37481648,
+            1.5824053839999999
+          ],
+          [
+            0.53305701840000008,
+            1.84046029072
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 2.2204460492503131E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "MPC_QP_1st.m",
+    "mode": "original",
+    "implementation": "MPC_QP_1st.m",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "recursion": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832000000000015,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "max_abs": 1.1102230246251565E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "MPC_QP_1st.m",
+    "mode": "fixed",
+    "implementation": "MPC_QP_1st.m",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "recursion": [
+          0.14300000000000002,
+          0.48040000000000005,
+          0.67832000000000015,
+          0.86965600000000021,
+          1.1157248000000002
+        ],
+        "max_abs": 1.1102230246251565E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "PID2_2nd_order_Kang_2.slx",
+    "mode": "original",
+    "implementation": "PID2_2nd_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 1.6444007999999999,
+      "failed_increment_columns": [
+        2,
+        3,
+        4
+      ],
+      "first_prediction_step": 3,
+      "first_channel": 1,
+      "matrix_value": 0,
+      "recurrence_value": 0.090000000000000011,
+      "mixed_increments": {
+        "passed": false,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.144706,
+            -0.020895200000000003
+          ],
+          [
+            0.16511648,
+            0.294145384
+          ],
+          [
+            0.18553101840000003,
+            0.46479949072000004
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 1.422,
+        "first_step": 3,
+        "first_channel": 1,
+        "matrix_value": 0.144706,
+        "recursion_value": 0.23470600000000003,
+        "signed_error": -0.090000000000000024
+      }
+    }
+  },
+  {
+    "source": "PID2_2nd_order_Kang_2.slx",
+    "mode": "fixed",
+    "implementation": "PID2_2nd_order_Kang_2/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048000000002
+          ],
+          [
+            0.37481648,
+            1.5824053839999999
+          ],
+          [
+            0.53305701840000008,
+            1.84046029072
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 2.2204460492503131E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  },
+  {
+    "source": "PID_for_2nd_order_sysm.slx",
+    "mode": "original",
+    "implementation": "PID_for_2nd_order_sysm/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 1.6444007999999999,
+      "failed_increment_columns": [
+        2,
+        3,
+        4
+      ],
+      "first_prediction_step": 3,
+      "first_channel": 1,
+      "matrix_value": 0,
+      "recurrence_value": 0.090000000000000011,
+      "mixed_increments": {
+        "passed": false,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.144706,
+            -0.020895200000000003
+          ],
+          [
+            0.16511648,
+            0.294145384
+          ],
+          [
+            0.18553101840000003,
+            0.46479949072000004
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 1.422,
+        "first_step": 3,
+        "first_channel": 1,
+        "matrix_value": 0.144706,
+        "recursion_value": 0.23470600000000003,
+        "signed_error": -0.090000000000000024
+      }
+    }
+  },
+  {
+    "source": "PID_for_2nd_order_sysm.slx",
+    "mode": "fixed",
+    "implementation": "PID_for_2nd_order_sysm/linear MPC without constrant/tuixiangzi_ZL",
+    "metrics": {
+      "horizon": 5,
+      "max_abs": 0,
+      "failed_increment_columns": [],
+      "first_prediction_step": [],
+      "first_channel": [],
+      "matrix_value": [],
+      "recurrence_value": [],
+      "mixed_increments": {
+        "passed": true,
+        "matrix": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048000000002
+          ],
+          [
+            0.37481648,
+            1.5824053839999999
+          ],
+          [
+            0.53305701840000008,
+            1.84046029072
+          ]
+        ],
+        "recursion": [
+          [
+            0.11000000000000001,
+            0.15700000000000003
+          ],
+          [
+            0.1257,
+            1.09006
+          ],
+          [
+            0.23470600000000003,
+            1.4011048
+          ],
+          [
+            0.37481648,
+            1.582405384
+          ],
+          [
+            0.53305701840000008,
+            1.8404602907199998
+          ]
+        ],
+        "max_abs": 2.2204460492503131E-16,
+        "first_step": [],
+        "first_channel": [],
+        "matrix_value": [],
+        "recursion_value": [],
+        "signed_error": []
+      }
+    }
+  }
+]

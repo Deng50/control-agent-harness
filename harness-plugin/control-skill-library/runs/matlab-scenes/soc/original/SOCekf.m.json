@@ -1,0 +1,30 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/SOCekf.m",
+  "file": "SOCekf.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "2c8405bb5432802f6a98f0869626e162f88d4905d394cf489159acf5aaf1dfe9",
+  "source_sha256": "2c8405bb5432802f6a98f0869626e162f88d4905d394cf489159acf5aaf1dfe9",
+  "metrics": {
+    "Socekf": {
+      "size": [
+        1,
+        15001
+      ],
+      "finite_real": true,
+      "last": 0.0012657517723363939
+    },
+    "R1": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.1,
+      "values": 0.1
+    },
+    "soc_rmse": 0.0023564894654343623
+  },
+  "seconds": 5.8043162
+}

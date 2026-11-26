@@ -1,0 +1,37 @@
+{
+  "source": "Plant_Model.m",
+  "file": "Plant_Model.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "fb9919d5dad9b244622b1903280ad29fd628ea855aed4458a0d7fdf215ffe5d7",
+  "source_sha256": "2fdc071d0a2d8380e545ae39d4c018ced02ce51d27296ceee7f37457c50e8ec3",
+  "metrics": {
+    "res": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0,
+      "values": 0
+    },
+    "x_model": {
+      "size": [
+        1,
+        6
+      ],
+      "finite_real": true,
+      "last": 9,
+      "values": [
+        0,
+        1,
+        -9,
+        -4.2,
+        0,
+        9
+      ]
+    }
+  },
+  "seconds": 1.1196097
+}

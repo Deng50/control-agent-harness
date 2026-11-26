@@ -1,0 +1,15 @@
+{
+  "source": "07 - Dyamic_model - engine speed model/demo_ident.slx.r2018b",
+  "file": "demo_ident.slx",
+  "mode": "backup",
+  "matlab": "2024b",
+  "success": false,
+  "executed_sha256": "e55eb8ac3bca4ca9827ae4db7343a54ebcc80fc6b6ae6045e66ee911a574f3cb",
+  "source_sha256": "e55eb8ac3bca4ca9827ae4db7343a54ebcc80fc6b6ae6045e66ee911a574f3cb",
+  "error": "错误使用 run_scene>runModel (第 124 行)\n参数 'Gain' 的 'demo_ident/Subsystem1/friction_torque1/C3' 中的设置无效。\n原因:\n    错误使用 Simulink.Simulation.internal.DesktopSimHelper\n    计算 'demo_ident/Subsystem1/friction_torque1/C3' 中的参数 'Gain' 时出错\n        错误使用 Simulink.Simulation.internal.DesktopSimHelper\n        函数或变量 'K3' 无法识别。\n            错误使用 Simulink.Simulation.internal.DesktopSimHelper\n            变量 'K3' 不存在。\n            Suggested Actions:\n                • Load a file into base workspace. - Fix\n                • 创建一个新变量。 - Fix",
+  "stack": [
+    "runModel",
+    "run_scene"
+  ],
+  "seconds": 14.0246532
+}

@@ -1,0 +1,20 @@
+{
+  "source": "07 - Dyamic_model - engine speed model/LS_demo_ident.m",
+  "file": "LS_demo_ident.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "d583c239b3e4d487f9b22366d5fd2d0f10ef5aa5474833b378ee30dddd00ecd8",
+  "source_sha256": "ce35c773fd580fde022b0010e377861a2ade4acc6ab1262ad658c8a4199e6548",
+  "metrics": {
+    "res": {
+      "size": [
+        6001,
+        1
+      ],
+      "finite_real": true,
+      "last": 643.3701219636888
+    }
+  },
+  "seconds": 1.7076675
+}

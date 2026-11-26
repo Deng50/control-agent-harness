@@ -1,0 +1,38 @@
+{
+  "source": "55-系统辨识MPC-ADRC-PID/LMPC_2nd_order_Kang_2.slx",
+  "file": "LMPC_2nd_order_Kang_2.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "d571a47d5c2db98732a873b6d4dc7a9c54bcb3ad946f136d1054e1831e1a8be3",
+  "source_sha256": "0cd314a44272bfbfc53bd98f549407a2851e19c0f457301b47789f37af56bb35",
+  "metrics": {
+    "time_samples": 1001,
+    "start_s": 0,
+    "end_s": 10,
+    "signals": {
+      "sid156": {
+        "min": 0,
+        "max": 1,
+        "final": 0,
+        "final_channels": [
+          1,
+          0
+        ]
+      },
+      "sid157": {
+        "min": -0.138846523515908,
+        "max": 0.97264278123841241,
+        "final": 0.888422931351604,
+        "final_channels": 0.888422931351604
+      },
+      "sid189": {
+        "min": 0,
+        "max": 0.999977977928002,
+        "final": 0.999977977928002,
+        "final_channels": 0.999977977928002
+      }
+    }
+  },
+  "seconds": 7.6481255
+}

@@ -1,0 +1,61 @@
+{
+  "source": "55-系统辨识MPC-ADRC-PID/Model_parameters_Ident.m",
+  "file": "Model_parameters_Ident.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "da846f40496691e7191c7d6dc1ca3d86229da68239bd3f670aaf3eb76bbaee35",
+  "source_sha256": "da846f40496691e7191c7d6dc1ca3d86229da68239bd3f670aaf3eb76bbaee35",
+  "metrics": {
+    "R2": {
+      "size": [
+        2,
+        2
+      ],
+      "finite_real": true,
+      "last": 1,
+      "values": [
+        [
+          1,
+          0.99998721446767536
+        ],
+        [
+          0.99998721446767536,
+          1
+        ]
+      ]
+    },
+    "x_model": {
+      "size": [
+        1,
+        4
+      ],
+      "finite_real": true,
+      "last": 0.98278564483602537,
+      "values": [
+        -4.16238198246756,
+        -8.8566102760027423,
+        8.8625881234882726,
+        0.98278564483602537
+      ]
+    },
+    "y_est": {
+      "size": [
+        2001,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.10995204615191177
+    },
+    "Data_collect": {
+      "size": [
+        2001,
+        3
+      ],
+      "finite_real": true,
+      "last": 0.11017948349207415
+    },
+    "fit_rmse": 0.0016297269704106335
+  },
+  "seconds": 128.2109106
+}

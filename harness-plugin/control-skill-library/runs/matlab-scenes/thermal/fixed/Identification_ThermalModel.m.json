@@ -1,0 +1,60 @@
+{
+  "source": "遗传算法热模型参数辨识/Identification_ThermalModel.m",
+  "file": "Identification_ThermalModel.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "a5a779771335231a66c3e066d90dcd4b515c1c44e53ba37bcfc792a41830ceaa",
+  "source_sha256": "295ef61536f12141f77c7d69a02a1104bd9956192c59baa671cf1786899bfbb1",
+  "metrics": {
+    "Tc_pre": {
+      "size": [
+        3542,
+        1
+      ],
+      "finite_real": true,
+      "last": 20.159758943269374
+    },
+    "Ts_pre": {
+      "size": [
+        3542,
+        1
+      ],
+      "finite_real": true,
+      "last": 15.469061154926527
+    },
+    "rc_param": {
+      "size": [
+        1,
+        4
+      ],
+      "finite_real": true,
+      "last": 2.1231318142133624,
+      "values": [
+        3.0049219591020861,
+        70.348954142748781,
+        4.7878417383338965,
+        2.1231318142133624
+      ]
+    },
+    "validation_core_rmse": 0.29643478573591847,
+    "validation_surface_rmse": 0.12010162336853271,
+    "diagnostics": {
+      "fit_K": 0.27121662030006755,
+      "ga_exitflag": 1,
+      "rmse_surface_core_K": [
+        [
+          0.12712561093765426,
+          0.23957782487266882
+        ],
+        [
+          0.12010162336853271,
+          0.29643478573591847
+        ]
+      ],
+      "units": "K/W, J/K, K/W, J/K"
+    },
+    "mat_file": "Identification_ThermalModel.mat"
+  },
+  "seconds": 37.6422387
+}

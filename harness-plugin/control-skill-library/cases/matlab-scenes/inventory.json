@@ -1,0 +1,284 @@
+[
+  {
+    "id": "egr",
+    "file": "HpEGR_MassFlow.m",
+    "source": "06 - Nonlinear LS_EGR mass flow rate model/HpEGR_MassFlow.m",
+    "sha256": "74f9986b7da9fcdec2799b8c850f7599d2611a3ee0a65b517fb82cabbe68daf3"
+  },
+  {
+    "id": "egr",
+    "file": "NLS.m",
+    "source": "06 - Nonlinear LS_EGR mass flow rate model/NLS.m",
+    "sha256": "0d377ec0a1d288e73bfdd8450b640a3872233e9d9b7c8cf61fb5161ee434672a"
+  },
+  {
+    "id": "egr",
+    "file": "Understand_Newtons_Law.m",
+    "source": "06 - Nonlinear LS_EGR mass flow rate model/Understand_Newtons_Law.m",
+    "sha256": "5551cac50f1503b3774191fc970a0fcdec719d48659227dfb8c7cd96e8d528ff"
+  },
+  {
+    "id": "engine",
+    "file": "demo_ident.slx",
+    "source": "07 - Dyamic_model - engine speed model/demo_ident.slx",
+    "sha256": "e3755c0dfd9765287a7ec312f4287b748c97fc17d112b1e753036779e1c7fd5b"
+  },
+  {
+    "id": "engine",
+    "file": "LS_demo_ident.m",
+    "source": "07 - Dyamic_model - engine speed model/LS_demo_ident.m",
+    "sha256": "ce35c773fd580fde022b0010e377861a2ade4acc6ab1262ad658c8a4199e6548"
+  },
+  {
+    "id": "engine",
+    "file": "P_ident.m",
+    "source": "07 - Dyamic_model - engine speed model/P_ident.m",
+    "sha256": "77a09db8a6785dc4043a75d4676ddc5baaf89d88f90c10f5006ef9464543c69b"
+  },
+  {
+    "id": "engine",
+    "file": "plant_model_with_dither_input.slx",
+    "source": "07 - Dyamic_model - engine speed model/plant_model_with_dither_input.slx",
+    "sha256": "b6019eeb61797fbe66d004d86ee03200d5ba1be2461e37e84e03aa1457ba046a"
+  },
+  {
+    "id": "mpc55",
+    "file": "ADRC_2nd_Order_Kang.slx",
+    "source": "55-系统辨识MPC-ADRC-PID/ADRC_2nd_Order_Kang.slx",
+    "sha256": "d692d09be5f80d398f04a5f72d02832e1be52a46b1a86b48f0c3112b3b2c660d"
+  },
+  {
+    "id": "ident4",
+    "file": "Linear_2nd_order_model4DataProduction.slx",
+    "source": "55-系统辨识MPC-ADRC-PID/Linear_2nd_order_model4DataProduction.slx",
+    "sha256": "dcd2b78165767af0503dfe35e342836d4115a65848d98a45ddb009278ea22a01"
+  },
+  {
+    "id": "ident4",
+    "file": "Linear_2nd_order_model4Ident.slx",
+    "source": "55-系统辨识MPC-ADRC-PID/Linear_2nd_order_model4Ident.slx",
+    "sha256": "bb2847d54c9cd432865bc7d4579e27424d2d2979d5830c5ea0cc7e837d25f990"
+  },
+  {
+    "id": "ident4",
+    "file": "Linear_2nd_order_Sys_Model.m",
+    "source": "55-系统辨识MPC-ADRC-PID/Linear_2nd_order_Sys_Model.m",
+    "sha256": "ba37ddd02a6f70280eaff41d8531f604432715ede9200c0e6069d277125c453c"
+  },
+  {
+    "id": "ident4",
+    "file": "Linear_2nd_order_Sys_Model4Datacollection.m",
+    "source": "55-系统辨识MPC-ADRC-PID/Linear_2nd_order_Sys_Model4Datacollection.m",
+    "sha256": "87708a3b18f4d2a279d1c5b57edd45a78c7811e90b42d53f7ece451f9cc973f7"
+  },
+  {
+    "id": "mpc55",
+    "file": "LMPC_2nd_order_Kang_2.slx",
+    "source": "55-系统辨识MPC-ADRC-PID/LMPC_2nd_order_Kang_2.slx",
+    "sha256": "0cd314a44272bfbfc53bd98f549407a2851e19c0f457301b47789f37af56bb35"
+  },
+  {
+    "id": "ident4",
+    "file": "Model_parameters_Ident.m",
+    "source": "55-系统辨识MPC-ADRC-PID/Model_parameters_Ident.m",
+    "sha256": "da846f40496691e7191c7d6dc1ca3d86229da68239bd3f670aaf3eb76bbaee35"
+  },
+  {
+    "id": "mpc55",
+    "file": "Run_MPC_For_2nd_order_Plant.m",
+    "source": "55-系统辨识MPC-ADRC-PID/Run_MPC_For_2nd_order_Plant.m",
+    "sha256": "fc57c801f8f8081b332718e9deeb8448a83d3f6157886e13ab55e7abd60b487b"
+  },
+  {
+    "id": "mpc2",
+    "file": "ADRC_2nd_Order_Kang.slx",
+    "source": "ADRC_2nd_Order_Kang.slx",
+    "sha256": "d692d09be5f80d398f04a5f72d02832e1be52a46b1a86b48f0c3112b3b2c660d"
+  },
+  {
+    "id": "dekf",
+    "file": "DEKF_Rs_1_10_20.m",
+    "source": "DEKF电池热状态参数在线估计/DEKF_Rs_1_10_20.m",
+    "sha256": "ac05571f62b778eb40284a011ae873cadbb4be43030e089cdac73e41d2a0d0fa"
+  },
+  {
+    "id": "ident-root",
+    "file": "Linear_2nd_order_model4DataProduction.slx",
+    "source": "Linear_2nd_order_model4DataProduction.slx",
+    "sha256": "979df6d352725d5e527456b4239d2b87f36297ea55d1ccf8d17044ea84a389c4"
+  },
+  {
+    "id": "ident-root",
+    "file": "Linear_2nd_order_model4Ident.slx",
+    "source": "Linear_2nd_order_model4Ident.slx",
+    "sha256": "bb2847d54c9cd432865bc7d4579e27424d2d2979d5830c5ea0cc7e837d25f990"
+  },
+  {
+    "id": "ident-root",
+    "file": "Linear_2nd_order_Sys_Model.m",
+    "source": "Linear_2nd_order_Sys_Model.m",
+    "sha256": "144ffb3e0ee3217ea3a4e3304d3867eb32911573d3f278d494af1fcb57f2b94d"
+  },
+  {
+    "id": "ident-root",
+    "file": "Linear_2nd_order_Sys_Model4Datacollection.m",
+    "source": "Linear_2nd_order_Sys_Model4Datacollection.m",
+    "sha256": "98c945f216388c7e26b9ffd482ea137e8bf73f092269225c6a9382c42e580d78"
+  },
+  {
+    "id": "mpc1",
+    "file": "LMPC_1st_order_Kang_2.slx",
+    "source": "LMPC_1st_order_Kang_2.slx",
+    "sha256": "3588d5f833305c01900372a0c2f5e0a17f437a845068e6c7ff2261317129190b"
+  },
+  {
+    "id": "mpc2",
+    "file": "LMPC_2nd_order_Kang_2.slx",
+    "source": "LMPC_2nd_order_Kang_2.slx",
+    "sha256": "10372966e1e4c5c5dfacf166d396715882c4df093a88aa9049f4fe107f97e9f0"
+  },
+  {
+    "id": "ident-root",
+    "file": "Model_parameters_Ident.m",
+    "source": "Model_parameters_Ident.m",
+    "sha256": "da846f40496691e7191c7d6dc1ca3d86229da68239bd3f670aaf3eb76bbaee35"
+  },
+  {
+    "id": "mpc2",
+    "file": "MPC_QP.m",
+    "source": "MPC_QP.m",
+    "sha256": "53cd3c9314a2af5b5d8d5985051c3cf05029a3bb61ba425195c04f9f43acae6c"
+  },
+  {
+    "id": "mpc1",
+    "file": "MPC_QP_1st.m",
+    "source": "MPC_QP_1st.m",
+    "sha256": "c3a0d580c211971c9e252b30ff7a828bb18c3995d4066e6d117b7fe4b868f9a8"
+  },
+  {
+    "id": "pi",
+    "file": "PID2_2nd_order_Kang_2.slx",
+    "source": "PID2_2nd_order_Kang_2.slx",
+    "sha256": "ef30941f9cf41fd9211cbeac2d2df021ff8c8df8e5bb951acf896dd6d1deeeef"
+  },
+  {
+    "id": "pi",
+    "file": "PID_for_2nd_order_sysm.slx",
+    "source": "PID_for_2nd_order_sysm.slx",
+    "sha256": "e716a5d8acf5e6d0db4d55e014597e7bbfe3ed388922f5a964b9cb6b2e8d62f6"
+  },
+  {
+    "id": "sfunction",
+    "file": "Plant_Model.m",
+    "source": "Plant_Model.m",
+    "sha256": "2fdc071d0a2d8380e545ae39d4c018ced02ce51d27296ceee7f37457c50e8ec3"
+  },
+  {
+    "id": "online-adrc",
+    "file": "RLS_ADRC_2nd_order_Kang.slx",
+    "source": "RLS_ADRC_2nd_order_Kang.slx",
+    "sha256": "1955f78f06682a9236f200feb11ed7ff337f37cea8d9e43debc348aa5fa2de8e"
+  },
+  {
+    "id": "eturbo",
+    "file": "Run_eTurbo_with_Torque_mode_2018bp.slx",
+    "source": "Run_eTurbo_with_Torque_mode_2018bp.slx",
+    "sha256": "71606fb101b4e126eb61176b83725f6555577d7f09ab8f8e9a78079d8659a9af"
+  },
+  {
+    "id": "mpc2",
+    "file": "Run_MPC_For_2nd_order_Plant.m",
+    "source": "Run_MPC_For_2nd_order_Plant.m",
+    "sha256": "c7b8ebe186f6f80f938c10b5f68d277cc220a498a9a80f6a2fc1dcd59901370d"
+  },
+  {
+    "id": "mpc2",
+    "file": "Run_MPC_For_2nd_order_Plant_auto_tuning.m",
+    "source": "Run_MPC_For_2nd_order_Plant_auto_tuning.m",
+    "sha256": "df8cdaab185feb20713c7d399ac0efe37c738c702c3faa7b75935d6b8313ba34"
+  },
+  {
+    "id": "pi",
+    "file": "Run_PID_For_2nd_order_Plant_auto_tuning.m",
+    "source": "Run_PID_For_2nd_order_Plant_auto_tuning.m",
+    "sha256": "6e24cba2db1cd0d61a74e9bc0d6e617f8119f109a654c7dee3360c69bb306268"
+  },
+  {
+    "id": "eturbo",
+    "file": "Run_VGT_Ctrl_using_Spd_and_Torque_Mode_scrpt.m",
+    "source": "Run_VGT_Ctrl_using_Spd_and_Torque_Mode_scrpt.m",
+    "sha256": "0794606147d12e5ca37a959d9fb88e35703eff1a72c7260555d031f52f60d0c8"
+  },
+  {
+    "id": "soc",
+    "file": "SOCekf.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/SOCekf.m",
+    "sha256": "2c8405bb5432802f6a98f0869626e162f88d4905d394cf489159acf5aaf1dfe9"
+  },
+  {
+    "id": "soc",
+    "file": "two_RC_model.slx",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/two_RC_model.slx",
+    "sha256": "25ee85dd817e6a8531a3067e6ac961c01decd877f85e5de56fa7db39afdd9605"
+  },
+  {
+    "id": "soc",
+    "file": "Untitled.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/Untitled.m",
+    "sha256": "63db84f6c9e75cf937dd84121abb8fd2de4294a356a2304bd35d692c178cf867"
+  },
+  {
+    "id": "pulse",
+    "file": "model_copy.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/model_copy.m",
+    "sha256": "7133136ecb76a419b30b84672b5cddcf62af9cd984d8c85c720f1b0adbb16961"
+  },
+  {
+    "id": "pulse",
+    "file": "ModelTest.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/ModelTest.m",
+    "sha256": "4810a50f4a1af3ebc4f6c2bcbf1a0adc3065dcf1f4edbc4ed65333903c82b8bd"
+  },
+  {
+    "id": "pulse",
+    "file": "RLS_U.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/RLS_U.m",
+    "sha256": "448d1cdb5cd1babe1b572d887f1abd9c5049cd7bf8b061959518cefdcb55fdcf"
+  },
+  {
+    "id": "pulse",
+    "file": "RLS_Ub.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/RLS_Ub.m",
+    "sha256": "522c6416f701200b6456a9c5c1d4d801693df5fc5f4aa60c1bae7bc4d38c9e7f"
+  },
+  {
+    "id": "pulse",
+    "file": "RLS_V1.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/RLS_V1.m",
+    "sha256": "f30e8311b327006572f7fcb746fe5b200bf16bda7dd5cc0a9e6a9950d8a6ed77"
+  },
+  {
+    "id": "pulse",
+    "file": "RLS_V2.m",
+    "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/RLS_V2.m",
+    "sha256": "9d262cfd36cf560ceafbb6620b10200a62ab35ff639f0b850180f31aa530df0f"
+  },
+  {
+    "id": "thermal",
+    "file": "estimate_function.m",
+    "source": "遗传算法热模型参数辨识/estimate_function.m",
+    "sha256": "004e13671fd3991dd24d78db5553bb99ddc9986ff3438eeeac4966e778fcafbb"
+  },
+  {
+    "id": "thermal",
+    "file": "Identification_ThermalModel.m",
+    "source": "遗传算法热模型参数辨识/Identification_ThermalModel.m",
+    "sha256": "295ef61536f12141f77c7d69a02a1104bd9956192c59baa671cf1786899bfbb1"
+  },
+  {
+    "id": "thermal",
+    "file": "thermalModel_test.slx",
+    "source": "遗传算法热模型参数辨识/thermalModel_test.slx",
+    "sha256": "ec8a8776e801f5bc2625a445b14f07eaff8c96c5cc3f1e6b9fe46d4f1369f782"
+  }
+]

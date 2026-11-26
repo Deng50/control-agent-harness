@@ -1,0 +1,16 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/Untitled.m",
+  "file": "Untitled.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": false,
+  "executed_sha256": "63db84f6c9e75cf937dd84121abb8fd2de4294a356a2304bd35d692c178cf867",
+  "source_sha256": "63db84f6c9e75cf937dd84121abb8fd2de4294a356a2304bd35d692c178cf867",
+  "error": "end 运算符必须用在数组索引表达式中。",
+  "stack": [
+    "Untitled",
+    "runProgram",
+    "run_scene"
+  ],
+  "seconds": 0.015214
+}

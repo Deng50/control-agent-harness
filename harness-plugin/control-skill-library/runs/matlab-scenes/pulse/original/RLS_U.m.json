@@ -1,0 +1,62 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/RLS_U.m",
+  "file": "RLS_U.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "448d1cdb5cd1babe1b572d887f1abd9c5049cd7bf8b061959518cefdcb55fdcf",
+  "source_sha256": "448d1cdb5cd1babe1b572d887f1abd9c5049cd7bf8b061959518cefdcb55fdcf",
+  "metrics": {
+    "R2": {
+      "size": [
+        1,
+        15878
+      ],
+      "finite_real": true,
+      "last": 7.1511810715686817E-5
+    },
+    "V_error_mean": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.013320175398579699,
+      "values": 0.013320175398579699
+    },
+    "V_error_max": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 45.753955357450543,
+      "values": 45.753955357450543
+    },
+    "R1": {
+      "size": [
+        1,
+        15878
+      ],
+      "finite_real": true,
+      "last": 0.0002777417694716996
+    },
+    "C1": {
+      "size": [
+        1,
+        15878
+      ],
+      "finite_real": true,
+      "last": 387904.27022626228
+    },
+    "C2": {
+      "size": [
+        1,
+        15878
+      ],
+      "finite_real": true,
+      "last": 34417.885012774168
+    }
+  },
+  "seconds": 3.0296594
+}

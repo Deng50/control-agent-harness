@@ -1,0 +1,37 @@
+{
+  "source": "Run_eTurbo_with_Torque_mode_2018bp.slx",
+  "file": "Run_eTurbo_with_Torque_mode_2018bp.slx",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "71606fb101b4e126eb61176b83725f6555577d7f09ab8f8e9a78079d8659a9af",
+  "source_sha256": "71606fb101b4e126eb61176b83725f6555577d7f09ab8f8e9a78079d8659a9af",
+  "metrics": {
+    "time_samples": 50001,
+    "start_s": 0,
+    "end_s": 50,
+    "signals": {
+      "sid1896": {
+        "min": 0,
+        "max": 20,
+        "final": 20
+      },
+      "sid1897": {
+        "min": -0.48617609414425106,
+        "max": 0.4079272469546999,
+        "final": -0.00078518369463596849
+      },
+      "sid2337": {
+        "min": 57.553470619775659,
+        "max": 126.83923575282682,
+        "final": 105.00412022586237
+      },
+      "sid2347": {
+        "min": -45893.793243656633,
+        "max": 26857.09437792957,
+        "final": 5004.09187922858
+      }
+    }
+  },
+  "seconds": 3.8029702
+}

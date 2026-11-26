@@ -6,6 +6,8 @@
 
 第一次使用请先读 [V2 安装、独立入口与产物迁移](docs/v2-delivery.md)，再按[中文使用手册](docs/user-guide-zh.md)使用当前电脑、安装环境或运行温控旧案例。三个入口可在用户要求的阶段结束，不必运行整条流程。
 
+三个专业入口可直接检索随包的 `control-skill-library`，按任务加载 14 个专项技能，查阅 Python 实现、MATLAB/Simulink 案例和既有验证记录。在工作台输入“只有温度和功率的 CSV，按整条工况训练并留出测试”或“用 Simulink 搭二阶 MPC，与 ADRC 对照”即可从具体任务开始。接入路径、离线复跑、四项实测结果及对照实验的解释见[控制技能库使用与验收](docs/control-skill-library.md)。
+
 完整的二阶控制演示见[质量—弹簧—阻尼案例](examples/spring-damper/README.md)：从连续模型、残差校正、MPC 遗传调参到专家模仿与物理策略优化，并提供真实三角色会话执行及 PPT 曲线素材导出脚本。
 
 ## 环境与启动
@@ -70,7 +72,7 @@ python -m venv .venv
 | README、`docs/*.md`、`docs/validation-summary.json`、来源清单与第三方声明 | 上传 | 使用说明、协议、脱敏验证摘要与源码溯源 |
 | `.dsh/`、`.env*`、凭据文件 | 不上传 | 本机 API Key、认证、会话与个人设置 |
 | `workspaces/`、`test-output/`、`.control-jobs/`、日志、锁与暂存目录 | 不上传 | 用户上传材料、运行记录、失败诊断与实验产物 |
-| `*.pt`、`*.pth`、`*.ckpt`、`*.onnx`、`*.npz`、`*.npy` 等 | 不上传 | 训练权重、检查点与生成数据；需另行做实验备份 |
+| 工作区生成的权重、检查点和数据 | 不上传 | 用户实验另行备份。随包技能库及维护端评测中用于复核历史案例的固定样本按独立清单纳入版本管理 |
 | `.venv/`、`node_modules/`、`.pnpm-store/`、`vendor/`、`harness-plugin/lib/` | 不上传 | 可根据源码与锁文件重建的环境、依赖和构建输出 |
 | `docs/` 中原始验收 JSON 与本机截图 | 默认不上传 | 可能包含本机路径、会话/作业标识；保留本机，仓库提供脱敏摘要 |
 
@@ -92,7 +94,7 @@ Windows ACL 沙箱使用本地 NTFS。每个任务可在项目 `workspaces` 下�
 
 从实际外部模仿权重继续进行有界物理 rollout 策略梯度训练，以及原 Python/MATLAB 对象上的专家／模仿／候选比较，见[受限 PGAC](docs/restricted-pgac.md)。模型先通过数值与梯度资格验证；候选须经固定的原对象验证、测试和可行基线回退规则，才可成为最终产物。
 
-公共组合由固定上游清单生成，升级或修改组合后执行 `node scripts/sync-control-presets.mjs --write`，用 `--check` 检查漂移。业务 skills 随 `harness-plugin` 打包；启动脚本通过 `CONTROL_CODE_ROOT` 注册该技能根，并继续保留默认用户技能目录。原生 `skill` 工具用于加载技能，不新增单独的技能调度器。
+公共组合由固定上游清单生成，升级或修改组合后执行 `node scripts/sync-control-presets.mjs --write`，用 `--check` 检查漂移。预设通过 `CONTROL_CODE_ROOT` 同时注册业务入口和随包专项技能，默认用户技能目录继续生效。`control_library_search` 提供匹配的技能名及证据路径，原生 `skill` 加载技能正文。
 
 从侧栏设置上方打开“控制工程工作台”，选择项目目录，再选择“对象模型自动化训练”“控制算法设计与调优”或“控制算法轻量化”。每个项目和角色使用独立的原生 Harness Session，表单草稿在当前浏览器中保留。输入区支持绝对文件路径或点击上传，Python、MATLAB、SLX、CSV、XLSX 等材料经同一快照协议登记。参数区的结构化选项与 JSON 配置同步。旧会话路径或角色不兼容时，使用“新建专业会话并保留旧记录”；该动作保留旧历史和数值草稿，清除旧会话的确认权限。
 

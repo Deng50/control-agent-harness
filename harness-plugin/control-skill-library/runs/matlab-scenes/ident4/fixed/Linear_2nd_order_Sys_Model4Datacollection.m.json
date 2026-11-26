@@ -1,0 +1,21 @@
+{
+  "source": "55-系统辨识MPC-ADRC-PID/Linear_2nd_order_Sys_Model4Datacollection.m",
+  "file": "Linear_2nd_order_Sys_Model4Datacollection.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "3e9e13146a4041145ecbb47ad2aabb63fd3d3c0114dcd64a10ff41e07845faa9",
+  "source_sha256": "87708a3b18f4d2a279d1c5b57edd45a78c7811e90b42d53f7ece451f9cc973f7",
+  "metrics": {
+    "Data_collect": {
+      "size": [
+        2001,
+        3
+      ],
+      "finite_real": true,
+      "last": 0.11017948349207415
+    },
+    "mat_file": "Linear_2nd_order_Sys_Model4Datacollection.mat"
+  },
+  "seconds": 2.5852986
+}

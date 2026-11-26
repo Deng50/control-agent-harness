@@ -10,7 +10,7 @@ import * as rolePlugin from '../src/role.mjs';
 import { rolePrompt } from '../src/roles.mjs';
 import {
   project, upstream, standardRelative, upstreamCommit, patchPath, roleIds,
-  YAML, jsTag, skillRootExpression, parseTaggedYaml, insertedRows, verifyUpstreamRevision,
+  YAML, jsTag, skillRootExpression, librarySkillRootExpression, parseTaggedYaml, insertedRows, verifyUpstreamRevision,
 } from '../../scripts/sync-control-presets.mjs';
 
 const built = async path => import(pathToFileURL(resolve(upstream, path)));
@@ -52,7 +52,9 @@ function executableConfig(row) {
 
 test('three control presets retain every pinned standard plugin, config and isolation group', async () => {
   assert.equal(await verifyUpstreamRevision(), upstreamCommit);
-  const expected = semantic(nativePlugins);
+  const baseline = nativePlugins.clone();
+  rowById(baseline, 'tool-plugin-market').delete('disabled');
+  const expected = semantic(baseline);
   for (const role of roleIds) {
     const plugins = controlPreset(role).getIn(['config', 'plugins'], true);
     const flat = rows(plugins);
@@ -63,9 +65,10 @@ test('three control presets retain every pinned standard plugin, config and isol
     assert.equal(rowById(plugins, 'tool-jobs').getIn(['config', 'completionDelivery']), 'quiet');
     const skill = rowById(plugins, 'skill-filesystem');
     assert.equal(skill.getIn(['config', 'includeDefaultRoots']), true);
-    const root = skill.getIn(['config', 'customSkillDirs'], true).items[0];
-    assert.equal(root.tag, jsTag);
-    assert.equal(root.value, skillRootExpression);
+    const roots = skill.getIn(['config', 'customSkillDirs'], true).items;
+    assert.ok(roots.every(item => item.tag === jsTag));
+    assert.deepEqual(roots.map(item => item.value), [skillRootExpression, librarySkillRootExpression]);
+    assert.equal(rowById(plugins, 'tool-plugin-market').get('disabled'), undefined);
     const spawn = rowById(plugins, 'tool-subagent');
     assert.deepEqual(spawn.getIn(['config', 'allowedAgentPresets']).toJSON(), roleIds.map(id => `control-${id}`));
     assert.equal(rowById(plugins, 'tool-subagent-fork').getIn(['config', 'allowedAgentPresets']), undefined);
@@ -157,19 +160,25 @@ test('skills are packaged and loaded by each real native scope alongside default
   const ctx = new cordis.Context();
   try {
     const customRoot = resolve(project, 'harness-plugin/skills');
+    const libraryRoot = resolve(project, 'harness-plugin/control-skill-library/.agents/skills');
     const manifest = JSON.parse(await readFile(resolve(project, 'harness-plugin/package.json'), 'utf8'));
     assert.ok(manifest.files.includes('skills'), 'Installed plugin must carry its skills');
-    const shipped = [];
-    for (const dir of await readdir(customRoot, { withFileTypes: true })) {
-      if (!dir.isDirectory()) continue;
-      let text;
-      try { text = await readFile(join(customRoot, dir.name, 'SKILL.md'), 'utf8'); }
-      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
-      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
-      assert.ok(frontmatter, `Missing skill frontmatter: ${dir.name}`);
-      shipped.push(YAML.parse(frontmatter[1]).name);
+    assert.ok(manifest.files.includes('control-skill-library'));
+    const sources = new Map();
+    for (const root of [customRoot, libraryRoot]) {
+      for (const dir of await readdir(root, { withFileTypes: true })) {
+        if (!dir.isDirectory()) continue;
+        let text;
+        try { text = await readFile(join(root, dir.name, 'SKILL.md'), 'utf8'); }
+        catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+        const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
+        assert.ok(frontmatter, `Missing skill frontmatter: ${dir.name}`);
+        const name = YAML.parse(frontmatter[1]).name;
+        if (!sources.has(name)) sources.set(name, root);
+      }
     }
-    assert.ok(shipped.length >= 3, 'Three shipped role entry skills must exist');
+    const shipped = [...sources.keys()];
+    for (const name of ['fit-state-flow', 'build-native-mpc', 'clone-control-policy']) assert.equal(sources.get(name), libraryRoot);
     const defaultRoot = join(temporary, 'user-agents/skills/matlab-capability-fixture');
     await mkdir(defaultRoot, { recursive: true });
     await writeFile(join(defaultRoot, 'SKILL.md'), '---\nname: matlab-capability-fixture\ndescription: Default user MATLAB skill discovery fixture\n---\nUse the existing MATLAB connector when the task requires MATLAB.\n');
@@ -182,6 +191,8 @@ test('skills are packaged and loaded by each real native scope alongside default
     await ctx.plugin(agents.default);
     await ctx.plugin(skills.default);
     ctx.provide('controlEngineering', {});
+    const marketTools = await built('packages/boot/plugin-market/lib/types/tools.js');
+    ctx.provide('pluginMarket', { listIndexes: () => [] });
     // A fixed-directory collaborator, as used by native tool-skill tests; no shell/LLM runs.
     ctx.provide('workingDirectory', { ensure: async agent => agent.session.header.cwd });
     for (const role of roleIds) ctx.tools.register(tools.defineTool({
@@ -197,12 +208,17 @@ test('skills are packaged and loaded by each real native scope alongside default
       try {
         const plugins = controlPreset(role).getIn(['config', 'plugins'], true);
         const config = executableConfig(rowById(plugins, 'skill-filesystem'));
-        assert.equal(resolve(config.customSkillDirs[0]), customRoot);
+        assert.deepEqual(config.customSkillDirs.map(path => resolve(path)), [customRoot, libraryRoot]);
         await scope.ctx.plugin(rolePlugin, { role });
         await scope.ctx.plugin(filesystem, {
           ...config, dshHome: join(temporary, 'user-dsh'), agentsHome: join(temporary, 'user-agents'), watch: false,
         });
         await scope.ctx.plugin(toolSkill);
+        await scope.ctx.plugin(marketTools);
+        const market = ctx.tools.get('plugin_market', agent);
+        assert.deepEqual(JSON.parse(await market.execute({ action: 'list_indexes' }, {
+          agent, signal: new AbortController().signal,
+        })), { indexes: [] });
         const lookup = { cwd: workspace, scope: agent };
         const discovered = await ctx.skills.list(lookup);
         const names = discovered.map(item => item.name);
@@ -215,7 +231,7 @@ test('skills are packaged and loaded by each real native scope alongside default
           const loaded = await tool.execute({ name }, { agent, signal: new AbortController().signal });
           assert.equal(loaded.name, name);
           assert.ok(loaded.content.length > 0);
-          if (name !== 'matlab-capability-fixture') assert.ok(!relative(customRoot, loaded.resourceBase.path).startsWith('..'));
+          if (sources.has(name)) assert.ok(!relative(sources.get(name), loaded.resourceBase.path).startsWith('..'), name);
         }
         const assembled = await ctx.systemPrompt.assemble({ scope: agent });
         const personas = assembled.sections.filter(section => section.name === 'deployment:persona-prefix');

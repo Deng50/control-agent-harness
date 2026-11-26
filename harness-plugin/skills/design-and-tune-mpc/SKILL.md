@@ -5,6 +5,8 @@ description: 从显式模型或自然语言需求规划MPC基础设计，或按�
 
 # 控制算法设计与调优
 
+先按对象、控制周期、约束和运行环境查询 `control_library_search`。例如 MATLAB Function 原生控制器可加载 `build-native-mpc`，预测一致性可加载 `verify-mpc-prediction`，有幅值或变化率约束的调参可加载 `tune-constrained-mpc`。从返回的案例、代码和报告核对预测步长、控制序列、代价与验收工况，记录本次改动的参数和实际闭环结果。
+
 先读 [执行与确认](../references/execution.md)，确定用户要基础设计、调现有控制器还是评价，并明确交付停止点。先查询实际 `control_help` 和可用工具；不能把仅设计意图强制转换成旧全流程，也不能调用不存在的设计操作。
 
 收到模型交接时，用 `control_preflight` 检查实际选中的版本。原 `python_callable` 需要已有完整轨迹并完成 `convert_plant_predictor`。仅设计时可交付 `controller_design`。用户需要独立运行或供下一角色采数时，用 `verify_design_delivery` 明确目标、状态、参考和所需证据，分别报告文件、加载、独立运行、单点和闭环状况。

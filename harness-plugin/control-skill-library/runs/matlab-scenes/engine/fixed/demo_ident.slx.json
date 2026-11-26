@@ -1,0 +1,23 @@
+{
+  "source": "07 - Dyamic_model - engine speed model/demo_ident.slx",
+  "file": "demo_ident.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "8e0df4fb869dc1b22b7353c728fe6a76661c612d98064ee3a314b5709c80d187",
+  "source_sha256": "e3755c0dfd9765287a7ec312f4287b748c97fc17d112b1e753036779e1c7fd5b",
+  "metrics": {
+    "time_samples": 6001,
+    "start_s": 0,
+    "end_s": 60,
+    "signals": {
+      "sid181": {
+        "min": 639.34999311955232,
+        "max": 1196.7442170067357,
+        "final": 643.3701219636888,
+        "final_channels": 643.3701219636888
+      }
+    }
+  },
+  "seconds": 2.4230389
+}

@@ -1,0 +1,18 @@
+{
+  "source": "Model_parameters_Ident.m",
+  "file": "Model_parameters_Ident.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": false,
+  "executed_sha256": "da846f40496691e7191c7d6dc1ca3d86229da68239bd3f670aaf3eb76bbaee35",
+  "source_sha256": "da846f40496691e7191c7d6dc1ca3d86229da68239bd3f670aaf3eb76bbaee35",
+  "error": "索引超过数组元素的数量。索引不能超过 4。",
+  "stack": [
+    "Linear_2nd_order_Sys_Model",
+    "lsqcurvefit",
+    "Model_parameters_Ident",
+    "runProgram",
+    "run_scene"
+  ],
+  "seconds": 0.1296549
+}

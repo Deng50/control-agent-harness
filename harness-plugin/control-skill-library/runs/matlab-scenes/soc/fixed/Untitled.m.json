@@ -1,0 +1,49 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/Untitled.m",
+  "file": "Untitled.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "9cb1192237bcbdc5cc83b3ed730ac55907070a5c6ceeddf7beca0c618594148b",
+  "source_sha256": "63db84f6c9e75cf937dd84121abb8fd2de4294a356a2304bd35d692c178cf867",
+  "metrics": {
+    "R2": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.0040066666666666671,
+      "values": 0.0040066666666666671
+    },
+    "R1": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 0.002506,
+      "values": 0.002506
+    },
+    "C1": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 33532.966259129345,
+      "values": 33532.966259129345
+    },
+    "C2": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 248837.51408005596,
+      "values": 248837.51408005596
+    },
+    "mat_file": "Untitled.mat"
+  },
+  "seconds": 0.178292
+}

@@ -27,3 +27,24 @@ explicitly re-extracting the classes.
 This notice attributes upstream components. It does not assign a new license to
 the author's integration or original projects. No integration-wide open-source
 license has been selected in this upload.
+
+## Control engineering library
+
+The private control bundle incorporates the working-tree snapshot of
+`control-skill-library` identified in
+[`snapshot.json`](harness-plugin/control-skill-library/snapshot.json).
+The source library attributes its numerical algorithms and replay wrappers
+to the project and the spring configurations to the research group's archive.
+Its [file provenance](harness-plugin/control-skill-library/sources.json)
+and [MATLAB inventory](harness-plugin/control-skill-library/cases/matlab-scenes/inventory.json)
+distinguish project-authored code, adapted cases and external inputs.
+
+The original battery thermal identification author designates the code and
+simulation models as learning examples and prohibits resale of unchanged copies.
+The bundle retains the case description, derived metrics and fingerprints.
+Its three adapted third-party programs/models are listed in
+`snapshot.json.local_study_only`; consult the source library for local study.
+Other external archives, calibrations and original materials remain subject
+to their respective owners' terms. The source library supplies no blanket
+open-source redistribution license. The historical scoring fixtures are
+stored separately under `tests/fixtures/control-library-evaluation`.

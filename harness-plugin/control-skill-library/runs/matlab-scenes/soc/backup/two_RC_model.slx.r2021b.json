@@ -1,0 +1,15 @@
+{
+  "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/two_RC_model.slx.r2021b",
+  "file": "two_RC_model.slx",
+  "mode": "backup",
+  "matlab": "2024b",
+  "success": false,
+  "executed_sha256": "8d689a66baed5302987b6a4b7e7d33ac7b810bff960d2ce0a490001766d11796",
+  "source_sha256": "8d689a66baed5302987b6a4b7e7d33ac7b810bff960d2ce0a490001766d11796",
+  "error": "错误使用 run_scene>runModel (第 124 行)\n多种原因导致错误。\n原因:\n    错误使用 Simulink.Simulation.internal.DesktopSimHelper\n    从模块 'two_RC_model/From File1' 报告的诊断结果\n        错误使用 Simulink.Simulation.internal.DesktopSimHelper\n        <historical-directory>/udds.mat: 未找到文件。\n    错误使用 Simulink.Simulation.internal.DesktopSimHelper\n    从模块 'two_RC_model/From File2' 报告的诊断结果\n        错误使用 Simulink.Simulation.internal.DesktopSimHelper\n        <historical-directory>/SOC80I.mat: 未找到文件。\n    错误使用 Simulink.Simulation.internal.DesktopSimHelper\n    从模块 'two_RC_model/From File3' 报告的诊断结果\n        错误使用 Simulink.Simulation.internal.DesktopSimHelper\n        <historical-directory>/SOC80.mat: 未找到文件。\n    错误使用 Simulink.Simulation.internal.DesktopSimHelper\n    从模块 'two_RC_model/From File4' 报告的诊断结果\n        错误使用 Simulink.Simulation.internal.DesktopSimHelper\n        <historical-directory>/SOC80.mat: 未找到文件。",
+  "stack": [
+    "runModel",
+    "run_scene"
+  ],
+  "seconds": 0.7220651
+}

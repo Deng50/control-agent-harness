@@ -47,6 +47,12 @@ test-output/
 *.log
 *.tmp
 *.bak
+/scripts/.control-library.mutex
+
+# Frozen reference inputs and exports in the curated control library.
+!/harness-plugin/control-skill-library/runs/**/*.pt
+!/harness-plugin/control-skill-library/runs/**/*.npz
+!/harness-plugin/control-skill-library/runs/**/*.npy
 
 # Local acceptance exports contain workspace paths and session/job identifiers.
 # Commit only the deliberately sanitized, portable numerical summary.

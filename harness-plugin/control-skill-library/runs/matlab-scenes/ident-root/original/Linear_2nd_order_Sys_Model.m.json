@@ -1,0 +1,16 @@
+{
+  "source": "Linear_2nd_order_Sys_Model.m",
+  "file": "Linear_2nd_order_Sys_Model.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": false,
+  "executed_sha256": "144ffb3e0ee3217ea3a4e3304d3867eb32911573d3f278d494af1fcb57f2b94d",
+  "source_sha256": "144ffb3e0ee3217ea3a4e3304d3867eb32911573d3f278d494af1fcb57f2b94d",
+  "error": "错误使用 Linear_2nd_order_Sys_Model (第 22 行)\n参数 'Value' 的 'Linear_2nd_order_model4Ident/2nd_order_dynamic/Constant' 中的设置无效。\n原因:\n    错误使用 Linear_2nd_order_Sys_Model (第 22 行)\n    计算 'Linear_2nd_order_model4Ident/2nd_order_dynamic/Constant' 中的参数 'Value' 时出错\n        错误使用 Linear_2nd_order_Sys_Model (第 22 行)\n        函数或变量 'f0' 无法识别。\n            错误使用 Linear_2nd_order_Sys_Model (第 22 行)\n            变量 'f0' 已从 基础工作区 中删除。\n            Suggested Actions:\n                • 将文件加载到基础工作区。 - Fix\n                • 创建新变量。 - Fix",
+  "stack": [
+    "Linear_2nd_order_Sys_Model",
+    "runProgram",
+    "run_scene"
+  ],
+  "seconds": 0.8182538
+}

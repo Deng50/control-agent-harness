@@ -1,0 +1,231 @@
+{
+  "dekf": [
+    {
+      "source": "DEKF电池热状态参数在线估计/data/tempParameters.mat",
+      "target": "tempParameters.mat",
+      "sha256": "e8c893445a5ef41bcb442391056ea69c8922de462e1cc1a156dad3f278b710d2"
+    },
+    {
+      "source": "DEKF电池热状态参数在线估计/data/dUdT.mat",
+      "target": "data/dUdT.mat",
+      "sha256": "f70de69501c4ac9859273ac2b886120bb33b131bf457dcc35efb069ced3bfd85"
+    },
+    {
+      "source": "DEKF电池热状态参数在线估计/data/OCV_SOC.mat",
+      "target": "data/OCV_SOC.mat",
+      "sha256": "4c8c0630f14392c417dea16ee48c54538a7946ae6e75e3ea8ebf43843dcefce1"
+    },
+    {
+      "source": "DEKF电池热状态参数在线估计/data/Temperature_data.mat",
+      "target": "data/Temperature_data.mat",
+      "sha256": "2e2d650d0426ecb780cd3941884885dc4d55a389cd3e77adfae8f3e96b90d7df"
+    },
+    {
+      "source": "DEKF电池热状态参数在线估计/data/Voltage_current_data.mat",
+      "target": "data/Voltage_current_data.mat",
+      "sha256": "5f83c6b4fb7e498e2abb9c508d3839ece049ff84a2895eea44742b2d9c1e44af"
+    }
+  ],
+  "egr": [
+    {
+      "source": "06 - Nonlinear LS_EGR mass flow rate model/HP_EGR valve.xls",
+      "target": "HP_EGR valve.xls",
+      "sha256": "5dcea849d1aaf91ce52de8189f84d922546c3d7db579be5ccdc72cdd29b159f7"
+    }
+  ],
+  "engine": [
+    {
+      "source": "07 - Dyamic_model - engine speed model/data_ident.mat",
+      "target": "data_ident.mat",
+      "sha256": "d24eda7226616185dbcfb23091f280d4133b0c15c04d6f30a4c4d9fce2819d51"
+    }
+  ],
+  "eturbo": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param2.mat",
+      "target": "model_param2.mat",
+      "sha256": "7722843f87f88607184740d640b2f1069c2319c34f251a448ee0e2527b891bf8"
+    },
+    {
+      "source": "model_param6.mat",
+      "target": "model_param6.mat",
+      "sha256": "4fa233abf914d63013b5a3a7607e558fca950b89b3c44335297cad0e0c1f6e15"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param7.mat",
+      "target": "model_param7.mat",
+      "sha256": "4485a9c18b1b805b5772b07c1d40de1ec5d5b08753be927cd6b8f592d73a50b9"
+    }
+  ],
+  "ident_root": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/Data4Ident.mat",
+      "target": "Data4Ident.mat",
+      "sha256": "a954fa53c95453faf55ba728f77f2ef9e56019de4e478959903f5cf85cb6cbf1"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param.mat",
+      "target": "model_param.mat",
+      "sha256": "50f494f8cfa4140927a6351a18eeca8b6fbb0333ca81a84967cd1f5e31d9fb9e"
+    }
+  ],
+  "ident4": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/Data4Ident.mat",
+      "target": "Data4Ident.mat",
+      "sha256": "a954fa53c95453faf55ba728f77f2ef9e56019de4e478959903f5cf85cb6cbf1"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param.mat",
+      "target": "model_param.mat",
+      "sha256": "50f494f8cfa4140927a6351a18eeca8b6fbb0333ca81a84967cd1f5e31d9fb9e"
+    }
+  ],
+  "mpc1": [],
+  "mpc2": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/Data4Ident.mat",
+      "target": "Data4Ident.mat",
+      "sha256": "a954fa53c95453faf55ba728f77f2ef9e56019de4e478959903f5cf85cb6cbf1"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param.mat",
+      "target": "model_param.mat",
+      "sha256": "50f494f8cfa4140927a6351a18eeca8b6fbb0333ca81a84967cd1f5e31d9fb9e"
+    }
+  ],
+  "mpc55": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/Data4Ident.mat",
+      "target": "Data4Ident.mat",
+      "sha256": "a954fa53c95453faf55ba728f77f2ef9e56019de4e478959903f5cf85cb6cbf1"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param.mat",
+      "target": "model_param.mat",
+      "sha256": "50f494f8cfa4140927a6351a18eeca8b6fbb0333ca81a84967cd1f5e31d9fb9e"
+    }
+  ],
+  "online_adrc": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/Data4Ident.mat",
+      "target": "Data4Ident.mat",
+      "sha256": "a954fa53c95453faf55ba728f77f2ef9e56019de4e478959903f5cf85cb6cbf1"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param.mat",
+      "target": "model_param.mat",
+      "sha256": "50f494f8cfa4140927a6351a18eeca8b6fbb0333ca81a84967cd1f5e31d9fb9e"
+    }
+  ],
+  "pi": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/Data4Ident.mat",
+      "target": "Data4Ident.mat",
+      "sha256": "a954fa53c95453faf55ba728f77f2ef9e56019de4e478959903f5cf85cb6cbf1"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param.mat",
+      "target": "model_param.mat",
+      "sha256": "50f494f8cfa4140927a6351a18eeca8b6fbb0333ca81a84967cd1f5e31d9fb9e"
+    }
+  ],
+  "pulse": [
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/zuix/rls/LiBatt_PulseDataEVE.mat",
+      "target": "LiBatt_PulseDataEVE.mat",
+      "sha256": "8ed83faabf0c9d0269c9bda25e93bf87678ad379d4d2c5fbfabc07174d9f29f1"
+    }
+  ],
+  "sfunction": [
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param2.mat",
+      "target": "model_param2.mat",
+      "sha256": "7722843f87f88607184740d640b2f1069c2319c34f251a448ee0e2527b891bf8"
+    },
+    {
+      "source": "model_param6.mat",
+      "target": "model_param6.mat",
+      "sha256": "4fa233abf914d63013b5a3a7607e558fca950b89b3c44335297cad0e0c1f6e15"
+    },
+    {
+      "source": "55-系统辨识MPC-ADRC-PID/model_param7.mat",
+      "target": "model_param7.mat",
+      "sha256": "4485a9c18b1b805b5772b07c1d40de1ec5d5b08753be927cd6b8f592d73a50b9"
+    }
+  ],
+  "soc": [
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/DSTI.mat",
+      "target": "DSTI.mat",
+      "sha256": "67272d5d4a749217ba469f20a302e00a3c3e4540e04c3e7d80b8db1a4fac21da"
+    },
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/HPPC.mat",
+      "target": "HPPC.mat",
+      "sha256": "a84e8544c57230d16816e6ac06e632762ef7b21cded427f997d4d46b6841046c"
+    },
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/matlab.mat",
+      "target": "matlab.mat",
+      "sha256": "f20262313372cf58fb9e8b118b5d17288fee55e9c331cc361a7862ecb4b2036f"
+    },
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/R0R1R2C1C2.mat",
+      "target": "R0R1R2C1C2.mat",
+      "sha256": "10ff207a014447097cc0682297998c00377460db98b3d1af1f4fcc506782ebb5"
+    },
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/SOC90.mat",
+      "target": "SOC90.mat",
+      "sha256": "a35bd1bc7cce0f9d5c7dc731d3aa523f2ff2ea777f053dd1662a63f5c7bdcc44"
+    },
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/UDDSI.mat",
+      "target": "UDDSI.mat",
+      "sha256": "0f02a5beb4f26cd83454796cb1133b220f7bee1f0352d7bcea5302a076ab1468"
+    },
+    {
+      "source": "最小二乘法进行电池等效电路参数辨识/多工况要求/VandI.mat",
+      "target": "VandI.mat",
+      "sha256": "c1c868853fa54348efe9a5b2eca3f16086894fd9890c796eb0cd82ee563cf902"
+    }
+  ],
+  "thermal": [
+    {
+      "source": "遗传算法热模型参数辨识/tempParameters.mat",
+      "target": "tempParameters.mat",
+      "sha256": "7dc488cedd58edfbd4a7320db3b2a6f51ee30aa2d880768b126bbbd5d1440ff5"
+    },
+    {
+      "source": "遗传算法热模型参数辨识/版权声明.txt",
+      "target": "版权声明.txt",
+      "sha256": "db40af33d2a31bd7aa628b4cd4bab81c605ae08c25fabc6128cb005c13c1e4a3"
+    },
+    {
+      "source": "遗传算法热模型参数辨识/说明.txt",
+      "target": "说明.txt",
+      "sha256": "c548777a9ea48bfa8213525242e5ec7ed8b2ca3a5b7f6b9f94946a6d2994a5ea"
+    },
+    {
+      "source": "遗传算法热模型参数辨识/数据/dUdT.mat",
+      "target": "数据/dUdT.mat",
+      "sha256": "f70de69501c4ac9859273ac2b886120bb33b131bf457dcc35efb069ced3bfd85"
+    },
+    {
+      "source": "遗传算法热模型参数辨识/数据/OCV_SOC.mat",
+      "target": "数据/OCV_SOC.mat",
+      "sha256": "4c8c0630f14392c417dea16ee48c54538a7946ae6e75e3ea8ebf43843dcefce1"
+    },
+    {
+      "source": "遗传算法热模型参数辨识/数据/Temperature_data.mat",
+      "target": "数据/Temperature_data.mat",
+      "sha256": "2e2d650d0426ecb780cd3941884885dc4d55a389cd3e77adfae8f3e96b90d7df"
+    },
+    {
+      "source": "遗传算法热模型参数辨识/数据/Voltage_current_data.mat",
+      "target": "数据/Voltage_current_data.mat",
+      "sha256": "5f83c6b4fb7e498e2abb9c508d3839ece049ff84a2895eea44742b2d9c1e44af"
+    }
+  ]
+}

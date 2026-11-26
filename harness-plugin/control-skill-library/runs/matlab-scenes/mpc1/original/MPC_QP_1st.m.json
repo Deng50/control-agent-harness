@@ -1,0 +1,21 @@
+{
+  "source": "MPC_QP_1st.m",
+  "file": "MPC_QP_1st.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "c3a0d580c211971c9e252b30ff7a828bb18c3995d4066e6d117b7fe4b868f9a8",
+  "source_sha256": "c3a0d580c211971c9e252b30ff7a828bb18c3995d4066e6d117b7fe4b868f9a8",
+  "metrics": {
+    "res": {
+      "size": [
+        1,
+        1
+      ],
+      "finite_real": true,
+      "last": 2.0459620194158603,
+      "values": 2.0459620194158603
+    }
+  },
+  "seconds": 0.1114339
+}

@@ -1,0 +1,29 @@
+{
+  "source": "55-系统辨识MPC-ADRC-PID/Linear_2nd_order_model4DataProduction.slx",
+  "file": "Linear_2nd_order_model4DataProduction.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "019e3d8541da01ec4753d976eec49c593f8055a7318a9fa4b75ec7adefbeaef6",
+  "source_sha256": "dcd2b78165767af0503dfe35e342836d4115a65848d98a45ddb009278ea22a01",
+  "metrics": {
+    "time_samples": 2001,
+    "start_s": 0,
+    "end_s": 20,
+    "signals": {
+      "sid251": {
+        "min": 0,
+        "max": 1.163060043328991,
+        "final": 0.1097118514029166,
+        "final_channels": 0.1097118514029166
+      },
+      "sid273": {
+        "min": 0,
+        "max": 1,
+        "final": 1,
+        "final_channels": 1
+      }
+    }
+  },
+  "seconds": 21.6338206
+}

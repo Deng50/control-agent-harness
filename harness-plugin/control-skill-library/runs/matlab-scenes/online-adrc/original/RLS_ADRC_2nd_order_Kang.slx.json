@@ -1,0 +1,37 @@
+{
+  "source": "RLS_ADRC_2nd_order_Kang.slx",
+  "file": "RLS_ADRC_2nd_order_Kang.slx",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "1955f78f06682a9236f200feb11ed7ff337f37cea8d9e43debc348aa5fa2de8e",
+  "source_sha256": "1955f78f06682a9236f200feb11ed7ff337f37cea8d9e43debc348aa5fa2de8e",
+  "metrics": {
+    "time_samples": 25001,
+    "start_s": 0,
+    "end_s": 250,
+    "signals": {
+      "sid195": {
+        "min": 0,
+        "max": 1,
+        "final": 1
+      },
+      "sid196": {
+        "min": -0.12665906753764097,
+        "max": 0.50002500125006255,
+        "final": -0.0006906605292896032
+      },
+      "sid639": {
+        "min": -0.15272699877668286,
+        "max": 1.0023615081198998,
+        "final": 9.4211390941433686E-7
+      },
+      "sid460": {
+        "min": -8.15492779161333,
+        "max": 0,
+        "final": -8.15492779161333
+      }
+    }
+  },
+  "seconds": 3.7956192
+}

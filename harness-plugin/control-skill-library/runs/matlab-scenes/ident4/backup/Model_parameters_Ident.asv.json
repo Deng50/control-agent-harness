@@ -1,0 +1,17 @@
+{
+  "source": "55-系统辨识MPC-ADRC-PID/Model_parameters_Ident.asv",
+  "file": "Model_parameters_Ident.m",
+  "mode": "backup",
+  "matlab": "2024b",
+  "success": false,
+  "executed_sha256": "c42436f23df153f1525df36adb627cc9a36a44423915ac639a7dd94d3b72d4aa",
+  "source_sha256": "c42436f23df153f1525df36adb627cc9a36a44423915ac639a7dd94d3b72d4aa",
+  "error": "错误使用 xlsread (第 27 行)\n无法打开文件 '二阶线性系统模型（参数辨识）.xlsx'。\n未找到文件 '<historical-directory>/二阶线性系统模型（参数辨识）.xlsx'。",
+  "stack": [
+    "xlsread",
+    "Model_parameters_Ident",
+    "runProgram",
+    "run_scene"
+  ],
+  "seconds": 0.0432492
+}

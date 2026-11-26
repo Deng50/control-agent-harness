@@ -462,5 +462,6 @@ export function operationHelp({ operation, agent } = {}) {
   }
   return { agents: Object.fromEntries(Object.entries(agents).map(([name,spec]) => [name, { preset: spec.preset ?? null, description: spec.description, operations: spec.operations }])),
     operations: Object.entries(operations).filter(([name]) => !agent || agents[agent].operations.includes(name)).map(([operation,spec]) => ({ operation, summary: spec.summary })),
+    library: { search: 'control_library_search', read: 'control_library_read', loadSkill: 'skill' },
     usage: 'Call control_help({operation}) for exact required inputs, schemas, prerequisites and an example. Role operations and control_workflow all use the same native Harness jobs.' };
 }

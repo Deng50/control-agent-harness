@@ -1,0 +1,32 @@
+{
+  "source": "PID_for_2nd_order_sysm.slx",
+  "file": "PID_for_2nd_order_sysm.slx",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "e716a5d8acf5e6d0db4d55e014597e7bbfe3ed388922f5a964b9cb6b2e8d62f6",
+  "source_sha256": "e716a5d8acf5e6d0db4d55e014597e7bbfe3ed388922f5a964b9cb6b2e8d62f6",
+  "metrics": {
+    "time_samples": 1001,
+    "start_s": 0,
+    "end_s": 10,
+    "signals": {
+      "sid375": {
+        "min": 0,
+        "max": 1,
+        "final": 0,
+        "final_channels": [
+          1,
+          0
+        ]
+      },
+      "sid430": {
+        "min": 0,
+        "max": 0.99991969555258109,
+        "final": 0.99991969555258109,
+        "final_channels": 0.99991969555258109
+      }
+    }
+  },
+  "seconds": 8.103728
+}

@@ -1,0 +1,54 @@
+{
+  "source": "07 - Dyamic_model - engine speed model/P_ident.m",
+  "file": "P_ident.m",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "13ca4c8f99b876d4aa8a365979ab99094c02bf87c6c381a1ce2f106bde7197c9",
+  "source_sha256": "77a09db8a6785dc4043a75d4676ddc5baaf89d88f90c10f5006ef9464543c69b",
+  "metrics": {
+    "R2": {
+      "size": [
+        2,
+        2
+      ],
+      "finite_real": true,
+      "last": 1,
+      "values": [
+        [
+          1,
+          0.99999458994743351
+        ],
+        [
+          0.99999458994743351,
+          1
+        ]
+      ]
+    },
+    "x_model": {
+      "size": [
+        1,
+        4
+      ],
+      "finite_real": true,
+      "last": 13.216080427113148,
+      "values": [
+        112.51620733615769,
+        0.014903813455572124,
+        0.26233858108261238,
+        13.216080427113148
+      ]
+    },
+    "y_est": {
+      "size": [
+        6001,
+        1
+      ],
+      "finite_real": true,
+      "last": 643.1890630643228
+    },
+    "fit_rmse": 0.51434640842958956,
+    "mat_file": "P_ident.mat"
+  },
+  "seconds": 20.5728442
+}

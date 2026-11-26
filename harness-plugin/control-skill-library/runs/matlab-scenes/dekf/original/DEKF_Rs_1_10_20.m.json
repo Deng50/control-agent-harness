@@ -1,0 +1,38 @@
+{
+  "source": "DEKF电池热状态参数在线估计/DEKF_Rs_1_10_20.m",
+  "file": "DEKF_Rs_1_10_20.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "ac05571f62b778eb40284a011ae873cadbb4be43030e089cdac73e41d2a0d0fa",
+  "source_sha256": "ac05571f62b778eb40284a011ae873cadbb4be43030e089cdac73e41d2a0d0fa",
+  "metrics": {
+    "theta_est": {
+      "size": [
+        1,
+        3500
+      ],
+      "finite_real": true,
+      "last": 4.6647345038160308
+    },
+    "Tc_pre": {
+      "size": [
+        1,
+        3500
+      ],
+      "finite_real": true,
+      "last": 26.478024252958267
+    },
+    "Ts_pre": {
+      "size": [
+        1,
+        3500
+      ],
+      "finite_real": true,
+      "last": 19.365218249063716
+    },
+    "core_rmse": 0.61281994391532946,
+    "surface_rmse": 0.19889647486360335
+  },
+  "seconds": 1.5758433
+}

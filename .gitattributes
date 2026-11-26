@@ -3,3 +3,7 @@
 *.png -text
 *.jpg -text
 *.jpeg -text
+
+# The snapshots include historical checksums of text, MATLAB files and weights.
+/harness-plugin/control-skill-library/** -text
+/tests/fixtures/control-library-evaluation/** -text

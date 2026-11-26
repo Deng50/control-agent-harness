@@ -1,0 +1,29 @@
+{
+  "source": "Linear_2nd_order_model4DataProduction.slx",
+  "file": "Linear_2nd_order_model4DataProduction.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "0a1e0bcdb02eb980472602d0c6060b1af891d52605c2dd28a340c94b4330aa4e",
+  "source_sha256": "979df6d352725d5e527456b4239d2b87f36297ea55d1ccf8d17044ea84a389c4",
+  "metrics": {
+    "time_samples": 2001,
+    "start_s": 0,
+    "end_s": 20,
+    "signals": {
+      "sid251": {
+        "min": 0,
+        "max": 1.163060043328991,
+        "final": 0.1097118514029166,
+        "final_channels": 0.1097118514029166
+      },
+      "sid273": {
+        "min": 0,
+        "max": 1,
+        "final": 1,
+        "final_channels": 1
+      }
+    }
+  },
+  "seconds": 1.570555
+}

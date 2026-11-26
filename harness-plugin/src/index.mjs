@@ -5,6 +5,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import { WorkerSlots, numericalJob } from './worker.mjs';
 import { JobHistory, authorizeWorkspace, recoveryRequest, persistedJob } from './job-history.mjs';
 import { agents } from './roles.mjs';
+import { installLibraryTools } from './library-tools.mjs';
 import { operationHelp, operations } from './catalog.mjs';
 import { installMatlabResource } from './matlab-resource.mjs';
 import { installMatlabRecovery } from './matlab-recovery.mjs';
@@ -55,6 +56,7 @@ export function apply(ctx, config) {
   // Propose all scopes in one Python transaction. Reviews have their own
   // bounded slot so a long training job cannot block a user trying to review.
   const reviewSlots = new WorkerSlots(1);
+  installLibraryTools(ctx, config);
   const preflight = options => preflightWorkspace({ctx,config,...options});
   if (verifyMatlab) {
     const {checkBuild,verifyReference}=installPlantWorkspace(ctx,config,preflight);

@@ -1,0 +1,20 @@
+{
+  "source": "Linear_2nd_order_Sys_Model4Datacollection.m",
+  "file": "Linear_2nd_order_Sys_Model4Datacollection.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "98c945f216388c7e26b9ffd482ea137e8bf73f092269225c6a9382c42e580d78",
+  "source_sha256": "98c945f216388c7e26b9ffd482ea137e8bf73f092269225c6a9382c42e580d78",
+  "metrics": {
+    "Data_collect": {
+      "size": [
+        2001,
+        3
+      ],
+      "finite_real": true,
+      "last": 0.11017948349207415
+    }
+  },
+  "seconds": 3.0385809
+}

@@ -1,0 +1,29 @@
+{
+  "source": "55-系统辨识MPC-ADRC-PID/ADRC_2nd_Order_Kang.slx",
+  "file": "ADRC_2nd_Order_Kang.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "6afef9c93227eb9f7b311a8cfb93cfe7f8a2ffcffaee872aa29a885f53409fb9",
+  "source_sha256": "d692d09be5f80d398f04a5f72d02832e1be52a46b1a86b48f0c3112b3b2c660d",
+  "metrics": {
+    "time_samples": 2001,
+    "start_s": 0,
+    "end_s": 20,
+    "signals": {
+      "sid174": {
+        "min": 0,
+        "max": 1.0000000000513496,
+        "final": 1.0000000000012186,
+        "final_channels": 1.0000000000012186
+      },
+      "sid154": {
+        "min": 0,
+        "max": 1,
+        "final": 1,
+        "final_channels": 1
+      }
+    }
+  },
+  "seconds": 0.8474375
+}

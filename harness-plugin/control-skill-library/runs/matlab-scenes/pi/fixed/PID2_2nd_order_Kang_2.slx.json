@@ -1,0 +1,29 @@
+{
+  "source": "PID2_2nd_order_Kang_2.slx",
+  "file": "PID2_2nd_order_Kang_2.slx",
+  "mode": "fixed",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "7f0bf3bb821154f4dd1946fe0c1ab107538174491e39d878bce2fefaadeb081a",
+  "source_sha256": "ef30941f9cf41fd9211cbeac2d2df021ff8c8df8e5bb951acf896dd6d1deeeef",
+  "metrics": {
+    "time_samples": 1001,
+    "start_s": 0,
+    "end_s": 10,
+    "signals": {
+      "sid365": {
+        "min": 0,
+        "max": 1,
+        "final": 1,
+        "final_channels": 1
+      },
+      "sid370": {
+        "min": 0,
+        "max": 0.42638291325507216,
+        "final": 0.42638291325507216,
+        "final_channels": 0.42638291325507216
+      }
+    }
+  },
+  "seconds": 0.9153157
+}

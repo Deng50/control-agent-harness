@@ -1,0 +1,44 @@
+{
+  "source": "遗传算法热模型参数辨识/Identification_ThermalModel.m",
+  "file": "Identification_ThermalModel.m",
+  "mode": "original",
+  "matlab": "2024b",
+  "success": true,
+  "executed_sha256": "295ef61536f12141f77c7d69a02a1104bd9956192c59baa671cf1786899bfbb1",
+  "source_sha256": "295ef61536f12141f77c7d69a02a1104bd9956192c59baa671cf1786899bfbb1",
+  "metrics": {
+    "Tc_pre": {
+      "size": [
+        3543,
+        1
+      ],
+      "finite_real": true,
+      "last": 20.243132459313937
+    },
+    "Ts_pre": {
+      "size": [
+        3543,
+        1
+      ],
+      "finite_real": true,
+      "last": 15.488310044804
+    },
+    "rc_param": {
+      "size": [
+        1,
+        4
+      ],
+      "finite_real": true,
+      "last": 2.1585430379825503,
+      "values": [
+        3.0158047241567889,
+        70.1714565805532,
+        4.8055167506839789,
+        2.1585430379825503
+      ]
+    },
+    "validation_core_rmse": 0.2986647152407485,
+    "validation_surface_rmse": 0.12165193386824655
+  },
+  "seconds": 123.9519592
+}
