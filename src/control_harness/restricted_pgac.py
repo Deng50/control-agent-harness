@@ -21,6 +21,7 @@ from .contracts import ContractError, DataInterface, ModelInterface, canonical_h
 from .runtime import OperationContext
 from .pgac_replay import SegmentReplay, normalize_replay
 from .pgac_scenarios import scenario_series, observation_noise
+from .pgac_tracking import tracking_gate, tracking_index, tracking_less, tracking_summary
 
 
 class RolloutDomainError(ContractError):
@@ -123,30 +124,16 @@ def check_domain(state, action, disturbance, domain, phase):
         if torch.any(value < bounds[:, 0]) or torch.any(value > bounds[:, 1]): raise RolloutDomainError('PGAC ' + phase + ' leaves qualified ' + name + ' domain; baseline is not replaced')
 
 
-def physical_rollout_loss(policy, model, state, reference, disturbance, previous, expert_action, settings, *, substeps=1, context=None, reference_sequence=None, disturbance_sequence=None,
-                          noise_sequence=None, anchor_mask=None, components=None):
-    """Legacy full-batch mean/horizon cost and first-action imitation anchor.
-
-    Each control action is held over the declared number of next-state calls.
-    All physical/model parameters are frozen by the trainer; action/state/input
-    gradients remain real and projection may legitimately make them zero.
-    """
-    context = context or OperationContext(); i = model.interface
-    if (state.ndim != 2 or state.shape[1] != i.nx or reference.shape != (len(state), i.ny) or disturbance.shape != (len(state), i.nd)
-            or previous.shape != (len(state), i.nu) or expert_action.shape != previous.shape
-            or any(value.dtype != torch.float64 or value.device.type != 'cpu' or not torch.isfinite(value).all() for value in (state,reference,disturbance,previous,expert_action))):
-        raise ContractError('PGAC loss requires finite ordered CPU float64 physical batches')
-    if type(substeps) is not int or substeps < 1: raise ContractError('Plant subticks must be explicit positive integers')
+def _window_costs(policy, model, state, reference, disturbance, previous, settings, substeps, context,
+                  reference_sequence, disturbance_sequence, noise_sequence, tracked):
+    """Each policy evolves its own state and applied action within the same exogenous window."""
+    i = model.interface
     xlo = state.new_tensor([v.lower for v in i.states]); xhi = state.new_tensor([v.upper for v in i.states])
     ylo = state.new_tensor([v.lower for v in i.outputs]); yhi = state.new_tensor([v.upper for v in i.outputs])
     yscale = yhi - ylo; uscale = state.new_tensor([v.upper - v.lower for v in i.controls])
     horizon = settings['horizon']
-    for values,width in ((reference_sequence,i.ny),(disturbance_sequence,i.nd),
-                         (noise_sequence,len(policy.physical_context['physical_mapping']['observations']))):
-        if values is not None and (values.shape!=(len(state),horizon,width) or values.dtype!=state.dtype
-                                   or values.device!=state.device or not torch.isfinite(values).all()):
-            raise ContractError('PGAC exogenous windows must match batch, horizon and channel dimensions')
     sums = {name:state.new_zeros(()) for name in ('tracking','action','increment','constraint')}
+    windows = {key: [] for key in ('tracking', 'action', 'increment')}
     original_state = state; last_action = previous
     for k in range(horizon):
         reference = reference if reference_sequence is None else reference_sequence[:,k]
@@ -164,16 +151,59 @@ def physical_rollout_loss(policy, model, state, reference, disturbance, previous
             if output.shape != reference.shape or not torch.isfinite(output).all(): raise FloatingPointError('PGAC dynamics returned an invalid output batch')
             sums['constraint'] = sums['constraint'] + settings['constraint_weight'] / substeps * (((torch.relu(xlo-state)+torch.relu(state-xhi))/(xhi-xlo)).square().mean()
                 + ((torch.relu(ylo-output)+torch.relu(output-yhi))/yscale).square().mean())
-        sums['tracking'] = sums['tracking'] + settings['q'] * ((output-reference)/yscale).square().mean()
-        sums['action'] = sums['action'] + settings['r'] * (action/uscale).square().mean()
-        sums['increment'] = sums['increment'] + settings['s'] * ((action-last_action)/uscale).square().mean()
+        if tracked is None:
+            sums['tracking'] = sums['tracking'] + settings['q'] * ((output-reference)/yscale).square().mean()
+            sums['action'] = sums['action'] + settings['r'] * (action/uscale).square().mean()
+            sums['increment'] = sums['increment'] + settings['s'] * ((action-last_action)/uscale).square().mean()
+        else:
+            windows['tracking'].append((output[:, tracked]-reference[:, tracked])/yscale[tracked])
+            windows['action'].append(action/uscale)
+            windows['increment'].append((action-last_action)/uscale)
         last_action = action
+    terms = {key:value/horizon for key,value in sums.items()}
+    if tracked is not None:
+        for key, trace in windows.items():
+            values = torch.stack(trace, dim=1).reshape(len(state), -1)
+            # vector_norm has a finite zero subgradient for perfect tracking or zero actions.
+            terms[key] = torch.linalg.vector_norm(values, dim=1) / math.sqrt(values.shape[1])
+    return terms, first_action
+
+
+def physical_rollout_loss(policy, model, state, reference, disturbance, previous, expert_action, settings, *, substeps=1, context=None, reference_sequence=None, disturbance_sequence=None,
+                          noise_sequence=None, anchor_mask=None, components=None, baseline_policy=None):
+    """Compute the configured control objective through the projected Actor and frozen Plant model."""
+    context = context or OperationContext(); i = model.interface
+    if (state.ndim != 2 or state.shape[1] != i.nx or reference.shape != (len(state), i.ny) or disturbance.shape != (len(state), i.nd)
+            or previous.shape != (len(state), i.nu) or expert_action.shape != previous.shape
+            or any(value.dtype != torch.float64 or value.device.type != 'cpu' or not torch.isfinite(value).all() for value in (state,reference,disturbance,previous,expert_action))):
+        raise ContractError('PGAC loss requires finite ordered CPU float64 physical batches')
+    if type(substeps) is not int or substeps < 1: raise ContractError('Plant subticks must be explicit positive integers')
+    for values,width in ((reference_sequence,i.ny),(disturbance_sequence,i.nd),
+                         (noise_sequence,len(policy.physical_context['physical_mapping']['observations']))):
+        if values is not None and (values.shape!=(len(state),settings['horizon'],width) or values.dtype!=state.dtype
+                                   or values.device!=state.device or not torch.isfinite(values).all()):
+            raise ContractError('PGAC exogenous windows must match batch, horizon and channel dimensions')
+    objective = settings.get('original_evaluation', {}).get('evaluation', {})
+    tracked = tracking_index(objective, i) if objective.get('primary_metric') == 'tracking_rmse' else None
+    window = (model, state, reference, disturbance, previous, settings, substeps, context,
+              reference_sequence, disturbance_sequence, noise_sequence, tracked)
+    terms, first_action = _window_costs(policy, *window)
+    if tracked is not None:
+        if baseline_policy is None:
+            raise ContractError('Tracking-primary training requires the actual frozen imitation policy for matched effort budgets')
+        with torch.no_grad():
+            baseline, _ = _window_costs(baseline_policy, *window)
+        terms['tracking'] = settings['q'] * terms['tracking'].mean()
+        for name, weight, budget in [('action', 'r', 'max_action_rms_relative_increase'),
+                                     ('increment', 's', 'max_increment_rms_relative_increase')]:
+            limit = baseline[name] * (1 + objective[budget])
+            terms[name] = settings[weight] * torch.relu(terms[name] - limit).mean()
+    uscale = state.new_tensor([v.upper - v.lower for v in i.controls])
     protection = ((first_action-expert_action)/uscale).square().mean(dim=1)
     if anchor_mask is not None:
         if anchor_mask.dtype!=torch.bool or anchor_mask.shape!=(len(state),):
             raise ContractError('Imitation anchors must identify actual expert rows')
         protection = torch.where(anchor_mask,protection,0.)
-    terms = {key:value/horizon for key,value in sums.items()}
     terms['imitation'] = settings['imitation_weight'] * protection.mean()
     loss = sum(terms.values())
     if components is not None:
@@ -182,7 +212,7 @@ def physical_rollout_loss(policy, model, state, reference, disturbance, previous
     return loss
 
 
-def _segment_loss(policy, model, sampler, samples, settings, substeps, context):
+def _segment_loss(policy, model, sampler, samples, settings, substeps, context, *, baseline_policy=None):
     total_count = sum(map(len, samples.values()))
     loss = next(policy.network.parameters()).new_zeros(())
     parts = Counter()
@@ -209,6 +239,7 @@ def _segment_loss(policy, model, sampler, samples, settings, substeps, context):
                     substeps=substeps,
                     context=context,
                     components=components,
+                    baseline_policy=baseline_policy,
                 )
             else:
                 current, series, anchors = sampler.batch(chunk, horizon)
@@ -228,6 +259,7 @@ def _segment_loss(policy, model, sampler, samples, settings, substeps, context):
                     noise_sequence=series['noise'],
                     anchor_mask=anchors,
                     components=components,
+                    baseline_policy=baseline_policy,
                 )
             weight = len(chunk) / total_count
             loss = loss + weight * value
@@ -244,34 +276,67 @@ def _state_hash(state):
 
 def _predictor_validation(policy, model, original, settings, substeps, context, *, split='validation'):
     i = model.interface; evaluation = original['evaluation']; runs = []
-    for scenario in original['scenarios']:
+    tracked = tracking_index(evaluation, i) if evaluation.get('primary_metric') == 'tracking_rmse' else None
+    output_bounds = torch.tensor([[v.lower, v.upper] for v in i.outputs], dtype=torch.float64)
+    rate = policy.action_constraints['rate_bounds']
+    if rate is not None:
+        rate = torch.tensor(rate, dtype=torch.float64)
+
+    def inside(values, bounds):
+        return bool(torch.all(values >= bounds[:, 0] - 1e-12) and torch.all(values <= bounds[:, 1] + 1e-12))
+
+    def observe(state):
+        values = model.output(state)
+        if values.shape != (1, i.ny) or not torch.isfinite(values).all():
+            raise FloatingPointError('PGAC validation output shape/values are invalid')
+        return values, inside(values, output_bounds)
+
+    for trajectory_id, scenario in enumerate(original['scenarios']):
         if scenario['split'] != split: continue
         context.check(); x = torch.tensor(scenario['initial_state'],dtype=torch.float64).unsqueeze(0)
         refs = torch.tensor(scenario_series(scenario,'reference'),dtype=torch.float64)
         disturbances = torch.tensor(scenario_series(scenario,'disturbance'),dtype=torch.float64)
         noises = torch.tensor(observation_noise(scenario,len(policy.physical_context['physical_mapping']['observations'])),dtype=torch.float64)
-        previous = torch.tensor(scenario['initial_previous_action'],dtype=torch.float64).unsqueeze(0); costs = []; feasible = True
+        previous = torch.tensor(scenario['initial_previous_action'],dtype=torch.float64).unsqueeze(0); costs = []
+        outputs_valid = increments_valid = True
+        tracking_squared, action_squared, increment_squared = [], [], []
         with torch.no_grad():
             for k in range(scenario['steps']):
                 r=refs[k:k+1]; d=disturbances[k:k+1]
                 context.check(); check_domain(x,None,d,settings['domain'],'before validation observation')
+                if k == 0:
+                    _, outputs_valid = observe(x)
                 u = tensor_policy_action(policy,model,x,r,d,previous,noises[k:k+1]); check_domain(x,u,d,settings['domain'],'validation input')
+                if rate is not None:
+                    increments_valid &= inside(u-previous, rate)
                 for _ in range(substeps):
                     x = model(x,u,d)
                     if not isinstance(x,torch.Tensor) or x.shape!=(1,i.nx) or x.dtype!=torch.float64 or x.device.type!='cpu': raise FloatingPointError('PGAC validation next-state shape/dtype is invalid')
-                    check_domain(x,u,d,settings['domain'],'validation predicted subtick'); y = model.output(x)
-                    if y.shape!=(1,i.ny) or not torch.isfinite(y).all(): raise FloatingPointError('PGAC validation output shape/values are invalid')
-                    feasible = feasible and all(bool(torch.all(y[...,j] >= v.lower) and torch.all(y[...,j] <= v.upper)) for j,v in enumerate(i.outputs))
+                    check_domain(x,u,d,settings['domain'],'validation predicted subtick')
+                    y, in_bounds = observe(x)
+                    outputs_valid &= in_bounds
                 yscale = y.new_tensor([v.upper-v.lower for v in i.outputs]); uscale = u.new_tensor([v.upper-v.lower for v in i.controls])
                 score = evaluation['q']*((y-r)/yscale).square().mean()+evaluation['r']*(u/uscale).square().mean()+evaluation['s']*((u-previous)/uscale).square().mean()
                 if not torch.isfinite(score): raise FloatingPointError('PGAC validation objective is nonfinite')
+                if tracked is not None:
+                    tracking_squared.append(float((y[0, tracked] - r[0, tracked]).square()))
+                    action_squared.append(float((u/uscale).square().mean()))
+                    increment_squared.append(float(((u-previous)/uscale).square().mean()))
                 costs.append(float(score)); previous = u
-        runs.append({'name':scenario.get('name'), 'split':split,'steps':scenario['steps'],'score':math.fsum(costs)/len(costs),'hard_feasible':feasible,
+        runs.append({'name':scenario.get('name'), 'split':split,'steps':scenario['steps'],'score':math.fsum(costs)/len(costs),'hard_feasible':outputs_valid and increments_valid,
                      **({'family':scenario['family']} if 'family' in scenario else {})})
+        if tracked is not None:
+            runs[-1].update(trajectory_id=trajectory_id, output_bounds_passed=outputs_valid, increment_bounds_passed=increments_valid,
+                            tracking_rmse=math.sqrt(math.fsum(tracking_squared)/len(costs)),
+                            action_rms=math.sqrt(math.fsum(action_squared)/len(costs)),
+                            increment_rms=math.sqrt(math.fsum(increment_squared)/len(costs)))
     if not runs: raise ContractError('PGAC requires explicit original validation conditions before fitting')
     feasible = all(row['hard_feasible'] for row in runs)
-    return {'score':math.fsum(row['score'] for row in runs)/len(runs) if feasible else None,'hard_feasible':feasible,'runs':runs,
-        'source':'qualified_prediction_model_only_not_original_Plant','test_used':False}
+    result = {'score':math.fsum(row['score'] for row in runs)/len(runs) if feasible else None,'hard_feasible':feasible,'runs':runs,
+              'source':'qualified_prediction_model_only_not_original_Plant','test_used':False}
+    if tracked is not None:
+        result['tracking'] = tracking_summary(runs)
+    return result
 
 
 def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, *, validation_id):
@@ -293,7 +358,11 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
         baseline = load_external_policy(selected['policy_root']); policy = load_external_policy(selected['policy_root'])
         binding = require_current_full_state(policy,model.interface)
         original = normalize_original_evaluation(selected,config.get('original_evaluation'))
+        evaluation = original['evaluation']
+        track_primary = evaluation.get('primary_metric') == 'tracking_rmse'
         resolved = normalize_pgac_config(config,model.interface,qualification['coverage']['domain']); resolved['original_evaluation'] = original
+        if track_primary and not resolved['q']:
+            raise ContractError('Tracking-primary PGAC requires positive training q for the selected output')
         substeps = binding['plant_substeps']; dataset_id = selected['dataset_id']
         arrays, interface, dataset, scaler, dataset_meta = read_external_expert_dataset(workspace,dataset_id)
         n = len(arrays['X']); i = model.interface
@@ -348,6 +417,8 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
             baseline_validation = _predictor_validation(baseline,model,original,resolved,substeps,context)
             if start == 0 and best_score is None:
                 best_score = baseline_validation['score']
+                if track_primary and baseline_validation['hard_feasible']:
+                    best_score = baseline_validation['tracking']['tracking_rmse']
                 saved = checkpoint_epoch(start)
                 context.progress('pgac_initial_checkpoint', epoch=start, optimizer_updates=updates, **saved)
             # Fixed expert training rows are a repeatable deployment/action parity probe.
@@ -377,14 +448,14 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
                     before = copy.deepcopy(policy.network.state_dict()); before_optimizer = copy.deepcopy(optimizer.state_dict())
                     if replay is not None:
                         samples,counts=sampler.draw(rng,resolved['batch_size'],resolved['horizon']); drawn.update(counts)
-                        loss,batch_terms=_segment_loss(policy,model,sampler,samples,resolved,substeps,context)
+                        loss,batch_terms=_segment_loss(policy,model,sampler,samples,resolved,substeps,context,baseline_policy=baseline)
                         sampled_terms.update(batch_terms)
                         source={'replay_starts':[{ 'source':ep['source'],'episode':ep['id'],'t':t,'horizon':h}
                                                  for h,items in samples.items() for ep,t in items]}
                     else:
                         indexes=np.flatnonzero((identifiers==group)&(arrays['split_id']==0))
                         batch=rng.choice(indexes,size=min(len(indexes),resolved['batch_size']),replace=False)
-                        loss=physical_rollout_loss(policy,model,tensors['x'][batch],tensors['reference'][batch],tensors['d'][batch],tensors['previous_u'][batch],tensors['u'][batch],resolved,substeps=substeps,context=context)
+                        loss=physical_rollout_loss(policy,model,tensors['x'][batch],tensors['reference'][batch],tensors['d'][batch],tensors['previous_u'][batch],tensors['u'][batch],resolved,substeps=substeps,context=context,baseline_policy=baseline)
                         source={'training_trajectory_id':int(group),'source_rows':batch.tolist()}
                     optimizer.zero_grad(set_to_none=True); loss.backward()
                     norm = float(torch.nn.utils.clip_grad_norm_(policy.network.parameters(),5.,error_if_nonfinite=True)); optimizer.step()
@@ -393,11 +464,23 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
                     if first_update is None: first_update = {'state_sha256_before':_state_hash(before),'learning_rate':optimizer.param_groups[0]['lr'],
                         'weight_decay':optimizer.param_groups[0]['weight_decay'],'gradient_norm_before_clip':norm,**source}
                     updates += 1; epoch_losses.append(float(loss.detach()))
-                result = _predictor_validation(policy,model,original,resolved,substeps,context); score = result['score']
-                improved = score is not None and (best_score is None or score < best_score-original['evaluation']['comparison_atol'])
+                result = _predictor_validation(policy,model,original,resolved,substeps,context)
+                score = result['score']
+                eligible = result['hard_feasible']
+                if track_primary:
+                    gate = tracking_gate(baseline_validation['tracking'], result['tracking'], evaluation)
+                    eligible = eligible and gate['passed']
+                    score = result['tracking']['tracking_rmse']
+                if track_primary:
+                    improved = eligible and (best_score is None or tracking_less(score, best_score))
+                else:
+                    improved = eligible and (best_score is None or score < best_score-evaluation['comparison_atol'])
                 if improved: best_score,best_state = score,copy.deepcopy(policy.network.state_dict())
-                event = {'epoch':epoch+1,'training_loss':math.fsum(epoch_losses)/len(epoch_losses),'predictor_validation_score':score,
+                event = {'epoch':epoch+1,'training_loss':math.fsum(epoch_losses)/len(epoch_losses),'predictor_validation_score':result['score'],
                     'selected_by_validation':improved,'optimizer_updates':updates}
+                if track_primary:
+                    event.update(predictor_validation_tracking=result['tracking'], predictor_validation_gate=gate,
+                                 predictor_validation_hard_feasible=result['hard_feasible'], eligible_for_best_checkpoint=eligible)
                 if replay is None:
                     event.update(training_conditions_updated=len(groups),training_trajectory_order=order)
                 else:
@@ -406,14 +489,19 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
                         fixed={min(resolved['horizon'],len(ep['x'])):[] for ep in replay.expert}
                         for ep in replay.expert:
                             fixed[min(resolved['horizon'],len(ep['x']))].append((ep,0))
-                        measured,components=_segment_loss(policy,model,sampler,fixed,resolved,substeps,context)
+                        measured,components=_segment_loss(policy,model,sampler,fixed,resolved,substeps,context,baseline_policy=baseline)
                         training_score=_predictor_validation(policy,model,training_eval,resolved,substeps,context,split='train')
                         event.update(post_update_training_J=training_score['score'],post_update_training_runs=training_score['runs'],
-                            post_update_training_probe_J=float(measured),post_update_training_probe_terms=components,
+                            post_update_training_probe_terms=components,
                             sampled_optimization_terms={key:value/len(order) for key,value in sampled_terms.items()},
                             post_update_action_delta_max=float((policy(probe,previous_action=probe_u)-baseline_actions).abs().max()),
                             sampled_strata=[{'source':a,'family':b,'phase':c,'count':v} for (a,b,c),v in sorted(drawn.items())],
                             student_control_steps=replay.state['total_steps'],student_episode_count=replay.state['next_id'])
+                        if track_primary:
+                            event['post_update_training_tracking'] = training_score['tracking']
+                            event['post_update_training_probe_loss'] = float(measured)
+                        else:
+                            event['post_update_training_probe_J'] = float(measured)
                 log.append(event)
                 saved = checkpoint_epoch(epoch+1)
                 context.progress('restricted_pgac_training',**event,**saved)
@@ -444,6 +532,12 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
                           last_weights_sha256=last_sha,selected_weights_sha256=_state_hash(best_state),
                           initial_action_parity='exact_same_immutable_weights_and_feature_contract')
             report['expert_validation_trajectory_ids']=report['validation_trajectory_ids']
+            if track_primary:
+                output = model.interface.outputs[tracking_index(evaluation, model.interface)]
+                report.update(checkpoint_metric='tracking_rmse', tracking_output=output.name, tracking_unit=output.unit,
+                              selection='minimum_validation_RMSE_passing_frozen_physical_and_baseline_relative_gates',
+                              effort_reference='frozen_imitation_on_same_predictor_start_window_and_noise_no_expert_calls',
+                              optimization_objective='mean_start_window_RMSE_in_output_spans_plus_matched_imitation_RMS_budget_excess_and_existing_protections')
             if original.get('condition_source')=='fresh_holdout':
                 report['validation_trajectory_ids']=[]
             report['checkpoint_validation_conditions']=[

@@ -1,0 +1,2649 @@
+{
+  "started": "2026-11-27T15:32:59.238Z",
+  "session_id": "session-2ef25bef-bf0a-454a-829c-d2c487a596ab",
+  "role": "control-lightweight",
+  "provider": "deepseek-official",
+  "model": "deepseek-flash",
+  "workspace": "pgac-tracking-spring-role",
+  "user_request": "我有这个被控对象和 MPC，请采集专家数据，训练轻量网络，再用 PGAC 做在线闭环微调，并在独立工况上对比三种控制器。工作区内的材料说明.md 给出了原始程序、接口、工况和我的验收条件。请按这些文件执行并交付可加载的策略包，告知最终选用哪一版。这次以位移跟踪 RMSE 为主指标，同时限制力和每拍力增量开销、要求零越界。请按这些冻结门限汇报正负阶跃、反转和接管等工况的实际改善或退化，说明交付哪一版。仅使用本工作区的合成弹簧材料、角色技能与此次正式操作结果；跳过其他案例、历史运行记录和其他工作区。",
+  "additional_operator_messages": [],
+  "completed_turns": 6,
+  "final_turn_reason": "completed",
+  "final_answer_sha256": "6e1b2d77378e0e000c94bb0b9ca08304ded18052b726751bded18131b82155f2",
+  "post_delivery_questions": [
+    {
+      "turn": 5,
+      "prior_answer_sha256": "bbe413b49bbaff461575f574e790df34b4122e6cf1e55922af5461482d4d27e3",
+      "original_accounting_excerpt": [
+        "- PGAC：额外 MPC 求解 **0** 次，学生闭环仿真 **2640** 控制步，216 次 Adam 更新，池保留 2200 步。"
+      ],
+      "delivery_answer_excerpt": [
+        "**交付 PGAC 在线微调版：`external_optimized_policy-5f4aa5ec1082`（`bundle/` 策略包）。**",
+        "| **盲测等权（24 条）** | 0.07854 | 0.08058 | **0.07673** | **−4.78%** | **−2.31%** |"
+      ],
+      "question": "请再核对一次交付可重现性。刚才独立导入在你本次 external_optimized_policy-5f4aa5ec1082 的原 bundle 目录生成了两个未登记的 __pycache__ 字节码文件。请对照本次 artifact.json 的已登记清单，只把你这次多出的缓存移入本工作区独立审计目录，保持登记材料、权重和 ZIP 字节不变，再用正式 prepare_bundle_archive 复查。后续推理请用临时解压目录及 Python -I -B。将重验结论补充到本次交付报告。"
+    }
+  ],
+  "final_answer_accounting_excerpt": [],
+  "final_archive_check_excerpt": [
+    "结论：交付字节与登记清单一致，可加载性与数值可重现性成立；缓存已隔离在审计目录，未进入登记产物或 ZIP。"
+  ],
+  "loaded_skills": [
+    {
+      "seq": 75,
+      "skill": "distill-controller"
+    },
+    {
+      "seq": 124,
+      "skill": "warmstart-pgac"
+    }
+  ],
+  "confirmed_cards": {
+    "source": "test_fixture",
+    "count": 6,
+    "prepared": [
+      {
+        "seq": 276,
+        "operation": "register_material",
+        "received_confirmation": false
+      },
+      {
+        "seq": 278,
+        "operation": "register_material",
+        "received_confirmation": false
+      },
+      {
+        "seq": 414,
+        "operation": "sample_model",
+        "config_file": "sampling.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 426,
+        "operation": "collect_external_expert",
+        "config_file": "collection.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 532,
+        "operation": "train_external_imitation",
+        "config_file": "imitation.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 536,
+        "operation": "validate_differentiable_model",
+        "config_file": "qualification.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 628,
+        "operation": "optimize_external_policy",
+        "config_file": "online.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 742,
+        "operation": "evaluate_external_pgac",
+        "config_file": "evaluation.json",
+        "received_confirmation": true
+      }
+    ]
+  },
+  "role_tool_calls": [
+    {
+      "seq": 284,
+      "operation": "register_material"
+    },
+    {
+      "seq": 306,
+      "operation": "register_material"
+    },
+    {
+      "seq": 309,
+      "operation": "register_plant",
+      "config_file": "plant-adapter.json"
+    },
+    {
+      "seq": 332,
+      "operation": "register_expert",
+      "config_file": "expert-adapter.json"
+    },
+    {
+      "seq": 346,
+      "operation": "register_model",
+      "config_file": "model-source.json"
+    },
+    {
+      "seq": 374,
+      "operation": "sample_model",
+      "config_file": "sampling.json",
+      "error": true
+    },
+    {
+      "seq": 376,
+      "operation": "collect_external_expert",
+      "config_file": "collection.json",
+      "error": true
+    },
+    {
+      "seq": 450,
+      "operation": "sample_model",
+      "error": true
+    },
+    {
+      "seq": 456,
+      "operation": "sample_model",
+      "error": true
+    },
+    {
+      "seq": 458,
+      "operation": "collect_external_expert",
+      "error": true
+    },
+    {
+      "seq": 466,
+      "operation": "sample_model",
+      "config_file": "sampling.json"
+    },
+    {
+      "seq": 473,
+      "operation": "collect_external_expert",
+      "config_file": "collection.json"
+    },
+    {
+      "seq": 498,
+      "operation": "inspect_artifact"
+    },
+    {
+      "seq": 514,
+      "operation": "inspect_artifact"
+    },
+    {
+      "seq": 562,
+      "operation": "train_external_imitation",
+      "config_file": "imitation.json"
+    },
+    {
+      "seq": 565,
+      "operation": "validate_differentiable_model",
+      "config_file": "qualification.json"
+    },
+    {
+      "seq": 596,
+      "operation": "read_artifact_file"
+    },
+    {
+      "seq": 599,
+      "operation": "read_artifact_file"
+    },
+    {
+      "seq": 662,
+      "operation": "optimize_external_policy",
+      "config_file": "online.json"
+    },
+    {
+      "seq": 726,
+      "operation": "prepare_handoff"
+    },
+    {
+      "seq": 766,
+      "operation": "evaluate_external_pgac",
+      "config_file": "evaluation.json"
+    },
+    {
+      "seq": 942,
+      "operation": "prepare_bundle_archive"
+    },
+    {
+      "seq": 1096,
+      "operation": "prepare_bundle_archive"
+    }
+  ],
+  "completed_operations": [
+    {
+      "operation": "register_material",
+      "job": "control-engineering-0da6ae0841e44663",
+      "artifact": "material-36debde42eaa",
+      "status": "verified"
+    },
+    {
+      "operation": "register_material",
+      "job": "control-engineering-0d0a094a132240b0",
+      "artifact": "material-1d68f4affb85",
+      "status": "verified"
+    },
+    {
+      "operation": "register_plant",
+      "job": "control-engineering-603a6762fe434026",
+      "artifact": "plant_model-c13c050482e8",
+      "status": "verified"
+    },
+    {
+      "operation": "register_expert",
+      "job": "control-engineering-8568593fe23a4827",
+      "artifact": "external_expert-07f4acfb7738",
+      "status": "verified"
+    },
+    {
+      "operation": "register_model",
+      "job": "control-engineering-28ab995e04ba41dc",
+      "artifact": "nominal_model-5ae6ee34b891",
+      "status": "verified"
+    },
+    {
+      "operation": "sample_model",
+      "job": "control-engineering-24bb374e4e974269",
+      "artifact": "sampled_dataset-895983c61310",
+      "status": "verified"
+    },
+    {
+      "operation": "collect_external_expert",
+      "job": "control-engineering-3b6b4fc338a14e96",
+      "artifact": "external_expert_dataset-e0c8be34f699",
+      "status": "verified"
+    },
+    {
+      "operation": "inspect_artifact",
+      "job": "control-engineering-2177925004854b8a",
+      "artifact": "external_expert_dataset-e0c8be34f699",
+      "status": "verified"
+    },
+    {
+      "operation": "train_external_imitation",
+      "job": "control-engineering-afdf6bd71fdc4c98",
+      "artifact": "external_imitation_policy-792f80d15b92",
+      "status": "verified"
+    },
+    {
+      "operation": "validate_differentiable_model",
+      "job": "control-engineering-404edb1d49ce4e20",
+      "artifact": "differentiable_validation-b62627bed94b",
+      "status": "verified"
+    },
+    {
+      "operation": "read_artifact_file",
+      "job": "control-engineering-210db00b06584d41",
+      "artifact": "differentiable_validation-b62627bed94b",
+      "status": "verified"
+    },
+    {
+      "operation": "read_artifact_file",
+      "job": "control-engineering-6f675b67cfee4b5e",
+      "artifact": "external_imitation_policy-792f80d15b92",
+      "status": "verified"
+    },
+    {
+      "operation": "optimize_external_policy",
+      "job": "control-engineering-9af9830c948746e5",
+      "artifact": "external_pgac_candidate-ec31742fe70b",
+      "status": "verified"
+    },
+    {
+      "operation": "prepare_handoff",
+      "job": "control-engineering-6dc7ade05ae04371",
+      "artifact": "external_pgac_candidate-ec31742fe70b",
+      "status": "needs_input"
+    },
+    {
+      "operation": "evaluate_external_pgac",
+      "job": "control-engineering-b1720532c2954668",
+      "artifact": "external_optimized_policy-5f4aa5ec1082",
+      "status": "verified"
+    },
+    {
+      "operation": "prepare_bundle_archive",
+      "job": "control-engineering-ef629af6a09d44fa",
+      "artifact": "external_optimized_policy-5f4aa5ec1082",
+      "status": "verified"
+    },
+    {
+      "operation": "prepare_bundle_archive",
+      "job": "control-engineering-8d8d51aa26bd406b",
+      "artifact": "external_optimized_policy-5f4aa5ec1082",
+      "status": "verified"
+    }
+  ],
+  "failed_attempts": [
+    {
+      "operation": "inspect_artifact",
+      "job": "control-engineering-23849e958c9e49e2"
+    }
+  ],
+  "expert_work": {
+    "accounting": "Successful Python expert decisions are checked by two calls in the live module and one in a fresh module. The timing harness invokes the raw function directly.",
+    "collection_decisions": 720,
+    "collection_function_calls": 2160,
+    "train_decisions": 432,
+    "train_function_calls": 1296,
+    "evaluation_decisions": 1584,
+    "evaluation_function_calls": 4752,
+    "timing_pairs": 2,
+    "timing_raw_function_calls": 104,
+    "additional_pgac_training_calls": 0
+  },
+  "training": {
+    "best_epoch": 18,
+    "trained_epochs": 18,
+    "optimizer_updates": 216,
+    "initial_action_parity": "exact_same_immutable_weights_and_feature_contract",
+    "replay": {
+      "mode": "online",
+      "expert_training_steps": 432,
+      "expert_training_episodes": 12,
+      "declared_student_conditions": 12,
+      "effective_student_conditions": 12,
+      "student_control_steps": 2640,
+      "original_plant_substeps": 2640,
+      "extra_mpc_calls": 0,
+      "student_episodes_collected": 60,
+      "retained_steps": 2200,
+      "retained_tensor_bytes": 211200,
+      "capacity_steps": 2200,
+      "capacity_tensor_bytes": 211200,
+      "checkpoint_frequency": "after_each_committed_student_episode_and_completed_optimizer_epoch",
+      "retained_episodes": [
+        {
+          "id": 10,
+          "family": "near_state_limit",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-1"
+        },
+        {
+          "id": 11,
+          "family": "slew_recovery",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-1"
+        },
+        {
+          "id": 12,
+          "family": "positive",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-0"
+        },
+        {
+          "id": 13,
+          "family": "negative",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-0"
+        },
+        {
+          "id": 14,
+          "family": "cross_zero",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-0"
+        },
+        {
+          "id": 15,
+          "family": "midcourse",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-0"
+        },
+        {
+          "id": 16,
+          "family": "near_state_limit",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-0"
+        },
+        {
+          "id": 17,
+          "family": "slew_recovery",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-0"
+        },
+        {
+          "id": 18,
+          "family": "positive",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-1"
+        },
+        {
+          "id": 19,
+          "family": "negative",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-1"
+        },
+        {
+          "id": 20,
+          "family": "cross_zero",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-1"
+        },
+        {
+          "id": 21,
+          "family": "midcourse",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-1"
+        },
+        {
+          "id": 22,
+          "family": "near_state_limit",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-1"
+        },
+        {
+          "id": 23,
+          "family": "slew_recovery",
+          "policy_sha256": "3c2331fc92e1c17f0eb567c14b3a22dc70f6e75aa458ab56aa21a1026efdc29e",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-1"
+        },
+        {
+          "id": 24,
+          "family": "positive",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-0"
+        },
+        {
+          "id": 25,
+          "family": "negative",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-0"
+        },
+        {
+          "id": 26,
+          "family": "cross_zero",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-0"
+        },
+        {
+          "id": 27,
+          "family": "midcourse",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-0"
+        },
+        {
+          "id": 28,
+          "family": "near_state_limit",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-0"
+        },
+        {
+          "id": 29,
+          "family": "slew_recovery",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-0"
+        },
+        {
+          "id": 30,
+          "family": "positive",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-1"
+        },
+        {
+          "id": 31,
+          "family": "negative",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-1"
+        },
+        {
+          "id": 32,
+          "family": "cross_zero",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-1"
+        },
+        {
+          "id": 33,
+          "family": "midcourse",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-1"
+        },
+        {
+          "id": 34,
+          "family": "near_state_limit",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-1"
+        },
+        {
+          "id": 35,
+          "family": "slew_recovery",
+          "policy_sha256": "4f5a535bcb60c241d398493bc301bff47e6ecef9d303b9e6917cc5b4c6146e37",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-1"
+        },
+        {
+          "id": 36,
+          "family": "positive",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-0"
+        },
+        {
+          "id": 37,
+          "family": "negative",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-0"
+        },
+        {
+          "id": 38,
+          "family": "cross_zero",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-0"
+        },
+        {
+          "id": 39,
+          "family": "midcourse",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-0"
+        },
+        {
+          "id": 40,
+          "family": "near_state_limit",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-0"
+        },
+        {
+          "id": 41,
+          "family": "slew_recovery",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-0"
+        },
+        {
+          "id": 42,
+          "family": "positive",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-1"
+        },
+        {
+          "id": 43,
+          "family": "negative",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-1"
+        },
+        {
+          "id": 44,
+          "family": "cross_zero",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-1"
+        },
+        {
+          "id": 45,
+          "family": "midcourse",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-1"
+        },
+        {
+          "id": 46,
+          "family": "near_state_limit",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-1"
+        },
+        {
+          "id": 47,
+          "family": "slew_recovery",
+          "policy_sha256": "413bda93ff0fe1cb106e41fa364aa39117b7358a7616207489ede969b8a3c9e1",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-1"
+        },
+        {
+          "id": 48,
+          "family": "positive",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-0"
+        },
+        {
+          "id": 49,
+          "family": "negative",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-0"
+        },
+        {
+          "id": 50,
+          "family": "cross_zero",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-0"
+        },
+        {
+          "id": 51,
+          "family": "midcourse",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-0"
+        },
+        {
+          "id": 52,
+          "family": "near_state_limit",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-0"
+        },
+        {
+          "id": 53,
+          "family": "slew_recovery",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-0"
+        },
+        {
+          "id": 54,
+          "family": "positive",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-positive-1"
+        },
+        {
+          "id": 55,
+          "family": "negative",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-negative-1"
+        },
+        {
+          "id": 56,
+          "family": "cross_zero",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-cross_zero-1"
+        },
+        {
+          "id": 57,
+          "family": "midcourse",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-midcourse-1"
+        },
+        {
+          "id": 58,
+          "family": "near_state_limit",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-near_state_limit-1"
+        },
+        {
+          "id": 59,
+          "family": "slew_recovery",
+          "policy_sha256": "38106bcc69dd894b66f9626a2f616e902cbc4e43b21c6d4af4797103b95bbfa1",
+          "steps": 44,
+          "condition": "rmse-student_train-slew_recovery-1"
+        }
+      ],
+      "last_committed_checkpoint_bytes": 556641
+    }
+  },
+  "final_acceptance": {
+    "selected_version": "candidate",
+    "candidate_accepted": true,
+    "approved": true,
+    "reason": "fixed_candidate_passed_original_test"
+  },
+  "engineering_objective": {
+    "primary_metric": "tracking_rmse",
+    "output": "displacement",
+    "unit": "m",
+    "aggregation": "per-trajectory physical tracking RMSE, equal weight across conditions",
+    "action_metrics": "per-trajectory RMS of control or increment divided by each full action range, then equal condition mean",
+    "gates": {
+      "validation": {
+        "primary_metric": "tracking_rmse",
+        "passed": true,
+        "checks": {
+          "minimum_improvement": true,
+          "worst_case_tracking": true,
+          "action_rms": true,
+          "increment_rms": true
+        },
+        "baseline_rmse": 0.09452849948179537,
+        "candidate_rmse": 0.09102230974519177,
+        "relative_improvement": 0.037091350818266595,
+        "action_limits": {
+          "action_rms": 0.12567653904791645,
+          "increment_rms": 0.047232612896813186
+        },
+        "regressing_trajectory_ids": []
+      },
+      "test": {
+        "primary_metric": "tracking_rmse",
+        "passed": true,
+        "checks": {
+          "minimum_improvement": true,
+          "worst_case_tracking": true,
+          "action_rms": true,
+          "increment_rms": true
+        },
+        "baseline_rmse": 0.0805799343317866,
+        "candidate_rmse": 0.07672792150408345,
+        "relative_improvement": 0.04780362331697313,
+        "action_limits": {
+          "action_rms": 0.11295977376253047,
+          "increment_rms": 0.04508974161840846
+        },
+        "regressing_trajectory_ids": []
+      }
+    },
+    "candidate_vs_imitation": {
+      "validation": {
+        "status": "complete",
+        "overall": {
+          "tracking_rmse": {
+            "imitation": 0.09452849948179537,
+            "candidate": 0.09102230974519177,
+            "delta": -0.0035061897366036043,
+            "relative_change": -0.037091350818266595
+          },
+          "action_rms": {
+            "imitation": 0.10928394699818823,
+            "candidate": 0.11380939979669198,
+            "delta": 0.0045254527985037485,
+            "relative_change": 0.041410041664937065
+          },
+          "increment_rms": {
+            "imitation": 0.037786090317450546,
+            "candidate": 0.04489207802063421,
+            "delta": 0.007105987703183665,
+            "relative_change": 0.18805829455983555
+          }
+        },
+        "by_family": {
+          "positive": {
+            "tracking_rmse": {
+              "imitation": 0.08890613609752195,
+              "candidate": 0.08557655198736104,
+              "delta": -0.0033295841101609047,
+              "relative_change": -0.037450554667100296
+            },
+            "action_rms": {
+              "imitation": 0.11188499591562945,
+              "candidate": 0.1167854229537836,
+              "delta": 0.004900427038154145,
+              "relative_change": 0.0437987864060832
+            },
+            "increment_rms": {
+              "imitation": 0.03888225702830385,
+              "candidate": 0.0470316006685462,
+              "delta": 0.008149343640242349,
+              "relative_change": 0.2095902929274434
+            }
+          },
+          "negative": {
+            "tracking_rmse": {
+              "imitation": 0.08910160668659216,
+              "candidate": 0.08579694525405687,
+              "delta": -0.0033046614325352858,
+              "relative_change": -0.03708868510260618
+            },
+            "action_rms": {
+              "imitation": 0.11160455937744812,
+              "candidate": 0.11584382250673075,
+              "delta": 0.004239263129282633,
+              "relative_change": 0.03798467690684024
+            },
+            "increment_rms": {
+              "imitation": 0.03848870738383383,
+              "candidate": 0.04583569065009743,
+              "delta": 0.007346983266263603,
+              "relative_change": 0.19088672407194193
+            }
+          },
+          "cross_zero": {
+            "tracking_rmse": {
+              "imitation": 0.11794767878533577,
+              "candidate": 0.11522906495296403,
+              "delta": -0.0027186138323717357,
+              "relative_change": -0.023049320345842502
+            },
+            "action_rms": {
+              "imitation": 0.09273483491157906,
+              "candidate": 0.09966627617271284,
+              "delta": 0.006931441261133778,
+              "relative_change": 0.07474474147436373
+            },
+            "increment_rms": {
+              "imitation": 0.05282810653097308,
+              "candidate": 0.061842462069485724,
+              "delta": 0.009014355538512646,
+              "relative_change": 0.17063559779920442
+            }
+          },
+          "midcourse": {
+            "tracking_rmse": {
+              "imitation": 0.05832725896001267,
+              "candidate": 0.05698919501518583,
+              "delta": -0.0013380639448268422,
+              "relative_change": -0.02294062791025679
+            },
+            "action_rms": {
+              "imitation": 0.0746872246374931,
+              "candidate": 0.07629024968745787,
+              "delta": 0.0016030250499647763,
+              "relative_change": 0.021463176035062568
+            },
+            "increment_rms": {
+              "imitation": 0.016119864154360744,
+              "candidate": 0.020892818463605026,
+              "delta": 0.004772954309244282,
+              "relative_change": 0.29609147220717136
+            }
+          },
+          "near_state_limit": {
+            "tracking_rmse": {
+              "imitation": 0.05939369580539362,
+              "candidate": 0.05154495603454193,
+              "delta": -0.007848739770851695,
+              "relative_change": -0.13214769117194658
+            },
+            "action_rms": {
+              "imitation": 0.15199251738826308,
+              "candidate": 0.1560086691266076,
+              "delta": 0.00401615173834452,
+              "relative_change": 0.026423351671222787
+            },
+            "increment_rms": {
+              "imitation": 0.01598384913082719,
+              "candidate": 0.02347716708282611,
+              "delta": 0.00749331795199892,
+              "relative_change": 0.46880559811759986
+            }
+          },
+          "slew_recovery": {
+            "tracking_rmse": {
+              "imitation": 0.15349462055591603,
+              "candidate": 0.15099714522704086,
+              "delta": -0.002497475328875176,
+              "relative_change": -0.01627076779518393
+            },
+            "action_rms": {
+              "imitation": 0.11279954975871659,
+              "candidate": 0.11826195833285927,
+              "delta": 0.00546240857414268,
+              "relative_change": 0.04842580121841818
+            },
+            "increment_rms": {
+              "imitation": 0.0644137576764046,
+              "candidate": 0.07027272918924479,
+              "delta": 0.0058589715128401915,
+              "relative_change": 0.09095838721712071
+            }
+          }
+        },
+        "per_scenario": [
+          {
+            "trajectory_id": 0,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 23107093,
+            "tracking_rmse": {
+              "imitation": 0.07592083128485977,
+              "candidate": 0.07248905372930069,
+              "delta": -0.003431777555559082,
+              "relative_change": -0.04520205452812859
+            },
+            "action_rms": {
+              "imitation": 0.11212176563296394,
+              "candidate": 0.1168354294253426,
+              "delta": 0.004713663792378656,
+              "relative_change": 0.042040577632438146
+            },
+            "increment_rms": {
+              "imitation": 0.035921284842678404,
+              "candidate": 0.04464305230505505,
+              "delta": 0.00872176746237665,
+              "relative_change": 0.24280221324417212
+            }
+          },
+          {
+            "trajectory_id": 1,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 23117093,
+            "tracking_rmse": {
+              "imitation": 0.0757755407549144,
+              "candidate": 0.07233790650113471,
+              "delta": -0.0034376342537796867,
+              "relative_change": -0.04536601414562311
+            },
+            "action_rms": {
+              "imitation": 0.11198869765289875,
+              "candidate": 0.11607524174634916,
+              "delta": 0.004086544093450412,
+              "relative_change": 0.03649068324837899
+            },
+            "increment_rms": {
+              "imitation": 0.0361747077314679,
+              "candidate": 0.04417002555275759,
+              "delta": 0.00799531782128969,
+              "relative_change": 0.22101955544853427
+            }
+          },
+          {
+            "trajectory_id": 2,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 23127093,
+            "tracking_rmse": {
+              "imitation": 0.13137323282403687,
+              "candidate": 0.12841780089506902,
+              "delta": -0.0029554319289678554,
+              "relative_change": -0.022496454303795675
+            },
+            "action_rms": {
+              "imitation": 0.10017440786674092,
+              "candidate": 0.10811970207344795,
+              "delta": 0.007945294206707032,
+              "relative_change": 0.07931461114575715
+            },
+            "increment_rms": {
+              "imitation": 0.0562618212609408,
+              "candidate": 0.0661270970677809,
+              "delta": 0.009865275806840101,
+              "relative_change": 0.17534583107584129
+            }
+          },
+          {
+            "trajectory_id": 3,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 23137093,
+            "tracking_rmse": {
+              "imitation": 0.07463704254395293,
+              "candidate": 0.0725704405747783,
+              "delta": -0.0020666019691746307,
+              "relative_change": -0.02768869047775616
+            },
+            "action_rms": {
+              "imitation": 0.09302429161651016,
+              "candidate": 0.09539847594281389,
+              "delta": 0.0023741843263037354,
+              "relative_change": 0.025522197321224856
+            },
+            "increment_rms": {
+              "imitation": 0.02258428429890758,
+              "candidate": 0.028846556217746646,
+              "delta": 0.006262271918839067,
+              "relative_change": 0.27728449730603055
+            }
+          },
+          {
+            "trajectory_id": 4,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 23147093,
+            "tracking_rmse": {
+              "imitation": 0.06532408356900907,
+              "candidate": 0.05711591413344798,
+              "delta": -0.008208169435561088,
+              "relative_change": -0.1256530361714128
+            },
+            "action_rms": {
+              "imitation": 0.14913249052056632,
+              "candidate": 0.1535067565433475,
+              "delta": 0.004374266022781181,
+              "relative_change": 0.029331408652214133
+            },
+            "increment_rms": {
+              "imitation": 0.016356136419137766,
+              "candidate": 0.023866944627971294,
+              "delta": 0.007510808208833528,
+              "relative_change": 0.4592043020652104
+            }
+          },
+          {
+            "trajectory_id": 5,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 23157093,
+            "tracking_rmse": {
+              "imitation": 0.15126338457242294,
+              "candidate": 0.14911574840677344,
+              "delta": -0.0021476361656495024,
+              "relative_change": -0.014197990952802211
+            },
+            "action_rms": {
+              "imitation": 0.11459496948547741,
+              "candidate": 0.11926533528354252,
+              "delta": 0.00467036579806511,
+              "relative_change": 0.04075541726687212
+            },
+            "increment_rms": {
+              "imitation": 0.0638640457086118,
+              "candidate": 0.06904341160102347,
+              "delta": 0.005179365892411664,
+              "relative_change": 0.081099871374313
+            }
+          },
+          {
+            "trajectory_id": 6,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 23107094,
+            "tracking_rmse": {
+              "imitation": 0.10189144091018412,
+              "candidate": 0.0986640502454214,
+              "delta": -0.0032273906647627276,
+              "relative_change": -0.03167479658676755
+            },
+            "action_rms": {
+              "imitation": 0.11164822619829495,
+              "candidate": 0.11673541648222459,
+              "delta": 0.005087190283929635,
+              "relative_change": 0.04556445236213994
+            },
+            "increment_rms": {
+              "imitation": 0.04184322921392929,
+              "candidate": 0.04942014903203735,
+              "delta": 0.007576919818108062,
+              "relative_change": 0.18107875420823794
+            }
+          },
+          {
+            "trajectory_id": 7,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 23117094,
+            "tracking_rmse": {
+              "imitation": 0.10242767261826992,
+              "candidate": 0.09925598400697903,
+              "delta": -0.003171688611290885,
+              "relative_change": -0.030965153558757657
+            },
+            "action_rms": {
+              "imitation": 0.11122042110199748,
+              "candidate": 0.11561240326711233,
+              "delta": 0.004391982165114855,
+              "relative_change": 0.03948899061519536
+            },
+            "increment_rms": {
+              "imitation": 0.04080270703619976,
+              "candidate": 0.047501355747437274,
+              "delta": 0.006698648711237515,
+              "relative_change": 0.16417167383758485
+            }
+          },
+          {
+            "trajectory_id": 8,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 23127094,
+            "tracking_rmse": {
+              "imitation": 0.10452212474663466,
+              "candidate": 0.10204032901085903,
+              "delta": -0.00248179573577563,
+              "relative_change": -0.023744214364103206
+            },
+            "action_rms": {
+              "imitation": 0.0852952619564172,
+              "candidate": 0.09121285027197772,
+              "delta": 0.00591758831556051,
+              "relative_change": 0.06937769085678151
+            },
+            "increment_rms": {
+              "imitation": 0.049394391801005355,
+              "candidate": 0.05755782707119054,
+              "delta": 0.008163435270185183,
+              "relative_change": 0.1652704886634322
+            }
+          },
+          {
+            "trajectory_id": 9,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 23137094,
+            "tracking_rmse": {
+              "imitation": 0.04201747537607242,
+              "candidate": 0.041407949455593375,
+              "delta": -0.0006095259204790468,
+              "relative_change": -0.014506486051900013
+            },
+            "action_rms": {
+              "imitation": 0.05635015765847603,
+              "candidate": 0.05718202343210184,
+              "delta": 0.0008318657736258103,
+              "relative_change": 0.014762439151768433
+            },
+            "increment_rms": {
+              "imitation": 0.009655444009813906,
+              "candidate": 0.012939080709463409,
+              "delta": 0.0032836366996495028,
+              "relative_change": 0.3400813775432778
+            }
+          },
+          {
+            "trajectory_id": 10,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 23147094,
+            "tracking_rmse": {
+              "imitation": 0.053463308041778186,
+              "candidate": 0.04597399793563587,
+              "delta": -0.007489310106142316,
+              "relative_change": -0.1400831781731481
+            },
+            "action_rms": {
+              "imitation": 0.15485254425595987,
+              "candidate": 0.1585105817098677,
+              "delta": 0.003658037453907831,
+              "relative_change": 0.0236227145732999
+            },
+            "increment_rms": {
+              "imitation": 0.015611561842516615,
+              "candidate": 0.023087389537680927,
+              "delta": 0.007475827695164312,
+              "relative_change": 0.47886481638272743
+            }
+          },
+          {
+            "trajectory_id": 11,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 23157094,
+            "tracking_rmse": {
+              "imitation": 0.15572585653940912,
+              "candidate": 0.15287854204730827,
+              "delta": -0.0028473144921008497,
+              "relative_change": -0.018284147253223085
+            },
+            "action_rms": {
+              "imitation": 0.11100413003195578,
+              "candidate": 0.11725858138217601,
+              "delta": 0.006254451350220236,
+              "relative_change": 0.056344312129825345
+            },
+            "increment_rms": {
+              "imitation": 0.0649634696441974,
+              "candidate": 0.0715020467774661,
+              "delta": 0.006538577133268705,
+              "relative_change": 0.1006500602427835
+            }
+          }
+        ]
+      },
+      "test": {
+        "status": "complete",
+        "overall": {
+          "tracking_rmse": {
+            "imitation": 0.0805799343317866,
+            "candidate": 0.07672792150408345,
+            "delta": -0.003852012827703158,
+            "relative_change": -0.04780362331697313
+          },
+          "action_rms": {
+            "imitation": 0.09822589022828737,
+            "candidate": 0.1028471672845126,
+            "delta": 0.004621277056225226,
+            "relative_change": 0.047047443861133645
+          },
+          "increment_rms": {
+            "imitation": 0.03607179329472677,
+            "candidate": 0.04283007721380267,
+            "delta": 0.0067582839190759025,
+            "relative_change": 0.1873564716857001
+          }
+        },
+        "by_family": {
+          "positive": {
+            "tracking_rmse": {
+              "imitation": 0.07060033498322077,
+              "candidate": 0.0673055666481885,
+              "delta": -0.0032947683350322693,
+              "relative_change": -0.04666788529849498
+            },
+            "action_rms": {
+              "imitation": 0.08600020220592422,
+              "candidate": 0.09089736206312542,
+              "delta": 0.004897159857201197,
+              "relative_change": 0.05694358538221961
+            },
+            "increment_rms": {
+              "imitation": 0.03495235225387166,
+              "candidate": 0.043173436465181646,
+              "delta": 0.008221084211309987,
+              "relative_change": 0.23520832450981438
+            }
+          },
+          "negative": {
+            "tracking_rmse": {
+              "imitation": 0.0710545645721623,
+              "candidate": 0.06778973870081928,
+              "delta": -0.0032648258713430245,
+              "relative_change": -0.04594815112866254
+            },
+            "action_rms": {
+              "imitation": 0.08559814322910235,
+              "candidate": 0.08997995138717817,
+              "delta": 0.004381808158075817,
+              "relative_change": 0.05119045802603408
+            },
+            "increment_rms": {
+              "imitation": 0.034092357455986474,
+              "candidate": 0.04175435058298446,
+              "delta": 0.007661993126997987,
+              "relative_change": 0.22474225013303015
+            }
+          },
+          "cross_zero": {
+            "tracking_rmse": {
+              "imitation": 0.12153252841431302,
+              "candidate": 0.11788816418279674,
+              "delta": -0.0036443642315162755,
+              "relative_change": -0.02998673918057871
+            },
+            "action_rms": {
+              "imitation": 0.08877863066780194,
+              "candidate": 0.09692467312557769,
+              "delta": 0.008146042457775754,
+              "relative_change": 0.09175679323391665
+            },
+            "increment_rms": {
+              "imitation": 0.0539519027473356,
+              "candidate": 0.0640401745602001,
+              "delta": 0.0100882718128645,
+              "relative_change": 0.18698639527338465
+            }
+          },
+          "midcourse": {
+            "tracking_rmse": {
+              "imitation": 0.061867332296653324,
+              "candidate": 0.060860222592217135,
+              "delta": -0.001007109704436189,
+              "relative_change": -0.016278537752478266
+            },
+            "action_rms": {
+              "imitation": 0.07431415175923001,
+              "candidate": 0.07554285395456128,
+              "delta": 0.0012287021953312771,
+              "relative_change": 0.01653389248540631
+            },
+            "increment_rms": {
+              "imitation": 0.013397332817412944,
+              "candidate": 0.01757203945127566,
+              "delta": 0.004174706633862716,
+              "relative_change": 0.3116072945830468
+            }
+          },
+          "near_state_limit": {
+            "tracking_rmse": {
+              "imitation": 0.057314892667302025,
+              "candidate": 0.04842640478842938,
+              "delta": -0.008888487878872649,
+              "relative_change": -0.15508164571585256
+            },
+            "action_rms": {
+              "imitation": 0.15544577779300126,
+              "candidate": 0.15959845136457268,
+              "delta": 0.004152673571571425,
+              "relative_change": 0.026714611554784818
+            },
+            "increment_rms": {
+              "imitation": 0.0182061640628493,
+              "candidate": 0.02407865927918847,
+              "delta": 0.005872495216339171,
+              "relative_change": 0.3225553277487116
+            }
+          },
+          "slew_recovery": {
+            "tracking_rmse": {
+              "imitation": 0.10110995305706817,
+              "candidate": 0.09809743211204963,
+              "delta": -0.0030125209450185403,
+              "relative_change": -0.02979450443734478
+            },
+            "action_rms": {
+              "imitation": 0.09921843571466445,
+              "candidate": 0.10413971181206039,
+              "delta": 0.004921276097395941,
+              "relative_change": 0.049600420143174846
+            },
+            "increment_rms": {
+              "imitation": 0.06183065043090464,
+              "candidate": 0.06636180294398568,
+              "delta": 0.0045311525130810396,
+              "relative_change": 0.0732832742580409
+            }
+          }
+        },
+        "per_scenario": [
+          {
+            "trajectory_id": 12,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430017,
+            "tracking_rmse": {
+              "imitation": 0.06198145698423427,
+              "candidate": 0.058745987874638604,
+              "delta": -0.0032354691095956636,
+              "relative_change": -0.05220059784039353
+            },
+            "action_rms": {
+              "imitation": 0.08715271663523867,
+              "candidate": 0.09139288227584091,
+              "delta": 0.004240165640602242,
+              "relative_change": 0.048652133912803416
+            },
+            "increment_rms": {
+              "imitation": 0.03315550360443038,
+              "candidate": 0.04136699898687241,
+              "delta": 0.008211495382442036,
+              "relative_change": 0.24766613351470196
+            }
+          },
+          {
+            "trajectory_id": 13,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440017,
+            "tracking_rmse": {
+              "imitation": 0.06251237496991212,
+              "candidate": 0.0593392527030468,
+              "delta": -0.003173122266865315,
+              "relative_change": -0.05075990583292625
+            },
+            "action_rms": {
+              "imitation": 0.08686485607134829,
+              "candidate": 0.09053980735272568,
+              "delta": 0.0036749512813773894,
+              "relative_change": 0.04230653739135756
+            },
+            "increment_rms": {
+              "imitation": 0.03199770934695451,
+              "candidate": 0.03962446225277283,
+              "delta": 0.007626752905818317,
+              "relative_change": 0.23835309031407956
+            }
+          },
+          {
+            "trajectory_id": 14,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450017,
+            "tracking_rmse": {
+              "imitation": 0.13643132737709598,
+              "candidate": 0.13258245044715664,
+              "delta": -0.003848876929939349,
+              "relative_change": -0.02821109347782756
+            },
+            "action_rms": {
+              "imitation": 0.09567338062013578,
+              "candidate": 0.10386238772616553,
+              "delta": 0.008189007106029753,
+              "relative_change": 0.08559337041244118
+            },
+            "increment_rms": {
+              "imitation": 0.0571022560495341,
+              "candidate": 0.06702048524364149,
+              "delta": 0.009918229194107384,
+              "relative_change": 0.1736924226864817
+            }
+          },
+          {
+            "trajectory_id": 15,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460017,
+            "tracking_rmse": {
+              "imitation": 0.05445219744165568,
+              "candidate": 0.05369945996208286,
+              "delta": -0.0007527374795728153,
+              "relative_change": -0.01382382190139079
+            },
+            "action_rms": {
+              "imitation": 0.06815332542474081,
+              "candidate": 0.06918169788486916,
+              "delta": 0.0010283724601283517,
+              "relative_change": 0.015089101723494699
+            },
+            "increment_rms": {
+              "imitation": 0.011468182120203159,
+              "candidate": 0.015234147509549783,
+              "delta": 0.003765965389346624,
+              "relative_change": 0.3283838144418926
+            }
+          },
+          {
+            "trajectory_id": 16,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470017,
+            "tracking_rmse": {
+              "imitation": 0.049745232919170684,
+              "candidate": 0.03975888433810204,
+              "delta": -0.009986348581068644,
+              "relative_change": -0.20074986074133208
+            },
+            "action_rms": {
+              "imitation": 0.16731178711333616,
+              "candidate": 0.17166941210059386,
+              "delta": 0.004357624987257697,
+              "relative_change": 0.02604493719444801
+            },
+            "increment_rms": {
+              "imitation": 0.01792296798230451,
+              "candidate": 0.020078244351503422,
+              "delta": 0.002155276369198912,
+              "relative_change": 0.12025220216466569
+            }
+          },
+          {
+            "trajectory_id": 17,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480017,
+            "tracking_rmse": {
+              "imitation": 0.07380237286555463,
+              "candidate": 0.0712042450635843,
+              "delta": -0.002598127801970329,
+              "relative_change": -0.035203851869415145
+            },
+            "action_rms": {
+              "imitation": 0.08978739580795587,
+              "candidate": 0.09338309427182995,
+              "delta": 0.0035956984638740724,
+              "relative_change": 0.04004680647565307
+            },
+            "increment_rms": {
+              "imitation": 0.060125060484409264,
+              "candidate": 0.06351304470237135,
+              "delta": 0.0033879842179620825,
+              "relative_change": 0.05634895317636486
+            }
+          },
+          {
+            "trajectory_id": 18,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430018,
+            "tracking_rmse": {
+              "imitation": 0.11223108560349974,
+              "candidate": 0.10876266766278994,
+              "delta": -0.003468417940709803,
+              "relative_change": -0.03090425368389777
+            },
+            "action_rms": {
+              "imitation": 0.11439783677505347,
+              "candidate": 0.12038116014063396,
+              "delta": 0.005983323365580495,
+              "relative_change": 0.052302766680333485
+            },
+            "increment_rms": {
+              "imitation": 0.043104338667501095,
+              "candidate": 0.05177805440219854,
+              "delta": 0.008673715734697447,
+              "relative_change": 0.20122604830119045
+            }
+          },
+          {
+            "trajectory_id": 19,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440018,
+            "tracking_rmse": {
+              "imitation": 0.11255465588115812,
+              "candidate": 0.10913704563282303,
+              "delta": -0.00341761024833509,
+              "relative_change": -0.0303640060162736
+            },
+            "action_rms": {
+              "imitation": 0.11426297447719705,
+              "candidate": 0.11969495696880565,
+              "delta": 0.005431982491608603,
+              "relative_change": 0.047539305855306954
+            },
+            "increment_rms": {
+              "imitation": 0.04256529280060485,
+              "candidate": 0.050500882198856574,
+              "delta": 0.007935589398251723,
+              "relative_change": 0.18643333279593835
+            }
+          },
+          {
+            "trajectory_id": 20,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450018,
+            "tracking_rmse": {
+              "imitation": 0.111478801251545,
+              "candidate": 0.10823181816855858,
+              "delta": -0.0032469830829864182,
+              "relative_change": -0.029126462130318415
+            },
+            "action_rms": {
+              "imitation": 0.08845393579305105,
+              "candidate": 0.09582269954975206,
+              "delta": 0.007368763756701008,
+              "relative_change": 0.08330622815858804
+            },
+            "increment_rms": {
+              "imitation": 0.0517856193230456,
+              "candidate": 0.061365124085262235,
+              "delta": 0.009579504762216633,
+              "relative_change": 0.18498387945229358
+            }
+          },
+          {
+            "trajectory_id": 21,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460018,
+            "tracking_rmse": {
+              "imitation": 0.08186324594732233,
+              "candidate": 0.08057450852684843,
+              "delta": -0.0012887374204739038,
+              "relative_change": -0.015742564389679654
+            },
+            "action_rms": {
+              "imitation": 0.10138760628143752,
+              "candidate": 0.10274331842280338,
+              "delta": 0.0013557121413658585,
+              "relative_change": 0.013371576577146866
+            },
+            "increment_rms": {
+              "imitation": 0.01891694043625886,
+              "candidate": 0.023329065009497392,
+              "delta": 0.004412124573238533,
+              "relative_change": 0.2332366900506615
+            }
+          },
+          {
+            "trajectory_id": 22,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470018,
+            "tracking_rmse": {
+              "imitation": 0.053635455247598614,
+              "candidate": 0.0448161401319222,
+              "delta": -0.008819315115676414,
+              "relative_change": -0.16443069374471797
+            },
+            "action_rms": {
+              "imitation": 0.16443163997575605,
+              "candidate": 0.16830390156703318,
+              "delta": 0.0038722615912771263,
+              "relative_change": 0.023549370375726082
+            },
+            "increment_rms": {
+              "imitation": 0.016216386186483932,
+              "candidate": 0.02288073403838226,
+              "delta": 0.006664347851898327,
+              "relative_change": 0.41096381001662025
+            }
+          },
+          {
+            "trajectory_id": 23,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480018,
+            "tracking_rmse": {
+              "imitation": 0.1323234227427218,
+              "candidate": 0.1289245192528082,
+              "delta": -0.0033989034899135906,
+              "relative_change": -0.025686332921739215
+            },
+            "action_rms": {
+              "imitation": 0.11445869055829914,
+              "candidate": 0.12075413956266057,
+              "delta": 0.0062954490043614225,
+              "relative_change": 0.05500193103427876
+            },
+            "increment_rms": {
+              "imitation": 0.0635763817797682,
+              "candidate": 0.06963766286821614,
+              "delta": 0.006061281088447945,
+              "relative_change": 0.09533856628463899
+            }
+          },
+          {
+            "trajectory_id": 24,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430019,
+            "tracking_rmse": {
+              "imitation": 0.05181250352299001,
+              "candidate": 0.04854085775386262,
+              "delta": -0.0032716457691273904,
+              "relative_change": -0.06314394299969911
+            },
+            "action_rms": {
+              "imitation": 0.07462661194395225,
+              "candidate": 0.07896582635114653,
+              "delta": 0.004339214407194286,
+              "relative_change": 0.05814567074883716
+            },
+            "increment_rms": {
+              "imitation": 0.03154465597013354,
+              "candidate": 0.039221186668132034,
+              "delta": 0.007676530697998493,
+              "relative_change": 0.2433543959162727
+            }
+          },
+          {
+            "trajectory_id": 25,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440019,
+            "tracking_rmse": {
+              "imitation": 0.05236441045819673,
+              "candidate": 0.04908038077792958,
+              "delta": -0.003284029680267149,
+              "relative_change": -0.06271491747030815
+            },
+            "action_rms": {
+              "imitation": 0.0741357949082416,
+              "candidate": 0.07798475625532905,
+              "delta": 0.003848961347087454,
+              "relative_change": 0.05191771871943021
+            },
+            "increment_rms": {
+              "imitation": 0.030547990328907617,
+              "candidate": 0.03781380091777191,
+              "delta": 0.007265810588864292,
+              "relative_change": 0.23784905359187056
+            }
+          },
+          {
+            "trajectory_id": 26,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450019,
+            "tracking_rmse": {
+              "imitation": 0.11631396981307462,
+              "candidate": 0.11275952174347158,
+              "delta": -0.0035544480696030473,
+              "relative_change": -0.03055908138390698
+            },
+            "action_rms": {
+              "imitation": 0.08380997012711261,
+              "candidate": 0.09224758370267842,
+              "delta": 0.008437613575565814,
+              "relative_change": 0.10067553493657955
+            },
+            "increment_rms": {
+              "imitation": 0.05250999932423109,
+              "candidate": 0.06258819581975626,
+              "delta": 0.010078196495525174,
+              "relative_change": 0.19192909208198225
+            }
+          },
+          {
+            "trajectory_id": 27,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460019,
+            "tracking_rmse": {
+              "imitation": 0.06026257377049779,
+              "candidate": 0.059024586981986,
+              "delta": -0.001237986788511787,
+              "relative_change": -0.020543211334227103
+            },
+            "action_rms": {
+              "imitation": 0.06254797703087457,
+              "candidate": 0.06403506057277229,
+              "delta": 0.0014870835418977213,
+              "relative_change": 0.023775086141693692
+            },
+            "increment_rms": {
+              "imitation": 0.013166720307158796,
+              "candidate": 0.017776024402822027,
+              "delta": 0.004609304095663231,
+              "relative_change": 0.3500723026034915
+            }
+          },
+          {
+            "trajectory_id": 28,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470019,
+            "tracking_rmse": {
+              "imitation": 0.05118477002226112,
+              "candidate": 0.04196207293378409,
+              "delta": -0.009222697088477033,
+              "relative_change": -0.18018440025159685
+            },
+            "action_rms": {
+              "imitation": 0.16331665290665082,
+              "candidate": 0.16748296980959518,
+              "delta": 0.004166316902944361,
+              "relative_change": 0.025510667949616636
+            },
+            "increment_rms": {
+              "imitation": 0.015164300778762163,
+              "candidate": 0.019320477775999965,
+              "delta": 0.004156176997237802,
+              "relative_change": 0.27407640206257267
+            }
+          },
+          {
+            "trajectory_id": 29,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480019,
+            "tracking_rmse": {
+              "imitation": 0.11318396318095272,
+              "candidate": 0.11085562633480435,
+              "delta": -0.002328336846148374,
+              "relative_change": -0.020571260987088322
+            },
+            "action_rms": {
+              "imitation": 0.10668337519724834,
+              "candidate": 0.111109110290483,
+              "delta": 0.004425735093234656,
+              "relative_change": 0.04148476822233881
+            },
+            "increment_rms": {
+              "imitation": 0.06235315380855705,
+              "candidate": 0.0669600416461373,
+              "delta": 0.004606887837580245,
+              "relative_change": 0.07388379827145196
+            }
+          },
+          {
+            "trajectory_id": 30,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430020,
+            "tracking_rmse": {
+              "imitation": 0.05637629382215905,
+              "candidate": 0.053172753301462844,
+              "delta": -0.003203540520696206,
+              "relative_change": -0.056824248341011636
+            },
+            "action_rms": {
+              "imitation": 0.06782364346945247,
+              "candidate": 0.07284957948488024,
+              "delta": 0.005025936015427779,
+              "relative_change": 0.07410300830699906
+            },
+            "increment_rms": {
+              "imitation": 0.03200491077342162,
+              "candidate": 0.0403275058035236,
+              "delta": 0.008322595030101979,
+              "relative_change": 0.26004118833580536
+            }
+          },
+          {
+            "trajectory_id": 31,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440020,
+            "tracking_rmse": {
+              "imitation": 0.056786816979382246,
+              "candidate": 0.0536022756894777,
+              "delta": -0.003184541289904544,
+              "relative_change": -0.05607888343276512
+            },
+            "action_rms": {
+              "imitation": 0.06712894745962247,
+              "candidate": 0.07170028497185227,
+              "delta": 0.004571337512229795,
+              "relative_change": 0.06809785770854546
+            },
+            "increment_rms": {
+              "imitation": 0.03125843734747892,
+              "candidate": 0.03907825696253653,
+              "delta": 0.007819819615057608,
+              "relative_change": 0.2501666838981731
+            }
+          },
+          {
+            "trajectory_id": 32,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450020,
+            "tracking_rmse": {
+              "imitation": 0.12190601521553647,
+              "candidate": 0.11797886637200014,
+              "delta": -0.003927148843536329,
+              "relative_change": -0.032214561657133295
+            },
+            "action_rms": {
+              "imitation": 0.0871772361309083,
+              "candidate": 0.09576602152371474,
+              "delta": 0.008588785392806442,
+              "relative_change": 0.09852096457737235
+            },
+            "increment_rms": {
+              "imitation": 0.05440973629253161,
+              "candidate": 0.06518689309214043,
+              "delta": 0.01077715679960882,
+              "relative_change": 0.19807404949852908
+            }
+          },
+          {
+            "trajectory_id": 33,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460020,
+            "tracking_rmse": {
+              "imitation": 0.050891312027137495,
+              "candidate": 0.05014233489795124,
+              "delta": -0.0007489771291862568,
+              "relative_change": -0.014717190407409209
+            },
+            "action_rms": {
+              "imitation": 0.06516769829986714,
+              "candidate": 0.06621133893780028,
+              "delta": 0.0010436406379331353,
+              "relative_change": 0.016014692327030722
+            },
+            "increment_rms": {
+              "imitation": 0.01003748840603096,
+              "candidate": 0.013948920883233438,
+              "delta": 0.003911432477202478,
+              "relative_change": 0.38968239055223414
+            }
+          },
+          {
+            "trajectory_id": 34,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470020,
+            "tracking_rmse": {
+              "imitation": 0.07469411248017767,
+              "candidate": 0.06716852174990917,
+              "delta": -0.007525590730268497,
+              "relative_change": -0.10075212731479524
+            },
+            "action_rms": {
+              "imitation": 0.126723031176262,
+              "candidate": 0.13093752198106845,
+              "delta": 0.004214490804806459,
+              "relative_change": 0.03325749680769888
+            },
+            "increment_rms": {
+              "imitation": 0.023521001303846593,
+              "candidate": 0.03403518095086823,
+              "delta": 0.010514179647021636,
+              "relative_change": 0.44701241716704304
+            }
+          },
+          {
+            "trajectory_id": 35,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480020,
+            "tracking_rmse": {
+              "imitation": 0.08513005343904352,
+              "candidate": 0.08140533779700165,
+              "delta": -0.0037247156420418676,
+              "relative_change": -0.043753239796905694
+            },
+            "action_rms": {
+              "imitation": 0.08594428129515441,
+              "candidate": 0.09131250312326807,
+              "delta": 0.0053682218281136534,
+              "relative_change": 0.0624616524475645
+            },
+            "increment_rms": {
+              "imitation": 0.06126800565088404,
+              "candidate": 0.06533646255921792,
+              "delta": 0.004068456908333878,
+              "relative_change": 0.06640426540920341
+            }
+          }
+        ]
+      }
+    }
+  },
+  "test": {
+    "expert": {
+      "J": 0.0038503596870861786,
+      "feasible": true,
+      "tracking": {
+        "tracking_rmse": 0.07854441946934435,
+        "action_rms": 0.0993736833230613,
+        "increment_rms": 0.03799018347463009,
+        "per_scenario": [
+          {
+            "trajectory_id": 12,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430017,
+            "tracking_rmse": 0.06221105969762455,
+            "action_rms": 0.0868390998633096,
+            "increment_rms": 0.033249460946646894
+          },
+          {
+            "trajectory_id": 13,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440017,
+            "tracking_rmse": 0.06221105969762455,
+            "action_rms": 0.0868390998633096,
+            "increment_rms": 0.033249460946646894
+          },
+          {
+            "trajectory_id": 14,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450017,
+            "tracking_rmse": 0.1357396947033625,
+            "action_rms": 0.09695330652622972,
+            "increment_rms": 0.059603648028302834
+          },
+          {
+            "trajectory_id": 15,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460017,
+            "tracking_rmse": 0.05294716550049134,
+            "action_rms": 0.06912492116415689,
+            "increment_rms": 0.017079053131990037
+          },
+          {
+            "trajectory_id": 16,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470017,
+            "tracking_rmse": 0.03819987706671168,
+            "action_rms": 0.1740508818693578,
+            "increment_rms": 0.02055615542467443
+          },
+          {
+            "trajectory_id": 17,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480017,
+            "tracking_rmse": 0.07316826953520979,
+            "action_rms": 0.09005962915362482,
+            "increment_rms": 0.06097322227208755
+          },
+          {
+            "trajectory_id": 18,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430018,
+            "tracking_rmse": 0.1118020723490399,
+            "action_rms": 0.11505058939656816,
+            "increment_rms": 0.04431333100942965
+          },
+          {
+            "trajectory_id": 19,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440018,
+            "tracking_rmse": 0.11180746479262799,
+            "action_rms": 0.11501605090489822,
+            "increment_rms": 0.044356238115927045
+          },
+          {
+            "trajectory_id": 20,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450018,
+            "tracking_rmse": 0.1120728674216349,
+            "action_rms": 0.08713127762414788,
+            "increment_rms": 0.04943454285167283
+          },
+          {
+            "trajectory_id": 21,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460018,
+            "tracking_rmse": 0.0768711059391684,
+            "action_rms": 0.10447869290438652,
+            "increment_rms": 0.033539441907786884
+          },
+          {
+            "trajectory_id": 22,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470018,
+            "tracking_rmse": 0.0448735636559184,
+            "action_rms": 0.17019960024366018,
+            "increment_rms": 0.01881801768112234
+          },
+          {
+            "trajectory_id": 23,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480018,
+            "tracking_rmse": 0.1301312244081974,
+            "action_rms": 0.11625380797574301,
+            "increment_rms": 0.06709757928827582
+          },
+          {
+            "trajectory_id": 24,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430019,
+            "tracking_rmse": 0.05237857436022781,
+            "action_rms": 0.07397609210658718,
+            "increment_rms": 0.030891685888678917
+          },
+          {
+            "trajectory_id": 25,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440019,
+            "tracking_rmse": 0.05237857436022781,
+            "action_rms": 0.07397609210658718,
+            "increment_rms": 0.030891685888678917
+          },
+          {
+            "trajectory_id": 26,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450019,
+            "tracking_rmse": 0.11712798820547925,
+            "action_rms": 0.08258866459535591,
+            "increment_rms": 0.05106344557990485
+          },
+          {
+            "trajectory_id": 27,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460019,
+            "tracking_rmse": 0.05868441154696659,
+            "action_rms": 0.06371456131836975,
+            "increment_rms": 0.018848564321229336
+          },
+          {
+            "trajectory_id": 28,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470019,
+            "tracking_rmse": 0.041002856776694796,
+            "action_rms": 0.16971434003875233,
+            "increment_rms": 0.018188889551124986
+          },
+          {
+            "trajectory_id": 29,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480019,
+            "tracking_rmse": 0.11297475325460998,
+            "action_rms": 0.10679501268049776,
+            "increment_rms": 0.06281611796456837
+          },
+          {
+            "trajectory_id": 30,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430020,
+            "tracking_rmse": 0.05707988943919434,
+            "action_rms": 0.06678892088766973,
+            "increment_rms": 0.03085268155341385
+          },
+          {
+            "trajectory_id": 31,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440020,
+            "tracking_rmse": 0.05712767242034046,
+            "action_rms": 0.06665969779775403,
+            "increment_rms": 0.0307454874034652
+          },
+          {
+            "trajectory_id": 32,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450020,
+            "tracking_rmse": 0.12224619073003895,
+            "action_rms": 0.08601648894937396,
+            "increment_rms": 0.05283561383820086
+          },
+          {
+            "trajectory_id": 33,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460020,
+            "tracking_rmse": 0.04966954265731278,
+            "action_rms": 0.06570905021700398,
+            "increment_rms": 0.01424435724067977
+          },
+          {
+            "trajectory_id": 34,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470020,
+            "tracking_rmse": 0.06907793950736185,
+            "action_rms": 0.12992870690944008,
+            "increment_rms": 0.02518933307140385
+          },
+          {
+            "trajectory_id": 35,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480020,
+            "tracking_rmse": 0.08328224923819816,
+            "action_rms": 0.0871038146566871,
+            "increment_rms": 0.06292638948520993
+          }
+        ]
+      }
+    },
+    "imitation": {
+      "J": 0.0038416842525161986,
+      "feasible": true,
+      "tracking": {
+        "tracking_rmse": 0.0805799343317866,
+        "action_rms": 0.09822589022828737,
+        "increment_rms": 0.03607179329472677,
+        "per_scenario": [
+          {
+            "trajectory_id": 12,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430017,
+            "tracking_rmse": 0.06198145698423427,
+            "action_rms": 0.08715271663523867,
+            "increment_rms": 0.03315550360443038
+          },
+          {
+            "trajectory_id": 13,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440017,
+            "tracking_rmse": 0.06251237496991212,
+            "action_rms": 0.08686485607134829,
+            "increment_rms": 0.03199770934695451
+          },
+          {
+            "trajectory_id": 14,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450017,
+            "tracking_rmse": 0.13643132737709598,
+            "action_rms": 0.09567338062013578,
+            "increment_rms": 0.0571022560495341
+          },
+          {
+            "trajectory_id": 15,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460017,
+            "tracking_rmse": 0.05445219744165568,
+            "action_rms": 0.06815332542474081,
+            "increment_rms": 0.011468182120203159
+          },
+          {
+            "trajectory_id": 16,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470017,
+            "tracking_rmse": 0.049745232919170684,
+            "action_rms": 0.16731178711333616,
+            "increment_rms": 0.01792296798230451
+          },
+          {
+            "trajectory_id": 17,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480017,
+            "tracking_rmse": 0.07380237286555463,
+            "action_rms": 0.08978739580795587,
+            "increment_rms": 0.060125060484409264
+          },
+          {
+            "trajectory_id": 18,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430018,
+            "tracking_rmse": 0.11223108560349974,
+            "action_rms": 0.11439783677505347,
+            "increment_rms": 0.043104338667501095
+          },
+          {
+            "trajectory_id": 19,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440018,
+            "tracking_rmse": 0.11255465588115812,
+            "action_rms": 0.11426297447719705,
+            "increment_rms": 0.04256529280060485
+          },
+          {
+            "trajectory_id": 20,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450018,
+            "tracking_rmse": 0.111478801251545,
+            "action_rms": 0.08845393579305105,
+            "increment_rms": 0.0517856193230456
+          },
+          {
+            "trajectory_id": 21,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460018,
+            "tracking_rmse": 0.08186324594732233,
+            "action_rms": 0.10138760628143752,
+            "increment_rms": 0.01891694043625886
+          },
+          {
+            "trajectory_id": 22,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470018,
+            "tracking_rmse": 0.053635455247598614,
+            "action_rms": 0.16443163997575605,
+            "increment_rms": 0.016216386186483932
+          },
+          {
+            "trajectory_id": 23,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480018,
+            "tracking_rmse": 0.1323234227427218,
+            "action_rms": 0.11445869055829914,
+            "increment_rms": 0.0635763817797682
+          },
+          {
+            "trajectory_id": 24,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430019,
+            "tracking_rmse": 0.05181250352299001,
+            "action_rms": 0.07462661194395225,
+            "increment_rms": 0.03154465597013354
+          },
+          {
+            "trajectory_id": 25,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440019,
+            "tracking_rmse": 0.05236441045819673,
+            "action_rms": 0.0741357949082416,
+            "increment_rms": 0.030547990328907617
+          },
+          {
+            "trajectory_id": 26,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450019,
+            "tracking_rmse": 0.11631396981307462,
+            "action_rms": 0.08380997012711261,
+            "increment_rms": 0.05250999932423109
+          },
+          {
+            "trajectory_id": 27,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460019,
+            "tracking_rmse": 0.06026257377049779,
+            "action_rms": 0.06254797703087457,
+            "increment_rms": 0.013166720307158796
+          },
+          {
+            "trajectory_id": 28,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470019,
+            "tracking_rmse": 0.05118477002226112,
+            "action_rms": 0.16331665290665082,
+            "increment_rms": 0.015164300778762163
+          },
+          {
+            "trajectory_id": 29,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480019,
+            "tracking_rmse": 0.11318396318095272,
+            "action_rms": 0.10668337519724834,
+            "increment_rms": 0.06235315380855705
+          },
+          {
+            "trajectory_id": 30,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430020,
+            "tracking_rmse": 0.05637629382215905,
+            "action_rms": 0.06782364346945247,
+            "increment_rms": 0.03200491077342162
+          },
+          {
+            "trajectory_id": 31,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440020,
+            "tracking_rmse": 0.056786816979382246,
+            "action_rms": 0.06712894745962247,
+            "increment_rms": 0.03125843734747892
+          },
+          {
+            "trajectory_id": 32,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450020,
+            "tracking_rmse": 0.12190601521553647,
+            "action_rms": 0.0871772361309083,
+            "increment_rms": 0.05440973629253161
+          },
+          {
+            "trajectory_id": 33,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460020,
+            "tracking_rmse": 0.050891312027137495,
+            "action_rms": 0.06516769829986714,
+            "increment_rms": 0.01003748840603096
+          },
+          {
+            "trajectory_id": 34,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470020,
+            "tracking_rmse": 0.07469411248017767,
+            "action_rms": 0.126723031176262,
+            "increment_rms": 0.023521001303846593
+          },
+          {
+            "trajectory_id": 35,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480020,
+            "tracking_rmse": 0.08513005343904352,
+            "action_rms": 0.08594428129515441,
+            "increment_rms": 0.06126800565088404
+          }
+        ]
+      }
+    },
+    "candidate": {
+      "J": 0.003902871669105223,
+      "feasible": true,
+      "tracking": {
+        "tracking_rmse": 0.07672792150408345,
+        "action_rms": 0.1028471672845126,
+        "increment_rms": 0.04283007721380267,
+        "per_scenario": [
+          {
+            "trajectory_id": 12,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430017,
+            "tracking_rmse": 0.058745987874638604,
+            "action_rms": 0.09139288227584091,
+            "increment_rms": 0.04136699898687241
+          },
+          {
+            "trajectory_id": 13,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440017,
+            "tracking_rmse": 0.0593392527030468,
+            "action_rms": 0.09053980735272568,
+            "increment_rms": 0.03962446225277283
+          },
+          {
+            "trajectory_id": 14,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450017,
+            "tracking_rmse": 0.13258245044715664,
+            "action_rms": 0.10386238772616553,
+            "increment_rms": 0.06702048524364149
+          },
+          {
+            "trajectory_id": 15,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460017,
+            "tracking_rmse": 0.05369945996208286,
+            "action_rms": 0.06918169788486916,
+            "increment_rms": 0.015234147509549783
+          },
+          {
+            "trajectory_id": 16,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470017,
+            "tracking_rmse": 0.03975888433810204,
+            "action_rms": 0.17166941210059386,
+            "increment_rms": 0.020078244351503422
+          },
+          {
+            "trajectory_id": 17,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480017,
+            "tracking_rmse": 0.0712042450635843,
+            "action_rms": 0.09338309427182995,
+            "increment_rms": 0.06351304470237135
+          },
+          {
+            "trajectory_id": 18,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430018,
+            "tracking_rmse": 0.10876266766278994,
+            "action_rms": 0.12038116014063396,
+            "increment_rms": 0.05177805440219854
+          },
+          {
+            "trajectory_id": 19,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440018,
+            "tracking_rmse": 0.10913704563282303,
+            "action_rms": 0.11969495696880565,
+            "increment_rms": 0.050500882198856574
+          },
+          {
+            "trajectory_id": 20,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450018,
+            "tracking_rmse": 0.10823181816855858,
+            "action_rms": 0.09582269954975206,
+            "increment_rms": 0.061365124085262235
+          },
+          {
+            "trajectory_id": 21,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460018,
+            "tracking_rmse": 0.08057450852684843,
+            "action_rms": 0.10274331842280338,
+            "increment_rms": 0.023329065009497392
+          },
+          {
+            "trajectory_id": 22,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470018,
+            "tracking_rmse": 0.0448161401319222,
+            "action_rms": 0.16830390156703318,
+            "increment_rms": 0.02288073403838226
+          },
+          {
+            "trajectory_id": 23,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480018,
+            "tracking_rmse": 0.1289245192528082,
+            "action_rms": 0.12075413956266057,
+            "increment_rms": 0.06963766286821614
+          },
+          {
+            "trajectory_id": 24,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430019,
+            "tracking_rmse": 0.04854085775386262,
+            "action_rms": 0.07896582635114653,
+            "increment_rms": 0.039221186668132034
+          },
+          {
+            "trajectory_id": 25,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440019,
+            "tracking_rmse": 0.04908038077792958,
+            "action_rms": 0.07798475625532905,
+            "increment_rms": 0.03781380091777191
+          },
+          {
+            "trajectory_id": 26,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450019,
+            "tracking_rmse": 0.11275952174347158,
+            "action_rms": 0.09224758370267842,
+            "increment_rms": 0.06258819581975626
+          },
+          {
+            "trajectory_id": 27,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460019,
+            "tracking_rmse": 0.059024586981986,
+            "action_rms": 0.06403506057277229,
+            "increment_rms": 0.017776024402822027
+          },
+          {
+            "trajectory_id": 28,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470019,
+            "tracking_rmse": 0.04196207293378409,
+            "action_rms": 0.16748296980959518,
+            "increment_rms": 0.019320477775999965
+          },
+          {
+            "trajectory_id": 29,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480019,
+            "tracking_rmse": 0.11085562633480435,
+            "action_rms": 0.111109110290483,
+            "increment_rms": 0.0669600416461373
+          },
+          {
+            "trajectory_id": 30,
+            "name": null,
+            "family": "positive",
+            "noise_seed": 37430020,
+            "tracking_rmse": 0.053172753301462844,
+            "action_rms": 0.07284957948488024,
+            "increment_rms": 0.0403275058035236
+          },
+          {
+            "trajectory_id": 31,
+            "name": null,
+            "family": "negative",
+            "noise_seed": 37440020,
+            "tracking_rmse": 0.0536022756894777,
+            "action_rms": 0.07170028497185227,
+            "increment_rms": 0.03907825696253653
+          },
+          {
+            "trajectory_id": 32,
+            "name": null,
+            "family": "cross_zero",
+            "noise_seed": 37450020,
+            "tracking_rmse": 0.11797886637200014,
+            "action_rms": 0.09576602152371474,
+            "increment_rms": 0.06518689309214043
+          },
+          {
+            "trajectory_id": 33,
+            "name": null,
+            "family": "midcourse",
+            "noise_seed": 37460020,
+            "tracking_rmse": 0.05014233489795124,
+            "action_rms": 0.06621133893780028,
+            "increment_rms": 0.013948920883233438
+          },
+          {
+            "trajectory_id": 34,
+            "name": null,
+            "family": "near_state_limit",
+            "noise_seed": 37470020,
+            "tracking_rmse": 0.06716852174990917,
+            "action_rms": 0.13093752198106845,
+            "increment_rms": 0.03403518095086823
+          },
+          {
+            "trajectory_id": 35,
+            "name": null,
+            "family": "slew_recovery",
+            "noise_seed": 37480020,
+            "tracking_rmse": 0.08140533779700165,
+            "action_rms": 0.09131250312326807,
+            "increment_rms": 0.06533646255921792
+          }
+        ]
+      }
+    }
+  },
+  "isolated_process_verification": {
+    "python_isolated": true,
+    "product_package_imported": false,
+    "selected_version": "candidate",
+    "n_cases": 24,
+    "max_action_or_state_delta": 0,
+    "J": 0.003902871669105223,
+    "J_delta": 0,
+    "tracking_rmse": 0.07672792150408343,
+    "action_rms": 0.1028471672845126,
+    "increment_rms": 0.042830077213802664,
+    "max_report_metric_delta": 1.3877787807814457e-17,
+    "loaded_from_verified_zip_sha256": "d9a6644434fa3a39d82acd6e0cc1d809539950d7ef6033d77257736185999a68"
+  },
+  "package": {
+    "path": "artifacts/external_optimized_policy-5f4aa5ec1082/bundle",
+    "model_sha256": "38be38bafb4653967cddac413f8e855cf644c5a76641680ed0934960ed8d0a87",
+    "report_sha256": "6c14592df9eeeaca5a2fcd2131d6d13183d6a4871cb04ad1da0d564b2bf2b6b3",
+    "archives": [
+      {
+        "path": ".report-downloads/cf15f16c926b0dd6c1b9f641753b37020f86055b729e559d00fb6d42035825bd.zip",
+        "sha256": "d9a6644434fa3a39d82acd6e0cc1d809539950d7ef6033d77257736185999a68",
+        "isolated_process_verification": {
+          "python_isolated": true,
+          "product_package_imported": false,
+          "selected_version": "candidate",
+          "n_cases": 24,
+          "max_action_or_state_delta": 0,
+          "J": 0.003902871669105223,
+          "J_delta": 0,
+          "tracking_rmse": 0.07672792150408343,
+          "action_rms": 0.1028471672845126,
+          "increment_rms": 0.042830077213802664,
+          "max_report_metric_delta": 1.3877787807814457e-17,
+          "loaded_from_verified_zip_sha256": "d9a6644434fa3a39d82acd6e0cc1d809539950d7ef6033d77257736185999a68"
+        }
+      }
+    ]
+  },
+  "pinned_fixture_sha256": {
+    "collection.json": "9ee7856d481fbdeb9de7f4edc81228bbaba084df1a404284fa99890188047926",
+    "evaluation.json": "a60964308e9a69597dd4e4e1ab3245322324cb61cbc5513d5828e84931523209",
+    "expert-adapter.json": "698c68c485cacc2d7c52072470139e8a6169909b3589a4ee9b9cf73ed9aacc4e",
+    "imitation.json": "39b05edcef641d7ae85309b443072409ad9e82a294cb9e90bbccd5a4c8b8f3bc",
+    "model-source.json": "86bee8f7b1291576d1e04070b2844582192b3ec7aa75c842bcb7a748ec2a840b",
+    "model.json": "ed18ed2737f1beaa6d1d7b5a464a51777681a34f4b7d920c30b1ea8193ffc601",
+    "mpc.py": "67c0a9ab38dd197c67153a4c2a64aaa7dadeaf5cc0ebf9a510907996b6176178",
+    "online.json": "ed79da9a63cddbc2d075f2fd83f1f2311a9cc5d64bb1889ea425c1fc2bbeabe9",
+    "plant-adapter.json": "d65f5e350fd5cb22ebe689b770db30547f8698f89e0758785abe7a05c050a01e",
+    "plant.py": "9736798e3312ead7178ab6510e87f4a28705eb1587e0a7216ae6118f7c96d0c5",
+    "protocol.json": "de829c344fdf3aa69a1981ec35fe8f2523172a3f808fa573bd45efcaa30cedd1",
+    "qualification.json": "34c84c6e0c8dea6bcef40789ce88170965388fa46c461223497c35ab8ae949c1",
+    "sampling.json": "6b9ed2cda4956bda6fc2680a664b9e1c71d3fd387fa80ab63983bf530aba24a8",
+    "材料说明.md": "fac5b3cd9eb43fdc3119c3ceed795fe8a21e9e51eb1acf5ff8fca2dfa9b2be9d"
+  }
+}

@@ -1,0 +1,574 @@
+{
+  "spring": {
+    "old_candidate": "external_pgac_candidate-6ad169cada6b",
+    "log_sha256": "a3ab3ad3992e1612de61b99fa80d456c34e423cc68edaf26f21eae3dcc65eca1",
+    "old_evaluation": "external_optimized_policy-855f37ead1ae",
+    "evaluation_sha256": "a82042f16b612747817f4a5c02662e564b40ee4c460aacfe230d12861bb244dc",
+    "old_release": "candidate",
+    "baseline_predictor_validation_J": 0.002354364968265057,
+    "weights": {
+      "tracking": 1.0,
+      "action": 0.18,
+      "increment": 0.06
+    },
+    "epochs": [
+      {
+        "epoch": 1,
+        "hold_in_J": 0.0028034871610187143,
+        "validation_J": 0.0022313018024334003,
+        "selected": true,
+        "action_probe_change": 0.2624294732761142,
+        "updates": 12
+      },
+      {
+        "epoch": 2,
+        "hold_in_J": 0.0028130208726774688,
+        "validation_J": 0.0022365611586322213,
+        "selected": false,
+        "action_probe_change": 0.17245977693747327,
+        "updates": 24
+      },
+      {
+        "epoch": 3,
+        "hold_in_J": 0.0028127459458784196,
+        "validation_J": 0.002233034987502054,
+        "selected": false,
+        "action_probe_change": 0.21127757832005656,
+        "updates": 36
+      },
+      {
+        "epoch": 4,
+        "hold_in_J": 0.002802632904950629,
+        "validation_J": 0.0022318752741507337,
+        "selected": false,
+        "action_probe_change": 0.2262523499729172,
+        "updates": 48
+      },
+      {
+        "epoch": 5,
+        "hold_in_J": 0.0028006131607167333,
+        "validation_J": 0.0022306526991833085,
+        "selected": true,
+        "action_probe_change": 0.21593644012171376,
+        "updates": 60
+      },
+      {
+        "epoch": 6,
+        "hold_in_J": 0.002809704769893887,
+        "validation_J": 0.0022319198320991905,
+        "selected": false,
+        "action_probe_change": 0.17299392084776644,
+        "updates": 72
+      },
+      {
+        "epoch": 7,
+        "hold_in_J": 0.0027951075623967045,
+        "validation_J": 0.0022317578717934773,
+        "selected": false,
+        "action_probe_change": 0.23464160696804004,
+        "updates": 84
+      },
+      {
+        "epoch": 8,
+        "hold_in_J": 0.0028099462364285285,
+        "validation_J": 0.002238565983424725,
+        "selected": false,
+        "action_probe_change": 0.17132151073810553,
+        "updates": 96
+      },
+      {
+        "epoch": 9,
+        "hold_in_J": 0.0027996551966600076,
+        "validation_J": 0.0022289762040164206,
+        "selected": true,
+        "action_probe_change": 0.20828944269187355,
+        "updates": 108
+      },
+      {
+        "epoch": 10,
+        "hold_in_J": 0.0027975182042660335,
+        "validation_J": 0.0022307614998351303,
+        "selected": false,
+        "action_probe_change": 0.21860354059197618,
+        "updates": 120
+      },
+      {
+        "epoch": 11,
+        "hold_in_J": 0.0027942028008357037,
+        "validation_J": 0.002231274526214027,
+        "selected": false,
+        "action_probe_change": 0.21830387503848092,
+        "updates": 132
+      },
+      {
+        "epoch": 12,
+        "hold_in_J": 0.002795318250803481,
+        "validation_J": 0.0022308619533162105,
+        "selected": false,
+        "action_probe_change": 0.26757831760342954,
+        "updates": 144
+      },
+      {
+        "epoch": 13,
+        "hold_in_J": 0.002805045804573021,
+        "validation_J": 0.0022388385782052675,
+        "selected": false,
+        "action_probe_change": 0.1661804986310622,
+        "updates": 156
+      },
+      {
+        "epoch": 14,
+        "hold_in_J": 0.0028011408946583853,
+        "validation_J": 0.002232591078329881,
+        "selected": false,
+        "action_probe_change": 0.18687760971734202,
+        "updates": 168
+      },
+      {
+        "epoch": 15,
+        "hold_in_J": 0.002803101133235579,
+        "validation_J": 0.002234355550066909,
+        "selected": false,
+        "action_probe_change": 0.21381972560396678,
+        "updates": 180
+      },
+      {
+        "epoch": 16,
+        "hold_in_J": 0.0028016539789212053,
+        "validation_J": 0.0022313699251365585,
+        "selected": false,
+        "action_probe_change": 0.22512193068070863,
+        "updates": 192
+      }
+    ],
+    "sampled_starts": {
+      "source": {
+        "expert": 1583,
+        "student": 1489
+      },
+      "family": {
+        "negative": 1175,
+        "positive": 1173,
+        "cross_zero": 357,
+        "midcourse": 367
+      },
+      "phase": {
+        "initial": 1466,
+        "interior": 1481,
+        "reversal": 125
+      }
+    },
+    "phases": {
+      "validation": {
+        "positive": {
+          "delta_J": -5.213652856542834e-05,
+          "tracking": 0.0001488129312227976,
+          "action": -0.0002004843731716309,
+          "increment": -4.650866165950356e-07,
+          "imitation_J": 0.001992397308944018,
+          "candidate_J": 0.0019402607803785895,
+          "imitation_rmse": 0.04385538018333634,
+          "candidate_rmse": 0.05016026216270801,
+          "rmse_change_percent": 14.376530206816751,
+          "J_change_percent": -2.616773689232743
+        },
+        "negative": {
+          "delta_J": -6.162648652488847e-05,
+          "tracking": 9.957066056099663e-05,
+          "action": -0.0001604801445930719,
+          "increment": -7.170024928134847e-07,
+          "imitation_J": 0.0014621270827616438,
+          "candidate_J": 0.0014005005962367553,
+          "imitation_rmse": 0.0291383126391256,
+          "candidate_rmse": 0.03637138249579714,
+          "rmse_change_percent": 24.82322825707932,
+          "J_change_percent": -4.214851585163803
+        },
+        "cross_zero": {
+          "delta_J": -0.00034668287196578155,
+          "tracking": -0.00021000133199558686,
+          "action": -0.0001320703750217256,
+          "increment": -4.6111649484693786e-06,
+          "imitation_J": 0.004556218427779541,
+          "candidate_J": 0.004209535555813759,
+          "imitation_rmse": 0.11179107079902979,
+          "candidate_rmse": 0.10813207433171648,
+          "rmse_change_percent": -3.2730668390243745,
+          "J_change_percent": -7.609004648504891
+        },
+        "midcourse": {
+          "delta_J": -4.110916993844678e-05,
+          "tracking": 6.515277518354634e-05,
+          "action": -0.00010690505675105025,
+          "increment": 6.431116290572579e-07,
+          "imitation_J": 0.0014067170535750257,
+          "candidate_J": 0.0013656078836365789,
+          "imitation_rmse": 0.04807236979771773,
+          "candidate_rmse": 0.05076895979907441,
+          "rmse_change_percent": 5.609438462683625,
+          "J_change_percent": -2.9223481604898627
+        },
+        "overall": {
+          "delta_J": -0.00012538876424863629,
+          "tracking": 2.5883758742938415e-05,
+          "action": -0.00014998498738436967,
+          "increment": -1.2875356072051603e-06,
+          "imitation_J": 0.002354364968265057,
+          "candidate_J": 0.0022289762040164206,
+          "imitation_rmse": 0.05821428335480236,
+          "candidate_rmse": 0.061358169697324015,
+          "rmse_change_percent": 5.400541175368256,
+          "J_change_percent": -5.325799777807427
+        }
+      },
+      "test": {
+        "positive": {
+          "delta_J": -6.981399667346149e-05,
+          "tracking": 0.0001251447919405243,
+          "action": -0.00019348096325103647,
+          "increment": -1.477825362949069e-06,
+          "imitation_J": 0.0016635962907110165,
+          "candidate_J": 0.001593782294037555,
+          "imitation_rmse": 0.03268712685422353,
+          "candidate_rmse": 0.039583613815244646,
+          "rmse_change_percent": 21.09848011964386,
+          "J_change_percent": -4.1965708305122025
+        },
+        "negative": {
+          "delta_J": -8.10938261343485e-05,
+          "tracking": 0.0001258951516831591,
+          "action": -0.0002045433621566527,
+          "increment": -2.445615660854966e-06,
+          "imitation_J": 0.001444820416334466,
+          "candidate_J": 0.0013637265902001173,
+          "imitation_rmse": 0.017465938883573295,
+          "candidate_rmse": 0.028463353620270547,
+          "rmse_change_percent": 62.964921668426975,
+          "J_change_percent": -5.612727036352727
+        },
+        "cross_zero": {
+          "delta_J": -0.0005851468676079221,
+          "tracking": -0.00039099986442749004,
+          "action": -0.00019135033357435864,
+          "increment": -2.7966696060731505e-06,
+          "imitation_J": 0.007795681778347378,
+          "candidate_J": 0.007210534910739456,
+          "imitation_rmse": 0.15122047650478548,
+          "candidate_rmse": 0.14595809563371703,
+          "rmse_change_percent": -3.4799393525928424,
+          "J_change_percent": -7.506038397221094
+        },
+        "midcourse": {
+          "delta_J": -7.255939910020886e-05,
+          "tracking": 0.00010265015693831285,
+          "action": -0.00017541240427101885,
+          "increment": 2.0284823249725388e-07,
+          "imitation_J": 0.002523108748685901,
+          "candidate_J": 0.0024505493495856918,
+          "imitation_rmse": 0.07119428119188298,
+          "candidate_rmse": 0.07403158254719688,
+          "rmse_change_percent": 3.985293913800181,
+          "J_change_percent": -2.875793567677176
+        },
+        "overall": {
+          "delta_J": -0.00020215352237898523,
+          "tracking": -9.327440966373443e-06,
+          "action": -0.00019119676581326667,
+          "increment": -1.629315599344983e-06,
+          "imitation_J": 0.0033568018085196904,
+          "candidate_J": 0.003154648286140705,
+          "imitation_rmse": 0.06814195585861632,
+          "candidate_rmse": 0.07200916140410728,
+          "rmse_change_percent": 5.675219469066595,
+          "J_change_percent": -6.022206073230551
+        }
+      }
+    }
+  },
+  "motor": {
+    "old_candidate": "external_pgac_candidate-d33c48e1ba53",
+    "log_sha256": "624c4b1fed325bf71a547995cb55c29795b6fb9f10d1d9aff92c2e97fd2e20e7",
+    "old_evaluation": "external_optimized_policy-010c71e9d233",
+    "evaluation_sha256": "e2257527ebcb3d51c9fdd6313cd87f10a6b65cd37e209c530ac22ae47e510ac4",
+    "old_release": "imitation",
+    "baseline_predictor_validation_J": 0.009254533861654724,
+    "weights": {
+      "tracking": 1.0,
+      "action": 0.15,
+      "increment": 0.04
+    },
+    "epochs": [
+      {
+        "epoch": 1,
+        "hold_in_J": 0.008276047730970869,
+        "validation_J": 0.009243449495369403,
+        "selected": true,
+        "action_probe_change": 0.9651810956989291,
+        "updates": 12
+      },
+      {
+        "epoch": 2,
+        "hold_in_J": 0.008215785340238077,
+        "validation_J": 0.009176095839121226,
+        "selected": true,
+        "action_probe_change": 2.312399385893528,
+        "updates": 24
+      },
+      {
+        "epoch": 3,
+        "hold_in_J": 0.00820884921404779,
+        "validation_J": 0.00917781812835387,
+        "selected": false,
+        "action_probe_change": 3.1514701611026013,
+        "updates": 36
+      },
+      {
+        "epoch": 4,
+        "hold_in_J": 0.00823540248218873,
+        "validation_J": 0.009218232227487754,
+        "selected": false,
+        "action_probe_change": 3.1152895258478743,
+        "updates": 48
+      },
+      {
+        "epoch": 5,
+        "hold_in_J": 0.00818033896569578,
+        "validation_J": 0.009164890548611197,
+        "selected": true,
+        "action_probe_change": 3.264503852631467,
+        "updates": 60
+      },
+      {
+        "epoch": 6,
+        "hold_in_J": 0.008144050199037413,
+        "validation_J": 0.009128446572690737,
+        "selected": true,
+        "action_probe_change": 3.116115605501278,
+        "updates": 72
+      },
+      {
+        "epoch": 7,
+        "hold_in_J": 0.00815916649203136,
+        "validation_J": 0.009149724834788365,
+        "selected": false,
+        "action_probe_change": 3.0094906260116403,
+        "updates": 84
+      },
+      {
+        "epoch": 8,
+        "hold_in_J": 0.008147861043078393,
+        "validation_J": 0.009118073467328744,
+        "selected": true,
+        "action_probe_change": 3.0888805760139206,
+        "updates": 96
+      },
+      {
+        "epoch": 9,
+        "hold_in_J": 0.008160744104831098,
+        "validation_J": 0.009137341554532465,
+        "selected": false,
+        "action_probe_change": 3.00270392805421,
+        "updates": 108
+      },
+      {
+        "epoch": 10,
+        "hold_in_J": 0.008167077997208765,
+        "validation_J": 0.00914927852297516,
+        "selected": false,
+        "action_probe_change": 2.7335068583002844,
+        "updates": 120
+      },
+      {
+        "epoch": 11,
+        "hold_in_J": 0.008229521465498374,
+        "validation_J": 0.009210291316138507,
+        "selected": false,
+        "action_probe_change": 2.6047869802548114,
+        "updates": 132
+      },
+      {
+        "epoch": 12,
+        "hold_in_J": 0.008291428698157084,
+        "validation_J": 0.009290979206305248,
+        "selected": false,
+        "action_probe_change": 2.514709190947407,
+        "updates": 144
+      },
+      {
+        "epoch": 13,
+        "hold_in_J": 0.008193758168401174,
+        "validation_J": 0.009155370345917605,
+        "selected": false,
+        "action_probe_change": 2.901550299453172,
+        "updates": 156
+      },
+      {
+        "epoch": 14,
+        "hold_in_J": 0.00814683102135599,
+        "validation_J": 0.00911608609426474,
+        "selected": true,
+        "action_probe_change": 2.8481582489895185,
+        "updates": 168
+      },
+      {
+        "epoch": 15,
+        "hold_in_J": 0.008138006923705223,
+        "validation_J": 0.009122173747188326,
+        "selected": false,
+        "action_probe_change": 2.9328289830914915,
+        "updates": 180
+      },
+      {
+        "epoch": 16,
+        "hold_in_J": 0.008125116323133046,
+        "validation_J": 0.00909575799043667,
+        "selected": true,
+        "action_probe_change": 3.084942322466519,
+        "updates": 192
+      }
+    ],
+    "sampled_starts": {
+      "source": {
+        "expert": 1583,
+        "student": 1489
+      },
+      "family": {
+        "negative": 1175,
+        "positive": 1173,
+        "cross_zero": 357,
+        "midcourse": 367
+      },
+      "phase": {
+        "initial": 1466,
+        "interior": 1481,
+        "reversal": 125
+      }
+    },
+    "phases": {
+      "validation": {
+        "positive": {
+          "delta_J": 0.0001390904510296326,
+          "tracking": 0.00026122342123550404,
+          "action": -0.0001223947929915408,
+          "increment": 2.6182278566956254e-07,
+          "imitation_J": 0.004637944143012665,
+          "candidate_J": 0.0047770345940422974,
+          "imitation_rmse": 4.263420058666353,
+          "candidate_rmse": 4.460703807062595,
+          "rmse_change_percent": 4.6273589203395415,
+          "J_change_percent": 2.9989677913473844
+        },
+        "negative": {
+          "delta_J": 0.0001950725162338093,
+          "tracking": 0.0003676342664635983,
+          "action": -0.00017218567684954898,
+          "increment": -3.760733802403588e-07,
+          "imitation_J": 0.003922227566185812,
+          "candidate_J": 0.004117300082419622,
+          "imitation_rmse": 3.9313335119688713,
+          "candidate_rmse": 4.210016267192666,
+          "rmse_change_percent": 7.088758925574501,
+          "J_change_percent": 4.973513467590807
+        },
+        "cross_zero": {
+          "delta_J": -0.0010834752188982853,
+          "tracking": -0.001766889248678307,
+          "action": 0.0006551294599174975,
+          "increment": 2.828456986252434e-05,
+          "imitation_J": 0.01708955543755988,
+          "candidate_J": 0.016006080218661595,
+          "imitation_rmse": 9.07213172542705,
+          "candidate_rmse": 8.426603686966562,
+          "rmse_change_percent": -7.115505572424896,
+          "J_change_percent": -6.339984810353783
+        },
+        "midcourse": {
+          "delta_J": 0.00011420876676262754,
+          "tracking": -0.00017304505068389516,
+          "action": 0.0002606042363392992,
+          "increment": 2.6649581107223883e-05,
+          "imitation_J": 0.011368408299860534,
+          "candidate_J": 0.011482617066623162,
+          "imitation_rmse": 7.095648093445664,
+          "candidate_rmse": 7.014758553493515,
+          "rmse_change_percent": -1.139988044599738,
+          "J_change_percent": 1.0046152790274876
+        },
+        "overall": {
+          "delta_J": -0.00015877587121805397,
+          "tracking": -0.00032776915291577493,
+          "action": 0.00015528830660392674,
+          "increment": 1.3704975093794355e-05,
+          "imitation_J": 0.009254533861654722,
+          "candidate_J": 0.00909575799043667,
+          "imitation_rmse": 6.090633347376985,
+          "candidate_rmse": 6.028020578678834,
+          "rmse_change_percent": -1.0280173690822458,
+          "J_change_percent": -1.7156549815644961
+        }
+      },
+      "test": {
+        "positive": {
+          "delta_J": 0.00029943575002144016,
+          "tracking": 0.0005019573018697084,
+          "action": -0.00019987057621747667,
+          "increment": -2.650975630791154e-06,
+          "imitation_J": 0.007642175727860086,
+          "candidate_J": 0.007941611477881527,
+          "imitation_rmse": 5.468365036604416,
+          "candidate_rmse": 5.7600342322395575,
+          "rmse_change_percent": 5.333755037982124,
+          "J_change_percent": 3.9182002702427665
+        },
+        "negative": {
+          "delta_J": 0.00021666898738050672,
+          "tracking": 0.00038934518233143926,
+          "action": -0.0001732974117380652,
+          "increment": 6.212167871324636e-07,
+          "imitation_J": 0.004679433847454031,
+          "candidate_J": 0.004896102834834537,
+          "imitation_rmse": 4.233342506778159,
+          "candidate_rmse": 4.495938806759651,
+          "rmse_change_percent": 6.203048762556751,
+          "J_change_percent": 4.630239350394727
+        },
+        "cross_zero": {
+          "delta_J": -0.0004759803780185331,
+          "tracking": -0.001065283245052907,
+          "action": 0.0005672844489137314,
+          "increment": 2.2018418120641827e-05,
+          "imitation_J": 0.010306258282821619,
+          "candidate_J": 0.009830277904803087,
+          "imitation_rmse": 6.993493007032988,
+          "candidate_rmse": 6.485475211392157,
+          "rmse_change_percent": -7.264149619223814,
+          "J_change_percent": -4.618362600245451
+        },
+        "midcourse": {
+          "delta_J": 4.952277006254127e-05,
+          "tracking": -0.00046303552351188064,
+          "action": 0.00047590294802486987,
+          "increment": 3.665534554955229e-05,
+          "imitation_J": 0.0058731933073673005,
+          "candidate_J": 0.005922716077429842,
+          "imitation_rmse": 5.207011155623803,
+          "candidate_rmse": 4.9076527731630355,
+          "rmse_change_percent": -5.749140409223963,
+          "J_change_percent": 0.8432000697205178
+        },
+        "overall": {
+          "delta_J": 2.2411782361488758e-05,
+          "tracking": -0.00015925407109091,
+          "action": 0.00016750485224576483,
+          "increment": 1.4161001206633857e-05,
+          "imitation_J": 0.007125265291375759,
+          "candidate_J": 0.007147677073737248,
+          "imitation_rmse": 5.475552926509842,
+          "candidate_rmse": 5.4122752558886,
+          "rmse_change_percent": -1.1556398316393435,
+          "J_change_percent": 0.31453961985969947
+        }
+      }
+    }
+  }
+}

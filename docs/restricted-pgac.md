@@ -73,3 +73,23 @@ node scripts/run-online-pgac-dialogue.mjs --action verify --workspace $task
 本次实测中，测试夹具代为确认六份冻结配置卡。初次观察器过早创建了 Windows 工况卡目录，测试人员移开这个夹具目录，取消一次额外权限请求并通知角色复用原对象和专家继续。观察器现等待角色创建工况账本，再写测试确认标识。首次独立加载将 Python 字节码缓存写入包，严格打包检查拒绝归档；角色排查并重试成功，复核程序现禁用字节码写入。原会话、归档失败及成功回执均保存在测试记录中。
 
 角色应向用户明确区分可用专家决策数、实际专家源函数执行数和计时调用。Python 适配器每个成功决策执行三次一致性核验，优先回读报告的 `expert.source_invocations_this_adapter`。本例采集 720 个决策共调用 2,160 次，训练分区的 432 个决策占 1,296 次。验证/盲测另有 576 个专家决策、1,728 次执行；两次计时配对的预检、预热和采样共 104 次原函数执行。学生采集 1,152 个对象控制步，额外 MPC 调用为零。原答复把 1,296 个采集及验收决策写成了求解数，归档中保留该原答复及成本勘误。这些数字记录专家函数执行，识别其中多少次进入约束优化器需由专家程序另行记录。
+
+## 按物理跟踪误差交付
+
+`optimize_external_policy` 的 `original_evaluation.evaluation` 和交接后的 `evaluate_external_pgac` 使用同一份工程合同。默认目标是归一化的二次代价 J。用户指定“跟踪 RMSE 优先”时选择 `primary_metric: "tracking_rmse"` 和实际接口输出 `tracking_output`。单输出可从接口确定名称。每条闭环轨迹在动作生效后计算该输出的物理 RMSE，再对工况等权平均。原评价的 q/r/s 保留用于报告 J，无需修改专家控制器的目标。
+
+在跟踪模式下，`min_relative_improvement` 限制均值的最小改善，`max_worst_case_relative_regression` 限制逐工况配对的最差退化。显式提供 `max_action_rms_relative_increase` 和 `max_increment_rms_relative_increase` 限制动作与动作变化率开销。动作量按各控制通道的物理量程归一化，计算各工况 RMS 后等权汇总，与同一分区的模仿策略比较。阈值使用小数比例，例 `0.15` 表示最多增加 15%。实际幅值、每拍增量、对象约束和适用域仍单独检查。不可行或预算超限时记录触发项。预测验证、原对象验证、冻结版本的独立盲测按同一主指标与门限报告。
+
+训练配置的 q 对所选输出在预测窗口的归一化 RMSE 加权。r/s 分别对同起点、同外生量下学生相对冻结模仿包的动作与增量预算超额加权。完整工况上的验证和盲测仍返回物理单位 RMSE、归一化动作/增量 RMS 和原二次 J。可在评估报告的 `engineering_objective.gates` 查看各分区实际门限结果，在各自 `closed_loop.<partition>.<version>.quadratic.tracking` 查看逐轨结果。
+
+在仓库根目录使用 `scripts/bench_tracking_pgac.py` 复现这一模式。驱动读取上一组真实模仿基线；新克隆的仓库可先按[基线实验说明](../examples/pgac-online/README.md)生成本地基线，再按[本轮冻结方案](../examples/pgac-tracking/protocol.json)运行：
+
+```powershell
+$env:PYTHONPATH = 'src'
+$env:PYTHONUTF8 = '1'
+.\.venv\Scripts\python.exe -B scripts/bench_tracking_pgac.py all --previous test-output/pgac-online-benchmark-v2 --root test-output/tracking-rerun
+```
+
+两对象的训练和验证选优已完成、`preblind.json` 封存后，可使用上方角色复现命令，将 `$material` 指向新结果的 `spring/materials`，并选一个新的 `$task`。观察器读取 `evaluation.json` 中的主指标，提交跟踪优先的中文任务，并只为合成弹簧生成输入材料。会话完成后 `--action verify` 在单独的 Python 进程复算所选版本的物理跟踪误差、动作和增量 RMS、二次 J 及逐拍误差。
+
+本轮真实弹簧会话加载 `distill-controller` 和 `warmstart-pgac`，使用正式作业完成采集、模仿、资格验证、在线微调和原对象验收。六张与冻结输入相符的卡片由测试夹具确认。角色自行纠正了参数不完整的工具请求；首次交付后，独立核查发现角色的直接导入在封存目录生成了两个字节码文件。测试人员发起一次补充请求，角色将额外文件移到本工作区审计目录，使用正式操作重验归档。验证器核对全部登记成员和 ZIP 回执，在临时解包目录用 `python -I -B` 复算 24 条原对象轨迹。交付策略匹配封存候选，逐拍动作和状态差为零，物理位移 RMSE 为 0.07672792150408343 m。操作记录、配对工况指标、原答复摘录和复核结果见[本轮角色会话证据](../examples/pgac-tracking/dialogue-evidence.json)。

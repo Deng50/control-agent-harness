@@ -7,7 +7,7 @@ import {parseArgs} from 'node:util';
 import {command, connectHarness, prepareSmokeWorkspace, project, writeSmokeEvidence} from './harness-rpc.mjs';
 import {artifact, hash, observer, runPython} from './pgac-native-observer.mjs';
 
-const {values} = parseArgs({options:{'web-log':{type:'string'}}});
+const {values} = parseArgs({options:{'web-log':{type:'string'},tracking:{type:'boolean',default:false}}});
 const directory = resolve(project,'test-output','online-pgac-native',randomUUID());
 const workspace = resolve(directory,'workspace');
 await mkdir(directory,{recursive:true});
@@ -50,6 +50,10 @@ const item={key:'online',workspace,actual:{},marker:{path:markerPath,sha256:hash
 const o=observer(rpc,e,path,item);
 try {
   const {inputs,config}=fixture;
+  if (values.tracking) Object.assign(config.original_evaluation.evaluation, {
+    primary_metric:'tracking_rmse', min_relative_improvement:.01, max_worst_case_relative_regression:.05,
+    max_action_rms_relative_increase:.15, max_increment_rms_relative_increase:.25,
+  });
   const refs=await o.phaseRefs('training','interrupted','optimize_external_policy',inputs,config,['signals','training']);
   const settings={...config,plan_refs:refs};
   const job=await o.admit('interrupted','optimize_external_policy',inputs,settings,{expected:'killed'});
@@ -99,7 +103,16 @@ print(json.dumps(dict(exact=True,epochs=a['epoch'],updates=a['updates'],student_
   const validationRefs=await o.phaseRefs('validation','evaluation',next.operation,next.inputs,next.config_suggestions,['signals','sampling']);
   const evaluated=await o.stage('evaluation',next.operation,next.inputs,{...next.config_suggestions,plan_refs:validationRefs});
   const evaluatedArtifact=await artifact(workspace,evaluated.artifact_id);
-  e.acceptance=(await evaluatedArtifact.member('report.json')).final_acceptance;
+  const report=await evaluatedArtifact.member('report.json');
+  e.acceptance=report.final_acceptance;
+  if (values.tracking) {
+    assert.equal(report.engineering_objective?.primary_metric,'tracking_rmse');
+    for (const phase of ['validation','test']) {
+      assert.equal(typeof report.engineering_objective.gates[phase].checks.action_rms,'boolean');
+      assert.equal(typeof report.engineering_objective.gates[phase].checks.increment_rms,'boolean');
+    }
+    e.engineering_objective=report.engineering_objective;
+  }
   assert.equal(e.acceptance.approved,true);
   e.status='PASS';
 } catch(error) {

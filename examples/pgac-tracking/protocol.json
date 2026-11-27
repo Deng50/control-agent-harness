@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "objects": ["spring", "motor"],
+  "primary_metric": "Equal mean across trajectories of physical tracking RMSE for displacement (spring) or angular speed (motor), relative to the same frozen imitation policy.",
+  "acceptance": {
+    "min_relative_improvement": 0.01,
+    "max_worst_case_relative_regression": 0.05,
+    "max_action_rms_relative_increase": 0.15,
+    "max_increment_rms_relative_increase": 0.25
+  },
+  "action_metrics": "Per-condition RMS divided by the control range, then averaged equally across conditions. Both budgets are relative to imitation on that partition. Physical RMS and original q/r/s score are also reported.",
+  "hard_constraints": "No state, output, amplitude or per-control-tick slew violation. Check original Plant substeps. A baseline used as fallback must be feasible on both original partitions.",
+  "partitions": {"student_train": 11730113, "validation": 23107093, "blind_test": 37430017},
+  "replicates": {"student_train": 2, "validation": 2, "blind_test": 4},
+  "families": ["positive", "negative", "cross_zero", "midcourse", "near_state_limit", "slew_recovery"],
+  "steps": 44,
+  "common_training": {"epochs": 18, "seed": 19777, "batch_size": 16, "q": 1.0, "r": 0.3, "s": 0.15, "imitation_weight": 0.08, "constraint_weight": 100},
+  "designs": {
+    "h24": {"horizon": 24, "learning_rate": 0.00025},
+    "h36": {"horizon": 36, "learning_rate": 0.00015}
+  },
+  "replay": {"capacity_steps": 2200, "refresh_every": 4, "updates_per_epoch": 12, "student_fraction": 0.5},
+  "choice": "Train both named designs on each object. Among predictor-validation selections that pass all declared gates choose the lowest physical tracking RMSE, ties in protocol order. If neither qualifies, take the lowest predictor-validation RMSE and run the original gate so the baseline may be retained. Freeze selected design, full inputs and tensor hashes for both objects before running either original blind test. No test-based training or epoch search.",
+  "reference": "MPC, genuine imitation baseline, newly selected PGAC policy on their own closed loops. Keep the pre-existing spring and motor imitation tensor hashes from examples/pgac-online/results.json. The same engineering inputs may be used for a separate end-to-end role reproduction after selection freeze.",
+  "boundary_and_noise": "Near-state recoveries use an inward-moving initial state and 84-91 percent of a declared state limit. Slew recovery starts at 90-96 percent actuator amplitude, with opposite tracking demand. Signs reverse across replicates; clean and noisy observations are paired among controllers, independent seeds by partition. Positive and negative steps are physically mirrored for the two symmetric linear plants."
+}

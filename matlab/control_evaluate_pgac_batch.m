@@ -64,7 +64,23 @@ end
 function decision = validation_decision(scores,evaluation,eligible)
 base=scores.imitation;candidate=scores.candidate;choice=[];reason='no_approved_validation_fallback';
 better=false;
-if eligible && candidate.feasible && base.feasible
+tracking=isfield(evaluation,'primary_metric') && strcmp(evaluation.primary_metric,'tracking_rmse');
+if tracking
+    if eligible && candidate.feasible && isstruct(base.tracking) && isstruct(candidate.tracking)
+        b=base.tracking;c=candidate.tracking;
+        better=tracking_less(c.tracking_rmse,b.tracking_rmse) ...
+            && ~tracking_less(b.action_rms*(1+evaluation.max_action_rms_relative_increase),c.action_rms) ...
+            && ~tracking_less(b.increment_rms*(1+evaluation.max_increment_rms_relative_increase),c.increment_rms);
+        if isfield(evaluation,'min_relative_improvement')
+            better=better && ~tracking_less(b.tracking_rmse*(1-evaluation.min_relative_improvement),c.tracking_rmse) ...
+                && (evaluation.min_relative_improvement==0 || b.tracking_rmse>0);
+        end
+        if isfield(evaluation,'max_worst_case_relative_regression')
+            bound=[b.per_scenario.tracking_rmse]*(1+evaluation.max_worst_case_relative_regression);
+            better=better && ~any(tracking_less(bound,[c.per_scenario.tracking_rmse]));
+        end
+    end
+elseif eligible && candidate.feasible && base.feasible
     gain=base.score-candidate.score;
     better=gain>evaluation.comparison_atol;
     if isfield(evaluation,'min_relative_improvement')
@@ -77,7 +93,7 @@ if eligible && candidate.feasible && base.feasible
         end
     end
 end
-if eligible&&candidate.feasible&&(~base.feasible||better)
+if eligible&&candidate.feasible&&((~tracking && ~base.feasible)||better)
     choice='candidate';if base.feasible,reason='candidate_strictly_better_on_original_validation';else,reason='candidate_only_feasible_original_validation';end
 elseif base.feasible
     choice='imitation';reason='feasible_imitation_retained_without_required_improvement';
@@ -107,6 +123,17 @@ if isstruct(domain)
 end
 yr=reshape([physical.outputs.upper]-[physical.outputs.lower],1,[]);ur=reshape([physical.controls.upper]-[physical.controls.lower],1,[]);
 values=[];records=struct('trajectory_id',{},'steps',{},'score',{});
+useTracking=isfield(evaluation,'primary_metric') && strcmp(evaluation.primary_metric,'tracking_rmse');
+if useTracking
+    target=1;
+    if isfield(evaluation,'tracking_output')
+        target=find(strcmp({physical.outputs.name},evaluation.tracking_output));
+    else
+        assert(ny==1,'Select a single physical output for tracking RMSE.');
+    end
+    assert(isscalar(target),'Unknown tracking output.');
+    trackingRows=struct('trajectory_id',{},'tracking_rmse',{},'action_rms',{},'increment_rms',{});
+end
 for k=1:numel(plan.trajectories)
     condition=plan.trajectories(k);indices=find(ids==condition.trajectory_id);n=numel(indices);
     checks.completed_all_trajectories=checks.completed_all_trajectories&&n==condition.steps;
@@ -119,15 +146,33 @@ for k=1:numel(plan.trajectories)
     % subtick before a row is accepted. Python independently repeats row checks.
     tracking=mean(((yn(indices,:)-reference(indices,:))./yr).^2,2);action=mean((commands./ur).^2,2);increment=mean(((commands-p)./ur).^2,2);
     value=evaluation.q*mean(tracking)+evaluation.r*mean(action)+evaluation.s*mean(increment);checks.finite=checks.finite&&isfinite(value);
+    if useTracking
+        errorSignal=yn(indices,target)-reference(indices,target);
+        trackingRows(end+1)=struct('trajectory_id',condition.trajectory_id,'tracking_rmse',sqrt(mean(errorSignal.^2)), ...
+            'action_rms',sqrt(mean(action)),'increment_rms',sqrt(mean(increment))); %#ok<AGROW>
+    end
     values(end+1)=value;records(end+1)=struct('trajectory_id',condition.trajectory_id,'steps',n,'score',value); %#ok<AGROW>
 end
 feasible=all(structfun(@(v) logical(v),checks));value=[];if feasible,value=mean(values);end
 score=struct('feasible',logical(feasible),'score',value,'checks',checks,'per_scenario',records);
+if useTracking
+    score.tracking=[];
+    if checks.completed_all_trajectories && checks.finite && checks.causal_chain
+        score.tracking=struct('tracking_rmse',mean([trackingRows.tracking_rmse]), ...
+            'action_rms',mean([trackingRows.action_rms]),'increment_rms',mean([trackingRows.increment_rms]), ...
+            'per_scenario',trackingRows);
+    end
+end
 end
 
 function result = inside_domain(array,bounds)
 if isempty(bounds),result=isempty(array);return;end
 result=all(isfinite(array),'all')&&all(array>=reshape(bounds(:,1),1,[])&array<=reshape(bounds(:,2),1,[]),'all');
+end
+
+function result = tracking_less(value,reference)
+% Match Python's relative floating-point comparison, including zero baseline.
+result=value<reference & abs(value-reference)>16*eps.*max(abs(value),abs(reference));
 end
 
 function result = bounded(array,variables)

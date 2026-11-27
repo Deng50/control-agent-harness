@@ -438,25 +438,37 @@ const replayTrainingConfig = object({
     initial_previous_action:vector,steps:integer('Control decisions'),reference:vector,disturbance:vector},
     ['name','initial_state','initial_previous_action','steps','reference','disturbance'])),
 },['mode']);
+const pgacEvaluationTerms={
+  q:num('Positive normalized tracking weight',{exclusiveMinimum:0}),r:num('Nonnegative normalized action-effort weight',{minimum:0}),
+  s:num('Nonnegative normalized action-increment weight',{minimum:0}),comparison_atol:{const:1e-12},
+  min_relative_improvement:num('Minimum fractional reduction in the selected primary metric across evaluation conditions',{minimum:0,maximum:1}),
+  max_worst_case_relative_regression:num('Maximum fractional increase in the primary metric on any matched original condition',{minimum:0})};
+const pgacEvaluationMetric={oneOf:[
+  object({...pgacEvaluationTerms,primary_metric:{type:'string',const:'quadratic',description:'Default primary metric when omitted.'}},['q','r','s']),
+  object({...pgacEvaluationTerms,
+    primary_metric:{type:'string',const:'tracking_rmse',description:'Equal-condition mean of the selected output RMSE in physical units.'},
+    tracking_output:str('Physical output name. Required for tracking_rmse with multiple outputs.'),
+    max_action_rms_relative_increase:num('Required for tracking_rmse. Maximum fractional increase in mean scenario RMS of actions normalized by control range versus imitation.',{minimum:0}),
+    max_increment_rms_relative_increase:num('Required for tracking_rmse. Same limit for per-decision action increments using each controller’s own previous action.',{minimum:0})},
+    ['q','r','s','primary_metric','max_action_rms_relative_increase','max_increment_rms_relative_increase'])]};
 const originalPgacEvaluationConfig=object({scenarios:array(object({...physicalSchedule,name:str('Condition label'),initial_state:vector,reference:vector,disturbance:vector,
   steps:integer('Control updates'),initial_previous_action:vector,split:{type:'string',enum:['validation','test']}},['initial_state','reference','disturbance','steps','initial_previous_action','split'])),
   condition_source:{type:'string',enum:['exact_bound','fresh_holdout'],description:'Default uses all original held-out cases. fresh_holdout freezes new disjoint physical validation and test cases before fitting.'},
-  evaluation:object({q:num('Positive normalized tracking weight',{exclusiveMinimum:0}),r:num('Nonnegative normalized action-effort weight',{minimum:0}),s:num('Nonnegative normalized action-increment weight',{minimum:0}),comparison_atol:{const:1e-12},
-    min_relative_improvement:num('Minimum fractional reduction of aggregate original-Plant cost',{minimum:0,maximum:1}),
-    max_worst_case_relative_regression:num('Maximum fractional increase on any matched original condition',{minimum:0})},['q','r','s']),
+  evaluation:pgacEvaluationMetric,
   benchmark:object({warmup:integer('Untimed calls'),repeats:integer('Timed calls'),batch_size:{const:1},threads:{const:1}}),
   plan_refs:{type:'object',additionalProperties:true}},['scenarios','evaluation']);
 operations.optimize_external_policy=spec('Fit an inactive restricted physical-rollout policy candidate from actual external imitation weights and a qualified differentiable model.',
   object({policy:artifact,model:artifact,validation:artifact},['policy','model','validation']),
-  object({...training,horizon:integer('Control decisions in the differentiable rollout'),q:num('Positive normalized tracking loss weight',{exclusiveMinimum:0}),
-    r:num('Nonnegative normalized action-effort loss weight',{minimum:0}),s:num('Nonnegative normalized increment loss weight',{minimum:0}),
+  object({...training,horizon:integer('Control decisions in the differentiable rollout'),q:num('Positive normalized tracking loss weight; tracking_rmse uses the selected output window RMSE divided by its range',{exclusiveMinimum:0}),
+    r:num('Nonnegative action loss weight; tracking_rmse penalizes excess above the paired imitation action budget',{minimum:0}),
+    s:num('Nonnegative increment loss weight; tracking_rmse penalizes excess above the paired imitation increment budget',{minimum:0}),
     imitation_weight:num('Nonnegative first-action imitation anchor',{minimum:0}),constraint_weight:num('Nonnegative normalized state/output penalty',{minimum:0}),
     replay:replayTrainingConfig,domain:rolloutDomain,original_evaluation:originalPgacEvaluationConfig,plan_refs:{type:'object',additionalProperties:true}},['horizon','q','r','s','domain','original_evaluation','plan_refs']),
   ['Use the exact external_imitation_policy and its executable original expert/Plant ancestry, current causal features and complete declared state observation mapping.',
     'The differentiable_validation must qualify this exact rollout-model version and original Plant. Every x/u/d substep remains inside its reviewed domain.',
     'For online simulation use replay.mode=online and specify training conditions and budgets. Python Plant student steps refresh episode replay. balanced_starts changes sampling alone, expert_segments replays recorded schedules, and omitting replay uses the established expert-row path.',
     'Raw policy parameters start from the actual imitation tensors. Only the policy network is trained; normalization, actuator/rate projection and model parameters stay bound.',
-    'Freeze explicit original validation/test conditions and the separate quadratic evaluation before fitting. Predictor validation selects one checkpoint; original-Plant acceptance is a later stage.',
+    'Freeze the primary metric, actuator budgets, worst-case threshold and validation/test conditions before fitting. Predictor validation selects one checkpoint; original-Plant acceptance is a later stage.',
     'This is restricted differentiable physical rollout optimization with imitation protection, not an implemented learned Critic/PPO/SAC algorithm.'],
   'Inactive external_pgac_candidate with real Adam/RNG checkpoint, initial/selected raw weights, gradient/domain evidence and standalone bundle; no approval or activation before original-Plant evaluation');
 operations.evaluate_external_pgac=spec('Validate the one frozen PGAC candidate on the original Plant, freeze one choice before final testing and retain a feasible baseline when required.',

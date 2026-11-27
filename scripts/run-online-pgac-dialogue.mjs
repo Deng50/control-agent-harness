@@ -16,7 +16,7 @@ assert.equal(dirname(workspace),root,'Use a fresh direct test-output child for f
 const evidence = resolve(root,basename(workspace)+'-observer.json');
 const json = async file => JSON.parse(await readFile(file,'utf8'));
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const prompt = '我有这个被控对象和 MPC，请采集专家数据，训练轻量网络，再用 PGAC 做在线闭环微调，并在独立工况上对比三种控制器。工作区内的材料说明.md 给出了原始程序、接口、工况和我的验收条件。请按这些文件执行并交付可加载的策略包，告知最终选用哪一版。';
+const userTask = '我有这个被控对象和 MPC，请采集专家数据，训练轻量网络，再用 PGAC 做在线闭环微调，并在独立工况上对比三种控制器。工作区内的材料说明.md 给出了原始程序、接口、工况和我的验收条件。请按这些文件执行并交付可加载的策略包，告知最终选用哪一版。';
 const rpc = values.action === 'verify' ? undefined :
   await connectHarness({logPath:values['web-log'],connectionClose:true});
 let record;
@@ -30,8 +30,20 @@ async function start() {
   await assert.rejects(stat(workspace),e=>e.code==='ENOENT');
   await prepareSmokeWorkspace(workspace);
   const materials=resolve(values.materials);
-  const names=['plant.py','mpc.py','model.json','protocol.json','collection.json','imitation.json','online.json','evaluation.json'];
+  const evalConfig=await json(resolve(materials,'evaluation.json'));
+  const tracking=evalConfig.evaluation.primary_metric==='tracking_rmse';
+  const names=['plant.py','mpc.py','model.json','collection.json','imitation.json','online.json','evaluation.json'];
   for(const name of names)await copyFile(resolve(materials,name),resolve(workspace,name));
+  if(tracking){
+    assert.equal(basename(dirname(materials)),'spring','This dialogue fixture supports the synthetic spring only');
+    const protocol=await json(resolve(materials,'protocol.json'));
+    await writeSmokeEvidence(resolve(workspace,'protocol.json'),{
+      object:'spring',primary_metric:'tracking_rmse',output:evalConfig.evaluation.tracking_output,
+      acceptance:protocol.acceptance,action_metrics:protocol.action_metrics,hard_constraints:protocol.hard_constraints,
+      partitions:protocol.partitions,replicates:protocol.replicates,families:protocol.families,steps:protocol.steps});
+  }else{
+    await copyFile(resolve(materials,'protocol.json'),resolve(workspace,'protocol.json'));
+  }
   for (const [source,field] of [['plant-adapter','adapter'],['expert-adapter','adapter'],['sampling','sampling']]){
     await writeSmokeEvidence(resolve(workspace,source+'.json'),{[field]:await json(resolve(materials,source+'.json'))});
   }
@@ -55,7 +67,8 @@ async function start() {
   record={workspace,sessionId,role:'control-lightweight',provider:group.id,model:model.id,started:new Date().toISOString(),turns:[],confirmations:[],pinned};
   await writeSmokeEvidence(evidence,record);
   await rpc('session/selectModel',{request:{sessionId,provider:group.id,model:model.id,reasoningEffort:'low'}});
-  await submit(prompt);
+  const trackingRequest='这次以位移跟踪 RMSE 为主指标，同时限制力和每拍力增量开销、要求零越界。请按这些冻结门限汇报正负阶跃、反转和接管等工况的实际改善或退化，说明交付哪一版。仅使用本工作区的合成弹簧材料、角色技能与此次正式操作结果；跳过其他案例、历史运行记录和其他工作区。';
+  await submit(tracking ? userTask+trackingRequest : userTask);
 }
 const confirmedFiles={
   register_plant:'plant-adapter.json',register_expert:'expert-adapter.json',register_model:'model-source.json',
@@ -153,9 +166,6 @@ async function verify() {
   assert.ok(report.final_acceptance.approved, 'No approved delivery package in this run');
   const selected = report.final_acceptance.selected_version;
   const python = values.python ?? resolve(project, process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python');
-  const independent = JSON.parse(execFileSync(python,
-    ['-I', '-B', resolve(project, 'scripts/bench_pgac_verify.py'), artifact, workspace, selected],
-    {encoding:'utf8', windowsHide:true}));
   const fileHash = async path => hash(await readFile(path));
   const skillCalls = observed.calls.filter(c => c.name === 'skill' && !c.error);
   const confirmations = observed.calls.filter(c => c.name === 'control_prepare_review' && !c.error);
@@ -165,10 +175,19 @@ async function verify() {
   if (succeeded.some(s => s.operation === 'prepare_bundle_archive')) {
     for (const entry of await readdir(archiveDirectory)) {
       if (/^[a-f0-9]{64}\.zip$/.test(entry)) {
-        archives.push({path:'.report-downloads/' + entry, sha256:await fileHash(resolve(archiveDirectory, entry))});
+        const archivePath=resolve(archiveDirectory,entry);
+        const receipt=await json(archivePath.replace(/\.zip$/,'.json'));
+        if (receipt.artifact_id!==evaluation.artifact) continue;
+        const archiveVerification=JSON.parse(execFileSync(python,
+          ['-I','-B',resolve(project,'scripts/bench_pgac_verify.py'),artifact,workspace,selected,archivePath],
+          {encoding:'utf8',windowsHide:true}));
+        archives.push({path:'.report-downloads/' + entry, sha256:await fileHash(archivePath),
+          isolated_process_verification:archiveVerification});
       }
     }
   }
+  assert.ok(archives.length,'Prepare the selected delivery ZIP before independent verification');
+  const independent=archives[0].isolated_process_verification;
   // ExternalExpertAdapter.act checks each Python decision twice in the same runtime
   // and once in a fresh module. These executions are real MPC work.
   assert.equal(collection.source.expert_backend, 'python_callable');
@@ -190,8 +209,10 @@ async function verify() {
     final_answer_sha256:hash(observed.lastAnswer),
     post_delivery_questions:(observed.postDeliveryQuestions ?? []).map(({turn,priorAnswer,question}) =>
       ({turn, prior_answer_sha256:hash(priorAnswer), original_accounting_excerpt:priorAnswer.split('\n').filter(s => s.includes('MPC 求解')),
+        delivery_answer_excerpt:priorAnswer.split('\n').filter(s=>s.includes('交付 PGAC') || s.includes('盲测等权') || s.includes('动作 RMS')),
         question})),
     final_answer_accounting_excerpt:observed.lastAnswer.split('\n').filter(s => s.includes('执行次数') || s.includes('执行合计')),
+    final_archive_check_excerpt:observed.lastAnswer.split('\n').filter(s=>s.startsWith('结论') && s.includes('缓存')),
     loaded_skills: skillCalls.map(({seq, skill}) => ({seq, skill})),
     confirmed_cards: {source:'test_fixture', count:observed.confirmations.length,
       prepared:confirmations.map(({seq, operation, config_file, card_id}) =>
@@ -208,8 +229,10 @@ async function verify() {
     training: {best_epoch:candidate.best_epoch, trained_epochs:candidate.trained_epochs,
       optimizer_updates:candidate.optimizer_updates, initial_action_parity:candidate.initial_action_parity, replay:candidate.replay},
     final_acceptance: report.final_acceptance,
+    ...(report.engineering_objective ? {engineering_objective: report.engineering_objective} : {}),
     test: Object.fromEntries(Object.entries(report.closed_loop.test).map(([version, score]) =>
-      [version, {J:score.quadratic.score, feasible:score.quadratic.feasible}])),
+      [version, {J:score.quadratic.score, feasible:score.quadratic.feasible,
+        ...(score.quadratic.tracking ? {tracking:score.quadratic.tracking} : {})}])),
     isolated_process_verification: independent,
     package: {path:'artifacts/' + evaluation.artifact + '/bundle', model_sha256:await fileHash(resolve(artifact, 'bundle/model.pt')),
       report_sha256:await fileHash(resolve(artifact, 'report.json')), archives},

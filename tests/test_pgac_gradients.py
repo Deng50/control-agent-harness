@@ -114,6 +114,63 @@ class PgacGradientTests(unittest.TestCase):
         with torch.no_grad():parameter[0]=original
         self.assertAlmostEqual(float(parameter.grad[0]),(plus-minus)/(2*h),places=9)
 
+    def test_tracking_primary_matches_independent_selected_output_and_matched_budget_gradients(self):
+        baseline = load_external_policy(self.root/'bundle')
+        objective = dict(primary_metric='tracking_rmse', tracking_output='y1',
+                         max_action_rms_relative_increase=.05, max_increment_rms_relative_increase=.15)
+        settings = {**self.settings, 'imitation_weight': 0., 'original_evaluation': {'evaluation': objective}}
+        offsets = torch.tensor([0., .04, -.06], dtype=torch.float64).reshape(1, 3, 1)
+        ref = self.reference[:, None] + offsets
+        disturbance = self.d[:, None] + offsets
+        def sampled_loss():
+            terms = {}
+            loss = physical_rollout_loss(self.policy, self.model, self.x, ref[:, 0], disturbance[:, 0],
+                self.previous, self.expert, settings, substeps=2, reference_sequence=ref,
+                disturbance_sequence=disturbance, baseline_policy=baseline, components=terms)
+            return loss, terms
+
+        def trace(controller):
+            x = self.x.numpy().copy()
+            previous = self.previous.numpy().copy()
+            errors, actions, increments = [], [], []
+            for k in range(settings['horizon']):
+                r, d = ref[:, k].numpy(), disturbance[:, k].numpy()
+                features = np.column_stack((x, r, d, previous))
+                u = controller.predict(features, previous_action=previous)
+                for _ in range(2):
+                    x = x@self.A.T + u@self.B.T + d@self.E.T
+                errors.append((x[:, 1]-r[:, 1])/4.)
+                actions.append(u/3.)
+                increments.append((u-previous)/3.)
+                previous = u
+            return [np.sqrt(np.mean(np.stack(values, 1).reshape(len(x), -1)**2, axis=1))
+                    for values in (errors, actions, increments)]
+
+        original = trace(baseline)
+        def oracle():
+            track, effort, slew = trace(self.policy)
+            return (settings['q']*track.mean() + settings['r']*np.maximum(effort-1.05*original[1], 0.).mean()
+                    + settings['s']*np.maximum(slew-1.15*original[2], 0.).mean())
+
+        loss, terms = sampled_loss()
+        self.assertEqual(terms['action'], 0.)
+        self.assertEqual(terms['increment'], 0.)
+        self.assertAlmostEqual(float(loss.detach()), oracle(), places=13)
+        parameter = self.policy.network[-1].bias
+        with torch.no_grad(): parameter[1] += .12
+        loss, terms = sampled_loss()
+        self.assertGreater(terms['action'], 0.)
+        self.assertGreater(terms['increment'], 0.)
+        self.assertAlmostEqual(float(loss.detach()), oracle(), places=13)
+        gradient, = torch.autograd.grad(loss, parameter)
+        h = 1e-6
+        with torch.no_grad(): parameter[1] += h
+        plus = oracle()
+        with torch.no_grad(): parameter[1] -= 2*h
+        minus = oracle()
+        with torch.no_grad(): parameter[1] += h
+        self.assertAlmostEqual(float(gradient[1]), (plus-minus)/(2*h), places=8)
+
     def test_nonfinite_differentiable_model_fault_is_rejected_before_an_optimizer_update(self):
         class NumericalFault(torch.nn.Module):
             interface=self.model.interface
@@ -197,6 +254,40 @@ class PgacGradientTests(unittest.TestCase):
         for extra in ({'critic':True},{'learning_rate':0.},{'seed':True},{'domain':{'x':[[-3.,3.]]*4,'u':self.domain['u'],'d':self.domain['d']}}):
             with self.subTest(extra=extra),self.assertRaises(ContractError):normalize_pgac_config({**config,**extra},self.model.interface,self.domain)
 
+    def test_predictor_checks_reset_output_internal_output_and_first_actual_increment(self):
+        class ReturningPlant:
+            interface = self.model.interface
+            def __call__(self, x, action, disturbance):
+                nxt = x.clone()
+                nxt[:, 0] = 1.-x[:, 0]
+                return nxt
+            def output(self, x):
+                return torch.stack((3.*x[:, 0], x[:, 1]), dim=1)
+
+        model = ReturningPlant()
+        objective = dict(q=1., r=.01, s=.01, primary_metric='tracking_rmse', tracking_output='y0')
+        def predict(x0, previous, substeps):
+            case = dict(split='validation', steps=1, initial_state=[x0,0.,0.,0.],
+                        reference=[0.,0.], disturbance=[0.], initial_previous_action=[previous,0.])
+            result = _predictor_validation(self.policy, model, dict(scenarios=[case],evaluation=objective),
+                                          self.settings,substeps,OperationContext())
+            return result['runs'][0]
+
+        # y starts at 2.55 and finishes in bounds on the first control decision.
+        initial = predict(.85, 0., 1)
+        self.assertFalse(initial['hard_feasible'])
+        self.assertFalse(initial['output_bounds_passed'])
+        # Endpoints are both y=.6; only the first of two internal steps reaches 2.4.
+        intermediate = predict(.2, 0., 2)
+        self.assertFalse(intermediate['output_bounds_passed'])
+        self.assertTrue(intermediate['increment_bounds_passed'])
+        # A misprojecting actuator returns an admissible command with an invalid first increment.
+        with patch.object(self.policy, 'forward', return_value=torch.zeros((1,2),dtype=torch.float64)):
+            slew = predict(.5, .6, 1)
+        self.assertFalse(slew['hard_feasible'])
+        self.assertTrue(slew['output_bounds_passed'])
+        self.assertFalse(slew['increment_bounds_passed'])
+
 
 class RestrictedPgacTrainingTests(unittest.TestCase):
     @classmethod
@@ -272,6 +363,58 @@ class RestrictedPgacTrainingTests(unittest.TestCase):
         checkpoint=torch.load(root/'latest.pt',weights_only=True);self.assertEqual(set(checkpoint['model_state']),{'0.weight','0.bias','2.weight','2.bias'})
         self.assertTrue(any(not torch.equal(value,checkpoint['model_state'][key]) for key,value in original.items()))
         policy=load_external_policy(root);self.assertFalse(any(p.requires_grad for p in policy.network.parameters()))
+
+    def test_tracking_primary_logs_gate_and_resumes_with_the_same_best_metric_and_weights(self):
+        config = copy.deepcopy(self.config)
+        config['original_evaluation']['evaluation'].update(primary_metric='tracking_rmse',
+            min_relative_improvement=0., max_action_rms_relative_increase=.25, max_increment_rms_relative_increase=.3)
+        config['replay'] = dict(mode='online', capacity_steps=300, student_fraction=.5, refresh_every=1, updates_per_epoch=2)
+        _, full, _, report = self.train(config)
+        self.assertEqual(report['checkpoint_metric'], 'tracking_rmse')
+        rows = report['log']
+        eligible = [(r['predictor_validation_tracking']['tracking_rmse'],r['epoch']) for r in rows
+                    if r['eligible_for_best_checkpoint']]
+        baseline = report['baseline_predictor_validation']['tracking']['tracking_rmse']
+        best, epoch = min([(baseline,0), *eligible])
+        self.assertEqual(report['best_epoch'], epoch)
+        self.assertAlmostEqual(report['selected_predictor_validation']['tracking']['tracking_rmse'], best)
+        self.assertTrue(all(r['post_update_training_tracking']['per_scenario'] for r in rows))
+        self.assertTrue(all('action_rms' in r['predictor_validation_gate']['checks'] for r in rows))
+        _, partial, _, _ = self.train({**config, 'epochs': 1})
+        path = partial/'latest.pt'
+        _, resumed, _, resumed_report = self.train({**config, 'resume_checkpoint':str(path),
+                                                  'resume_checkpoint_sha256':file_hash(path)})
+        self.assertEqual(resumed_report['log'], rows)
+        self.assertEqual(resumed_report['best_epoch'], epoch)
+        actual = torch.load(resumed/'latest.pt',weights_only=True)
+        expected = torch.load(full/'latest.pt',weights_only=True)
+        for key in ('model_state','optimizer_state','best_metric','replay_state','rng_state'):
+            self.assert_nested_equal(actual[key],expected[key])
+        altered = copy.deepcopy(config)
+        altered['original_evaluation']['evaluation']['max_action_rms_relative_increase'] = .4
+        with self.assertRaisesRegex(ContractError, 'configuration differs'):
+            self.train({**altered, 'resume_checkpoint':str(path)})
+
+    def test_new_best_requires_budget_and_ranks_feasible_checkpoints_by_rmse(self):
+        config = copy.deepcopy(self.config)
+        config['original_evaluation']['evaluation'].update(primary_metric='tracking_rmse',
+            max_action_rms_relative_increase=.15, max_increment_rms_relative_increase=.25)
+
+        # A controlled validation sequence isolates checkpoint policy from model fitting.
+        def measurement(j, rmse, effort):
+            trajectory = dict(trajectory_id=0, tracking_rmse=rmse, action_rms=effort, increment_rms=.01)
+            return dict(score=j, hard_feasible=True, runs=[trajectory], tracking={**trajectory, 'per_scenario':[trajectory]})
+        baseline = measurement(.15, 1., .1)
+        eligible = measurement(.16, .9, .11)
+        expensive = measurement(.12, .8, .18)
+        lower_j = measurement(.10, .95, .101)
+        measurements = [baseline, eligible, expensive, lower_j, eligible]
+        with patch('control_harness.restricted_pgac._predictor_validation', side_effect=measurements):
+            _, _, _, report = self.train(config)
+        self.assertEqual([r['selected_by_validation'] for r in report['log']], [True, False, False])
+        self.assertFalse(report['log'][1]['predictor_validation_gate']['checks']['action_rms'])
+        self.assertNotEqual(report['last_weights_sha256'], report['selected_weights_sha256'])
+        self.assertEqual(report['best_epoch'], 1)
 
     def test_cancel_resume_model_adam_rng_best_and_log_exact_and_changed_contract_rejects(self):
         _,root,_,_=self.train();expected=torch.load(root/'latest.pt',weights_only=True);best=torch.load(root/'model.pt',weights_only=True);events=[]

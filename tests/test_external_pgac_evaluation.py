@@ -67,7 +67,7 @@ class ExternalPgacEvaluationTests(unittest.TestCase):
                 source={'kind':'plant_simulator','model':mat['plant_id'],'backend':'matlab_function','measured':False,'protocol_fixture_no_MATLAB_execution':True},activate=False)
         cls.mat_validation=validate_differentiable_model(cls.ws,mat['plant_id'],cls.model,config,reference_dataset_id=md)
 
-    def make_candidate(self,*,mat=False,eligible=True,change=None,validation=None,benchmark=None,domain=None,network_config=None):
+    def make_candidate(self,*,mat=False,eligible=True,change=None,validation=None,benchmark=None,domain=None,network_config=None,evaluation=None):
         policy_id=self.mat_policy if mat else self.policy;selection=ep._selection(self.workspace,policy_id);baseline=load_external_policy(selection['policy_root'])
         state={k:v.detach().clone() for k,v in baseline.network.state_dict().items()}
         if network_config is not None:
@@ -75,7 +75,7 @@ class ExternalPgacEvaluationTests(unittest.TestCase):
             with torch.random.fork_rng(devices=[]):state=build_supervised_network(network_config).state_dict()
         if change is not None:change(state)
         proposed=ep.prepare_external_imitation_evaluation(self.workspace,policy_id)['config_suggestions']
-        config=pg.normalize_original_evaluation(selection,{'scenarios':proposed['scenarios'],'evaluation':{'q':1.,'r':.015,'s':.01,'comparison_atol':1e-12},**({'benchmark':benchmark} if benchmark else {})})
+        config=pg.normalize_original_evaluation(selection,{'scenarios':proposed['scenarios'],'evaluation':evaluation or {'q':1.,'r':.015,'s':.01,'comparison_atol':1e-12},**({'benchmark':benchmark} if benchmark else {})})
         refs={'imitation_policy':policy_id,'rollout_model':self.model,'model_validation':validation or (self.mat_validation if mat else self.validation),
             'external_expert_dataset':selection['dataset_id'],'expert':selection['expert_id'],'plant':selection['plant_id']}
         with self.workspace.stage('external_pgac_candidate',DataInterface.parse(selection['policy_meta']['interface']),list(dict.fromkeys(refs.values())),{'component_fixture':True},compatible_parents=False) as stage:
@@ -294,8 +294,32 @@ print(json.dumps(policy.predict(query['features'],query['previous_action']).toli
         self.assertEqual(benchmark['candidate_speedup_median'],benchmark['expert']['median']/benchmark['candidate']['median'])
         self.assertEqual(benchmark['expert_repeated_for_candidate_pair']['samples'],2)
 
-    def native_prepare(self):
-        candidate,config=self.make_candidate(mat=True);nonce=str(uuid.uuid4());exchange=self.root/'.case-plans/matlab-exchanges'/nonce;raw='{"synthetic_transport_fixture":"no native or MATLAB call"}'
+    def test_tracking_report_uses_recorded_physical_output_and_actual_previous_action(self):
+        objective = {'q':1.,'r':.015,'s':.01,'primary_metric':'tracking_rmse',
+                     'max_action_rms_relative_increase':.15,'max_increment_rms_relative_increase':.25}
+        candidate, config = self.make_candidate(evaluation=objective)
+        root, _, report = self.run_evaluation(candidate, config)
+        self.assertEqual(report['engineering_objective']['output'],self.physical['outputs'][0]['name'])
+        self.assertEqual(report['selected_version'],'imitation')
+        for part in ['validation','test']:
+            comparison = report['engineering_objective']['candidate_vs_imitation'][part]
+            self.assertEqual(comparison['status'],'complete')
+            self.assertAlmostEqual(comparison['overall']['tracking_rmse']['delta'],0.)
+            for name in pg.NAMES:
+                score = report['closed_loop'][part][name]['quadratic']['tracking']
+                with np.load(root / f'{part}-{name}-rollout.npz') as arrays:
+                    expected = []
+                    for i in sorted(set(arrays['trajectory_id'])):
+                        g = arrays['trajectory_id'] == i
+                        u = arrays['u'][g]
+                        d_u = u - arrays['previous_u'][g]
+                        error = arrays['next_y'][g] - arrays['reference'][g]
+                        expected.append([np.sqrt(np.mean(error**2)), np.sqrt(np.mean((u/2)**2)),
+                                         np.sqrt(np.mean((d_u/2)**2))])
+                    np.testing.assert_allclose([score[k] for k in pg.RMS_FIELDS],np.mean(expected,axis=0))
+
+    def native_prepare(self, evaluation=None):
+        candidate,config=self.make_candidate(mat=True,evaluation=evaluation);nonce=str(uuid.uuid4());exchange=self.root/'.case-plans/matlab-exchanges'/nonce;raw='{"synthetic_transport_fixture":"no native or MATLAB call"}'
         context=OperationContext();context._case_receipt_body='Explicit unit protocol fixture, not real Host authorization';context.bind_raw_request(raw)
         env={'CONTROL_MATLAB_PHASE':'prepare','CONTROL_MATLAB_EXCHANGE_DIR':str(exchange),'CONTROL_MATLAB_REQUEST_SHA256':hashlib.sha256(raw.encode()).hexdigest(),'CONTROL_MATLAB_NONCE':nonce}
         with patch.dict(os.environ,env):prepared=pg.evaluate_external_pgac(self.workspace,candidate,config,context)

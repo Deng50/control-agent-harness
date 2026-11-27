@@ -9,6 +9,8 @@ import {cp,mkdir,mkdtemp,readFile,writeFile} from 'node:fs/promises';
 import {delimiter,join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import test from 'node:test';
+import {validateJsonSchemaValue} from '@deepseek-ai/dsh-tools';
+import {operationHelp} from '../src/catalog.mjs';
 import {confirmationRequirements} from '../src/case-requirements.mjs';
 import {installCasePlans} from '../src/case-plans.mjs';
 
@@ -102,6 +104,26 @@ test('three PGAC operations use actual immutable numeric dependencies and matchi
  assert.deepEqual(onlineRows[0],training[0]);
  assert.notDeepEqual(onlineRows[1].expectedPayload,training[1].expectedPayload);
  assert.notDeepEqual(gateRows[1].expectedPayload,onlineRows[1].expectedPayload);
+ const tracking=structuredClone(online);
+ Object.assign(tracking.config.original_evaluation.evaluation,{
+   primary_metric:'tracking_rmse',tracking_output:'output',
+   min_relative_improvement:.01,max_worst_case_relative_regression:.05,
+   max_action_rms_relative_increase:.15,max_increment_rms_relative_increase:.25});
+ const tightened=structuredClone(tracking);
+ tightened.config.original_evaluation.evaluation.max_increment_rms_relative_increase=.1;
+ const [trackingRows,tightenedRows]=await parity([tracking,tightened]);
+ assert.notDeepEqual(trackingRows[1].expectedPayload,onlineRows[1].expectedPayload);
+ assert.notDeepEqual(tightenedRows[1].expectedPayload,trackingRows[1].expectedPayload);
+ const frozen=operationHelp({operation:'optimize_external_policy'}).configSchema.properties.original_evaluation.properties.evaluation;
+ const evaluationSchema=operationHelp({operation:'evaluate_external_pgac'}).configSchema.properties.evaluation;
+ assert.deepEqual(frozen,evaluationSchema);
+ const objective=tracking.config.original_evaluation.evaluation;
+ assert.deepEqual(validateJsonSchemaValue(frozen,objective),[]);
+ assert.deepEqual(validateJsonSchemaValue(frozen,{q:1,r:0,s:0}),[]);
+ for(const field of ['max_action_rms_relative_increase','max_increment_rms_relative_increase']){
+   const incomplete={...objective};delete incomplete[field];
+   assert.ok(validateJsonSchemaValue(frozen,incomplete).length);
+ }
  const resumed=structuredClone(value.optimize);resumed.config.resume_checkpoint='not-opened.pt';resumed.config.resume_checkpoint_sha256='a'.repeat(64);resumed.config.plan_refs={training:{plan_id:'selector-only'}};
  assert.deepEqual((await parity([resumed]))[0],training);
 });

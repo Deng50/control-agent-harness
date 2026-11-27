@@ -19,10 +19,10 @@ from control_harness.runtime import OperationContext
 
 
 class Run:
-    def __init__(self, root, case):
+    def __init__(self, root, case, *, material_builder=prepare_materials):
         self.case = case
         self.root = root / case
-        self.materials = prepare_materials(self.root, case)
+        self.materials = material_builder(self.root, case)
         self.workspace = Workspace(self.root / "workspace")
         self.log = self.root / "operations.json"
         self.ids = read(self.log) if self.log.exists() else {}

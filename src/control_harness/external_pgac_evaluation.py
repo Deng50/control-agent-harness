@@ -25,6 +25,7 @@ from .external_expert import _collect_python,ExpertCollectionStopped,ExpertColle
 from .external_policy import load_external_policy
 from .policy_export import export_external_policy_state
 from .pgac_scenarios import ensure_new_physical_conditions, scenario_series
+from .pgac_tracking import BUDGET_FIELDS, RMS_FIELDS, paired_tracking_report, tracking_gate, tracking_index, tracking_summary
 
 NAMES=('expert','imitation','candidate')
 
@@ -58,13 +59,28 @@ class _CoveragePlant:
 
 def evaluation_config(value):
     gates = {'min_relative_improvement', 'max_worst_case_relative_regression'}
-    if not isinstance(value,dict) or set(value)-gates-{'q','r','s','comparison_atol'} or not {'q','r','s'}<=value.keys():raise ContractError('Original-Plant evaluation requires explicit normalized quadratic q/r/s')
-    result={**value,'comparison_atol':value.get('comparison_atol',1e-12)}
+    tracking_fields = {'tracking_output', *BUDGET_FIELDS}
+    allowed = gates | tracking_fields | {'q','r','s','comparison_atol','primary_metric'}
+    if not isinstance(value,dict) or set(value)-allowed or not {'q','r','s'}<=value.keys():
+        raise ContractError('Original-Plant evaluation requires explicit normalized quadratic q/r/s and supported settings')
+    metric = value.get('primary_metric', 'quadratic')
+    if metric not in ('quadratic', 'tracking_rmse'):
+        raise ContractError('Unsupported PGAC primary_metric')
+    if metric == 'tracking_rmse':
+        if not set(BUDGET_FIELDS) <= value.keys():
+            raise ContractError('Tracking RMSE requires both frozen action and increment RMS budgets')
+        if 'tracking_output' in value and (not isinstance(value['tracking_output'],str) or not value['tracking_output'].strip()):
+            raise ContractError('tracking_output must be a nonempty physical output name')
+    elif tracking_fields & value.keys():
+        raise ContractError('Tracking output and RMS budgets require primary_metric=tracking_rmse')
+    result={k:v for k,v in value.items() if k not in {'primary_metric','tracking_output'}}
+    result.setdefault('comparison_atol',1e-12)
     if any(type(v) not in {int,float} or not math.isfinite(v) for v in result.values()) or result['q']<=0 or result['r']<0 or result['s']<0 or result['comparison_atol']!=1e-12:
         raise ContractError('q must be positive, r/s nonnegative, and frozen comparison_atol must be 1e-12')
-    if any(result[key] < 0 for key in gates & result.keys()) or result.get('min_relative_improvement', 0) > 1:
+    if any(result[key] < 0 for key in (gates | set(BUDGET_FIELDS)) & result.keys()) or result.get('min_relative_improvement', 0) > 1:
         raise ContractError('Relative acceptance thresholds must be nonnegative fractions, with minimum improvement at most 1')
-    return {key:float(number) for key,number in result.items()}
+    return {**{key:float(number) for key,number in result.items()},
+            **{key:value[key] for key in ('primary_metric','tracking_output') if key in value}}
 
 
 def _selection(workspace,candidate_id):
@@ -104,6 +120,8 @@ def normalize_original_evaluation(selection,config):
     if not isinstance(config,dict) or set(config)-{'scenarios','evaluation','benchmark','plan_refs','condition_source'}:raise ContractError('Unknown original PGAC evaluation setting')
     if not isinstance(config.get('scenarios'),list) or not config['scenarios']:raise ContractError('Review all explicit original validation/test scenarios before evaluation')
     objective=evaluation_config(config.get('evaluation'))
+    if objective.get('primary_metric') == 'tracking_rmse':
+        tracking_index(objective, selection['physical'])
     plan,reason=ep._evaluation_plan(selection,config);bound,_=ep._evaluation_plan(selection,{})
     if plan is None:raise ContractError(reason)
     identity=lambda row:canonical_hash({'condition':ep._condition_hash(row),'steps':row['steps'],'split':row['split']})
@@ -139,6 +157,8 @@ def _subplan(plan,part,spec=None):
 def quadratic_result(result,physical,plan,objective,domain=None):
     """Recompute score and hard feasibility from each controller's own rows."""
     objective=evaluation_config(objective);a=result['arrays'];records=[]
+    target = tracking_index(objective, physical) if objective.get('primary_metric') == 'tracking_rmse' else None
+    tracking_records = []
     yr=np.asarray([v.upper-v.lower for v in physical.outputs]);ur=np.asarray([v.upper-v.lower for v in physical.controls])
     constraints=read_json(Path(result['constraints_path'])) if 'constraints_path' in result else result.get('action_constraints')
     if not isinstance(constraints,dict):raise ContractError('Original evaluation must retain inherited action constraints')
@@ -181,9 +201,18 @@ def quadratic_result(result,physical,plan,objective,domain=None):
                         'tracking_rmse_physical':np.sqrt(np.mean((a['next_y'][indexes]-a['reference'][indexes])**2,axis=0)).tolist(),
                         'peak_abs_state':np.maximum(np.abs(x).max(axis=0),np.abs(xn).max(axis=0)).tolist(),
                         'peak_abs_action':np.abs(u).max(axis=0).tolist(),'peak_abs_increment':np.abs(u-previous).max(axis=0).tolist()})
+        if target is not None:
+            tracking_records.append({'trajectory_id':condition['trajectory_id'], 'name':condition.get('name'),
+                                     'family':condition.get('family'), 'noise_seed':condition.get('noise_seed'),
+                                     'tracking_rmse':records[-1]['tracking_rmse_physical'][target],
+                                     'action_rms':math.sqrt(terms['action']), 'increment_rms':math.sqrt(terms['increment'])})
     checks['completed_all_trajectories']&=bool(complete)
     feasible=all(checks.values());score=float(np.mean([row['score'] for row in records])) if feasible else None
-    return {'feasible':bool(feasible),'score':score,'checks':checks,'per_scenario':records,
+    tracking_report = {}
+    if target is not None:
+        comparable = complete and checks['causal_chain'] and checks['finite']
+        tracking_report['tracking'] = tracking_summary(tracking_records) if comparable else None
+    return {'feasible':bool(feasible),'score':score,'checks':checks,'per_scenario':records,**tracking_report,
         'aggregation':'mean per-control-step normalized q/r/s, equal mean across complete scenarios','internal_subticks':'S09 collector checks every physical state/output subtick; rows record the next control tick',
         'qualified_domain_scope':'actual original before x/u/d and after x at every physical Plant dt subtick, plus logged control endpoints; not a proof of joint coverage' if domain is not None else 'not_applied_to_expert_or_retained_imitation'}
 
@@ -203,11 +232,20 @@ def _passes_performance_gate(baseline, candidate, objective, *, validation):
 
 
 def validation_choice(scores,objective,*,candidate_eligible=True):
-    baseline,candidate=scores['imitation'],scores['candidate'];tol=evaluation_config(objective)['comparison_atol']
-    if candidate_eligible and candidate['feasible'] and (not baseline['feasible'] or _passes_performance_gate(baseline,candidate,evaluation_config(objective),validation=True)):choice='candidate';reason='candidate_strictly_better_on_original_validation' if baseline['feasible'] else 'candidate_only_feasible_original_validation'
+    baseline,candidate=scores['imitation'],scores['candidate'];objective=evaluation_config(objective)
+    gate = _release_comparison(baseline,candidate,objective,validation=True)
+    if candidate_eligible and candidate['feasible'] and gate['passed']:choice='candidate';reason='candidate_strictly_better_on_original_validation' if baseline['feasible'] else 'candidate_only_feasible_original_validation'
     elif baseline['feasible']:choice='imitation';reason='feasible_imitation_retained_without_required_improvement'
     else:choice=None;reason='no_approved_validation_fallback'
-    return {'choice':choice,'reason':reason,'candidate_eligible':bool(candidate_eligible),'scores':scores,'comparison_atol':tol,'selection_partition':'validation','test_used':False}
+    return {'choice':choice,'reason':reason,'candidate_eligible':bool(candidate_eligible),'scores':scores,'comparison_atol':objective['comparison_atol'],'selection_partition':'validation','test_used':False,
+            **({'tracking_comparison':gate} if objective.get('primary_metric')=='tracking_rmse' else {})}
+
+
+def _release_comparison(baseline,candidate,objective,*,validation):
+    if objective.get('primary_metric')=='tracking_rmse':
+        return tracking_gate(baseline.get('tracking'),candidate.get('tracking'),objective,validation=validation)
+    return {'passed':candidate['feasible'] and (not baseline['feasible'] or
+            _passes_performance_gate(baseline,candidate,objective,validation=validation))}
 
 
 def final_acceptance(selection,scores,objective):
@@ -215,7 +253,7 @@ def final_acceptance(selection,scores,objective):
     chosen=selection['choice'];baseline,candidate=scores['imitation'],scores['candidate'];objective=evaluation_config(objective)
     baseline_approved=baseline['feasible'] and selection['scores']['imitation']['feasible']
     if chosen=='candidate':
-        accepted=candidate['feasible'] and (not baseline['feasible'] or _passes_performance_gate(baseline,candidate,objective,validation=False))
+        accepted=candidate['feasible'] and _release_comparison(baseline,candidate,objective,validation=False)['passed']
         if accepted:return {'selected_version':'candidate','candidate_accepted':True,'approved':True,'reason':'fixed_candidate_passed_original_test'}
         return {'selected_version':'imitation' if baseline_approved else None,'candidate_accepted':False,'approved':bool(baseline_approved),
             'reason':'fixed_candidate_rejected_existing_feasible_baseline_retained' if baseline_approved else 'fixed_candidate_rejected_no_approved_fallback'}
@@ -228,6 +266,24 @@ def _candidate_eligible(selection):
     # The trainer must explicitly attest its verified domain contract; absence
     # cannot turn an unchecked rollout into a deployment candidate.
     return report.get('rollout_domain_checks_passed') is True
+
+
+def _verify_native_tracking(native, expected):
+    if expected is None and (native is None or native == []):
+        return
+    def matches(left, right):
+        return isinstance(left,dict) and all(type(left.get(k)) in (int,float) and
+            math.isclose(left[k],right[k],abs_tol=0.,rel_tol=1e-12) for k in RMS_FIELDS)
+    if expected is None or not matches(native,expected):
+        raise ContractError('Native tracking metrics differ from independent physical-row recomputation')
+    rows = native.get('per_scenario')
+    if isinstance(rows,dict):  # MATLAB encodes a scalar struct array as one object.
+        rows = [rows]
+    if not isinstance(rows,list) or len(rows)!=len(expected['per_scenario']):
+        raise ContractError('Incomplete native tracking metrics')
+    for row,target in zip(rows,expected['per_scenario']):
+        if not matches(row,target) or row.get('trajectory_id')!=target['trajectory_id']:
+            raise ContractError('Native per-trajectory tracking metrics differ from recorded original rows')
 
 
 def _save_results(stage,phase,results):
@@ -273,6 +329,15 @@ def _publish(stage,selection,config,context,plan,objective,results,decision,sele
     report['deployment_scope']={'candidate_domain':selection['candidate_report']['domain'],'original_domain_checks':'logged control-tick x/next_x/u/d',
         'original_physical_bounds':'checked at every Plant subtick','original_candidate_domain':'before x/u/d and after x at every actual Plant dt subtick',
         'online_ood_fallback':'not_implemented_by_standalone_MLP; an external domain guard is required for deployment','joint_coverage_or_global_stability_proved':False}
+    if objective.get('primary_metric')=='tracking_rmse':
+        target=selection['physical'].outputs[tracking_index(objective,selection['physical'])]
+        report['engineering_objective']={'primary_metric':'tracking_rmse','output':target.name,'unit':target.unit,
+            'aggregation':'per-trajectory physical tracking RMSE, equal weight across conditions',
+            'action_metrics':'per-trajectory RMS of control or increment divided by each full action range, then equal condition mean',
+            'gates':{part:_release_comparison(scores['imitation'],scores['candidate'],objective,validation=part=='validation')
+                     for part,scores in phase_scores.items()},
+            'candidate_vs_imitation':{part:paired_tracking_report(scores['imitation']['tracking'],scores['candidate']['tracking'])
+                                      for part,scores in phase_scores.items()}}
     atomic_json(stage.root/'policy.json',descriptor);atomic_json(stage.root/'report.json',report)
     (stage.root/'README.md').write_text('Original-Plant PGAC comparison\n\nThe validation selection was fixed before final tests. Failed/degraded candidates do not replace an actually feasible original imitation baseline. Expert, imitation and candidate IDs, conditions, raw autonomous trajectories and the exact selected weight bundle are retained in report.json.\n\nCandidate training and original-source validation/test check qualified x/u/d before, and x after, each actual Plant dt step. These checks cover the recorded finite scenarios only; marginal boxes do not prove joint coverage or stability. The exported MLP itself has no future online OOD fallback. Deployment requires an external actual-state/action/disturbance domain guard using the declared report domain; never infer state/history from feature width or assume a missing signal is zero.\n',encoding='utf-8')
     return stage.publish({'status':'verified' if acceptance['approved'] else 'rejected','original_plant_test_accepted':acceptance['approved'],
@@ -402,6 +467,8 @@ def _matlab_evaluation(workspace,selection,config,context,plan,objective,setting
             value=native.get('score');value=None if value==[] else value
             if scores[name]['score'] is None and value is not None or scores[name]['score'] is not None and (type(value) not in {int,float} or not math.isclose(value,scores[name]['score'],abs_tol=1e-12,rel_tol=1e-12)):
                 raise ContractError('Native q/r/s objective differs from independent physical-row recomputation')
+            if objective.get('primary_metric')=='tracking_rmse':
+                _verify_native_tracking(native.get('tracking'),scores[name]['tracking'])
         acceptance=final_acceptance(decision,_scores(selection,results['test'],_subplan(plan,'test'),objective),objective)
         all_complete=all(child['status']=='completed' for group in results.values() for child in group.values())
         expected_status='completed' if all_complete else 'partial' if any(len(child['arrays']['time']) for group in results.values() for child in group.values()) else 'failed'
