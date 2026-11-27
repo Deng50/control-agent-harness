@@ -5,6 +5,7 @@ import { agents } from './roles.mjs';
 import { operations } from './catalog.mjs';
 import { authorizeWorkspace } from './job-history.mjs';
 import { confirmationRequirements, resolveWorkflowCase, stagePreflight } from './case-requirements.mjs';
+import { readWorkspaceBytes } from './workspace-file.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -28,7 +29,18 @@ export async function prepareExecution(args, policy, {structured = false, probe 
     if (args[key] !== undefined && !object(args[key])) throw new Error(`${key} must be a JSON object`);
   }
   const workspace = await authorizeWorkspace(args.workspace, policy, true);
-  const inputs = args.inputs ?? {}, config = args.config ?? {};
+  const inputs = args.inputs ?? {};
+  let config = args.config ?? {};
+  if (args.config_file !== undefined) {
+    if (args.agent !== 'lightweight' || args.config !== undefined || typeof args.config_file !== 'string' ||
+        !/^[^<>:"/\\|?*\x00-\x1f]+\.json$/i.test(args.config_file)) {
+      throw new Error('config_file requires one workspace JSON filename for the lightweight role, in place of inline config');
+    }
+    const bytes = await readWorkspaceBytes(workspace, args.config_file, 2 * 1024 * 1024);
+    config = JSON.parse(new TextDecoder('utf-8', {fatal:true}).decode(bytes));
+    if (!object(config) || Object.hasOwn(config,'plan_refs')) throw new Error('config_file must contain one operation config object without plan_refs');
+    validateSettings(args.operation, config);
+  }
   const request = {operation:args.operation,workspace,inputs,config};
   const preflight = await stagePreflight(request);
   if (probe) {

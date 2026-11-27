@@ -133,6 +133,7 @@ class ExternalExpertAdapter:
         self.source_support = validate_python_expert_source(root, self.spec, expected_file_hashes)
         self.store = _CodeStore(root, self.spec["source_file"], expected_file_hashes)
         self.runtime = None; self.memory = None; self.calls = 0; self.resets = 0; self._failed = False
+        self.source_invocations = 0
 
     def reset(self):
         if self.runtime is not None: self.runtime.close()
@@ -142,6 +143,7 @@ class ExternalExpertAdapter:
         return copy.deepcopy(self.memory)
 
     def _invoke(self, runtime, function, args):
+        self.source_invocations += 1
         result = runtime.call(function, *copy.deepcopy(args))
         if type(result) is not tuple or len(result) != 3: raise ExpertFailure("Expert must return exact tuple(action,next_memory,status)")
         action, memory, status = result
@@ -186,7 +188,8 @@ class ExternalExpertAdapter:
     def describe(self):
         return {"backend": self.spec["backend"], "entrypoint": self.spec["entrypoint"], "control_period": self.spec["control_period"],
             "time_unit": "s", "failure_policy": "stop", "memory_semantics": "explicit JSON; deep reset plus fresh private module per trajectory",
-            "valid_policy_calls": self.calls, "resets": self.resets, "repeatability": "same-input repeat plus independent fresh module at visited calls",
+            "valid_policy_calls": self.calls, "source_invocations_this_adapter": self.source_invocations,
+            "resets": self.resets, "repeatability": "same-input repeat plus independent fresh module at visited calls",
             "source_hashes": {str(path.relative_to(self.store.root).as_posix()): hashlib.sha256(row[0]).hexdigest() for path, row in self.store.cache.items()},
             "source_support": self.source_support, "memory_is_student_feature": False}
 

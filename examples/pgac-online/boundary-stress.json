@@ -1,0 +1,443 @@
+{
+  "scope": "Post-blind stress characterization, excluded from all training and release decisions",
+  "requested_steps_per_condition": 24,
+  "seed": null,
+  "noise": "none",
+  "disturbance": "zero",
+  "cases": {
+    "spring": {
+      "selected": "candidate",
+      "release_artifact": "external_optimized_policy-855f37ead1ae",
+      "release_weights_sha256": "1d7365d6cbca606512a26accf32e858ad65c5bb1dd98a10c0e4cb38cbd2dad60",
+      "state_limits": [
+        1,
+        1.5
+      ],
+      "action_limit": 4,
+      "slew_per_decision": 1.8,
+      "results": [
+        {
+          "name": "position_recovery",
+          "sign": 1,
+          "steps": 24,
+          "initial_state": [
+            0.94,
+            -0.14
+          ],
+          "reference": [
+            0.36
+          ],
+          "initial_previous_action": 0.0,
+          "initial_state_fraction_of_limit": [
+            0.94,
+            0.09333333333333334
+          ],
+          "post_step_peak_abs_state": [
+            0.8598087916046266,
+            0.7899556934597808
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.8598087916046266,
+            0.5266371289731872
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 1.3896476886488214,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.343475227014005,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "position_recovery",
+          "sign": -1,
+          "steps": 24,
+          "initial_state": [
+            -0.94,
+            0.14
+          ],
+          "reference": [
+            -0.36
+          ],
+          "initial_previous_action": -0.0,
+          "initial_state_fraction_of_limit": [
+            0.94,
+            0.09333333333333334
+          ],
+          "post_step_peak_abs_state": [
+            0.8577361273778348,
+            0.8270735984329108
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.8577361273778348,
+            0.5513823989552739
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 1.4294345257863048,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.3312454704703598,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "velocity_braking",
+          "sign": 1,
+          "steps": 24,
+          "initial_state": [
+            -0.05,
+            1.395
+          ],
+          "reference": [
+            -0.25
+          ],
+          "initial_previous_action": -2.6,
+          "initial_state_fraction_of_limit": [
+            0.05,
+            0.93
+          ],
+          "post_step_peak_abs_state": [
+            0.34596162857127416,
+            0.935915986320583
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.34596162857127416,
+            0.6239439908803887
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 2.090800018287851,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.4126104314906507,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "velocity_braking",
+          "sign": -1,
+          "steps": 24,
+          "initial_state": [
+            0.05,
+            -1.395
+          ],
+          "reference": [
+            0.25
+          ],
+          "initial_previous_action": 2.6,
+          "initial_state_fraction_of_limit": [
+            0.05,
+            0.93
+          ],
+          "post_step_peak_abs_state": [
+            0.3442717687859679,
+            0.9410985958289922
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.3442717687859679,
+            0.6273990638859949
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 2.1151086017817398,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.4442231516006399,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "actuator_slew",
+          "sign": 1,
+          "steps": 24,
+          "initial_state": [
+            0.1,
+            -0.1
+          ],
+          "reference": [
+            -0.35
+          ],
+          "initial_previous_action": 3.8,
+          "initial_state_fraction_of_limit": [
+            0.1,
+            0.06666666666666667
+          ],
+          "post_step_peak_abs_state": [
+            0.3682390361787553,
+            0.6703324403334796
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.3682390361787553,
+            0.44688829355565307
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 2.1045054136984773,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.8,
+          "applied_increment_steps_at_limit": 3,
+          "violations": []
+        },
+        {
+          "name": "actuator_slew",
+          "sign": -1,
+          "steps": 24,
+          "initial_state": [
+            -0.1,
+            0.1
+          ],
+          "reference": [
+            0.35
+          ],
+          "initial_previous_action": -3.8,
+          "initial_state_fraction_of_limit": [
+            0.1,
+            0.06666666666666667
+          ],
+          "post_step_peak_abs_state": [
+            0.3740867890727063,
+            0.6794749203964041
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.3740867890727063,
+            0.45298328026426943
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 2.1406948669357124,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.8,
+          "applied_increment_steps_at_limit": 3,
+          "violations": []
+        }
+      ]
+    },
+    "motor": {
+      "selected": "imitation",
+      "release_artifact": "external_optimized_policy-010c71e9d233",
+      "release_weights_sha256": "2857db6650b216f19e6ac2586e62a5420322e6dba85ef6cd0f6db6621f699015",
+      "state_limits": [
+        12,
+        40
+      ],
+      "action_limit": 24,
+      "slew_per_decision": 10.8,
+      "results": [
+        {
+          "name": "speed_recovery",
+          "sign": 1,
+          "steps": 24,
+          "initial_state": [
+            0.0,
+            37.6
+          ],
+          "reference": [
+            26.0
+          ],
+          "initial_previous_action": 0.0,
+          "initial_state_fraction_of_limit": [
+            0.0,
+            0.9400000000000001
+          ],
+          "post_step_peak_abs_state": [
+            4.166860358619033,
+            33.94710763598268
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.34723836321825274,
+            0.848677690899567
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 11.366034680883594,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.3524393418876557,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "speed_recovery",
+          "sign": -1,
+          "steps": 24,
+          "initial_state": [
+            -0.0,
+            -37.6
+          ],
+          "reference": [
+            -26.0
+          ],
+          "initial_previous_action": -0.0,
+          "initial_state_fraction_of_limit": [
+            0.0,
+            0.9400000000000001
+          ],
+          "post_step_peak_abs_state": [
+            4.122658209843353,
+            33.94535487641573
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.3435548508202794,
+            0.8486338719103932
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 11.230872937447025,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 1.5245089246635652,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "current_recovery",
+          "sign": 1,
+          "steps": 24,
+          "initial_state": [
+            11.16,
+            0.0
+          ],
+          "reference": [
+            -8.0
+          ],
+          "initial_previous_action": -4.0,
+          "initial_state_fraction_of_limit": [
+            0.93,
+            0.0
+          ],
+          "post_step_peak_abs_state": [
+            6.14419342846703,
+            5.287158243219536
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.5120161190389192,
+            0.1321789560804884
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 11.197689011975664,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 3.889466274441861,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "current_recovery",
+          "sign": -1,
+          "steps": 24,
+          "initial_state": [
+            -11.16,
+            -0.0
+          ],
+          "reference": [
+            8.0
+          ],
+          "initial_previous_action": 4.0,
+          "initial_state_fraction_of_limit": [
+            0.93,
+            0.0
+          ],
+          "post_step_peak_abs_state": [
+            6.115036556621239,
+            5.18674680291915
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.5095863797184366,
+            0.12966867007297875
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 11.632038948963029,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 4.085929992697048,
+          "applied_increment_steps_at_limit": 0,
+          "violations": []
+        },
+        {
+          "name": "actuator_slew",
+          "sign": 1,
+          "steps": 24,
+          "initial_state": [
+            0.25,
+            4.0
+          ],
+          "reference": [
+            -14.0
+          ],
+          "initial_previous_action": 22.8,
+          "initial_state_fraction_of_limit": [
+            0.020833333333333332,
+            0.1
+          ],
+          "post_step_peak_abs_state": [
+            4.50680719274878,
+            9.239496006944877
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.3755672660623983,
+            0.23098740017362193
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 13.831716473673918,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 10.8,
+          "applied_increment_steps_at_limit": 3,
+          "violations": []
+        },
+        {
+          "name": "actuator_slew",
+          "sign": -1,
+          "steps": 24,
+          "initial_state": [
+            -0.25,
+            -4.0
+          ],
+          "reference": [
+            14.0
+          ],
+          "initial_previous_action": -22.8,
+          "initial_state_fraction_of_limit": [
+            0.020833333333333332,
+            0.1
+          ],
+          "post_step_peak_abs_state": [
+            4.545598230898202,
+            9.209715581812448
+          ],
+          "post_step_peak_state_fraction_of_limit": [
+            0.37879985257485016,
+            0.2302428895453112
+          ],
+          "post_step_state_steps_above_90pct": [
+            0,
+            0
+          ],
+          "max_applied_action": 13.9244021446878,
+          "applied_action_steps_above_90pct": 0,
+          "max_applied_increment": 10.8,
+          "applied_increment_steps_at_limit": 3,
+          "violations": []
+        }
+      ]
+    }
+  }
+}

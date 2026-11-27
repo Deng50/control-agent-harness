@@ -12,6 +12,11 @@ const matrix = array(vector, 'Finite rectangular matrix; dimensions come from th
 const artifact = str('An exact artifact_id in this workspace manifest; use inspect_workspace/inspect_artifact, never a guessed id');
 const path = str('Absolute local file path readable by the Session sandbox');
 const seed = integer('Deterministic random seed', 0);
+const physicalSchedule = {
+  family: str('Training or evaluation family for grouped sampling and reporting'),
+  reference_sequence: matrix, disturbance_sequence: matrix,
+  observation_noise_std: vector, noise_seed: seed,
+};
 const scenario = object({ name: str('Unique condition label'), initial_state: vector, reference: vector,
   disturbance: vector, steps: integer('Closed-loop simulation steps') }, ['name', 'initial_state', 'reference', 'disturbance', 'steps']);
 const scenarios = array(scenario, 'Independent operating conditions; do not reuse held-out controller conditions');
@@ -319,7 +324,7 @@ operations.register_expert=spec('Statically register an immutable external Pytho
     'Observation names/order/units/availability and actuator mapping must be explicit. Internal expert memory is diagnostic data rather than a default student feature.'],
   'inactive external_expert with source provenance, period, observation and memory contract; no internal controller ID');
 operations.collect_external_expert=spec('Collect closed-loop demonstrations directly from an external expert and an executable plant.',
-  object({expert:artifact,plant:artifact},['expert','plant']),object({scenarios:array(object({name:str('Operating condition label'),initial_state:vector,reference:vector,disturbance:vector,
+  object({expert:artifact,plant:artifact},['expert','plant']),object({scenarios:array(object({...physicalSchedule,name:str('Operating condition label'),initial_state:vector,reference:vector,disturbance:vector,
     steps:integer('Number of expert control decisions; plant advances by control_period/sample_time subticks per decision'),initial_previous_action:vector,
     split:{type:'string',enum:['train','validation','test']}},['initial_state','reference','disturbance','steps','initial_previous_action'])),
     seed,scaler:{type:'string',enum:['standard','minmax','none']},student_features:array(str('Exact available observation::name/reference::name/disturbance::name/previous_action::name signal')),
@@ -356,7 +361,7 @@ operations.train_external_imitation=spec('Train and export an MLP directly from 
     'Rate constraints require actual previously applied actions. Independent inference accepts the exact ordered features and cannot invent unavailable state/history.',
     'This operation ends at imitation. Autonomous original-Plant evaluation and PGAC are distinct requested stages.'],
   'external_imitation_policy with real network weights, scalers, feature and target order, action constraints, offline report and independently loadable Python bundle; applicable numeric MATLAB inference source is included');
-const imitationEvaluationConfig=object({scenarios:array(object({name:str('Condition label'),initial_state:vector,reference:vector,disturbance:vector,
+const imitationEvaluationConfig=object({scenarios:array(object({...physicalSchedule,name:str('Condition label'),initial_state:vector,reference:vector,disturbance:vector,
   steps:integer('Number of control updates'),initial_previous_action:vector,split:{type:'string',enum:['validation','test']}},['initial_state','reference','disturbance','steps','initial_previous_action'])),
   benchmark:object({warmup:integer('Untimed warmup calls'),repeats:integer('Timed calls per controller'),batch_size:{const:1},threads:{const:1}}),
   metrics:{type:'object',additionalProperties:true,description:'S08 metric definitions, such as settling band and reference-step thresholds; no preference optimization'},plan_refs:{type:'object',additionalProperties:true}});
@@ -420,9 +425,25 @@ operations.validate_differentiable_model=spec('Validate an existing Torch dynami
     'A bounded surrogate needs explicit training-marginal coverage and separate physical error budgets. Approximate qualification never changes the exact-equivalence result or certifies true physical gradients.'],
   'Inactive differentiable_validation receipt binding original, candidate, source records, numerical/gradient checks and the bounded domain; only qualified receipts may enter restricted PGAC');
 
-const originalPgacEvaluationConfig=object({scenarios:array(object({name:str('Condition label'),initial_state:vector,reference:vector,disturbance:vector,
+const replayTrainingConfig = object({
+  mode: {type:'string',enum:['balanced_starts','expert_segments','online']},
+  capacity_steps: integer('Maximum student steps retained in whole episodes'),
+  refresh_every: integer('Refresh student data every this many epochs'),
+  updates_per_epoch: integer('Adam updates per epoch'),
+  student_fraction: num('Fraction of sampled starts from current/recent student episodes',{minimum:0,maximum:1}),
+  expert_families: {type:'object',additionalProperties:{type:'string'}},
+  family_weights: {type:'object',additionalProperties:{type:'number',exclusiveMinimum:0}},
+  phase_weights: {type:'object',additionalProperties:{type:'number',exclusiveMinimum:0}},
+  scenarios: array(object({...physicalSchedule,name:str('Training condition'),initial_state:vector,
+    initial_previous_action:vector,steps:integer('Control decisions'),reference:vector,disturbance:vector},
+    ['name','initial_state','initial_previous_action','steps','reference','disturbance'])),
+},['mode']);
+const originalPgacEvaluationConfig=object({scenarios:array(object({...physicalSchedule,name:str('Condition label'),initial_state:vector,reference:vector,disturbance:vector,
   steps:integer('Control updates'),initial_previous_action:vector,split:{type:'string',enum:['validation','test']}},['initial_state','reference','disturbance','steps','initial_previous_action','split'])),
-  evaluation:object({q:num('Positive normalized tracking weight',{exclusiveMinimum:0}),r:num('Nonnegative normalized action-effort weight',{minimum:0}),s:num('Nonnegative normalized action-increment weight',{minimum:0}),comparison_atol:{const:1e-12}},['q','r','s']),
+  condition_source:{type:'string',enum:['exact_bound','fresh_holdout'],description:'Default uses all original held-out cases. fresh_holdout freezes new disjoint physical validation and test cases before fitting.'},
+  evaluation:object({q:num('Positive normalized tracking weight',{exclusiveMinimum:0}),r:num('Nonnegative normalized action-effort weight',{minimum:0}),s:num('Nonnegative normalized action-increment weight',{minimum:0}),comparison_atol:{const:1e-12},
+    min_relative_improvement:num('Minimum fractional reduction of aggregate original-Plant cost',{minimum:0,maximum:1}),
+    max_worst_case_relative_regression:num('Maximum fractional increase on any matched original condition',{minimum:0})},['q','r','s']),
   benchmark:object({warmup:integer('Untimed calls'),repeats:integer('Timed calls'),batch_size:{const:1},threads:{const:1}}),
   plan_refs:{type:'object',additionalProperties:true}},['scenarios','evaluation']);
 operations.optimize_external_policy=spec('Fit an inactive restricted physical-rollout policy candidate from actual external imitation weights and a qualified differentiable model.',
@@ -430,9 +451,10 @@ operations.optimize_external_policy=spec('Fit an inactive restricted physical-ro
   object({...training,horizon:integer('Control decisions in the differentiable rollout'),q:num('Positive normalized tracking loss weight',{exclusiveMinimum:0}),
     r:num('Nonnegative normalized action-effort loss weight',{minimum:0}),s:num('Nonnegative normalized increment loss weight',{minimum:0}),
     imitation_weight:num('Nonnegative first-action imitation anchor',{minimum:0}),constraint_weight:num('Nonnegative normalized state/output penalty',{minimum:0}),
-    domain:rolloutDomain,original_evaluation:originalPgacEvaluationConfig,plan_refs:{type:'object',additionalProperties:true}},['horizon','q','r','s','domain','original_evaluation','plan_refs']),
+    replay:replayTrainingConfig,domain:rolloutDomain,original_evaluation:originalPgacEvaluationConfig,plan_refs:{type:'object',additionalProperties:true}},['horizon','q','r','s','domain','original_evaluation','plan_refs']),
   ['Use the exact external_imitation_policy and its executable original expert/Plant ancestry, current causal features and complete declared state observation mapping.',
     'The differentiable_validation must qualify this exact rollout-model version and original Plant. Every x/u/d substep remains inside its reviewed domain.',
+    'For online simulation use replay.mode=online and specify training conditions and budgets. Python Plant student steps refresh episode replay. balanced_starts changes sampling alone, expert_segments replays recorded schedules, and omitting replay uses the established expert-row path.',
     'Raw policy parameters start from the actual imitation tensors. Only the policy network is trained; normalization, actuator/rate projection and model parameters stay bound.',
     'Freeze explicit original validation/test conditions and the separate quadratic evaluation before fitting. Predictor validation selects one checkpoint; original-Plant acceptance is a later stage.',
     'This is restricted differentiable physical rollout optimization with imitation protection, not an implemented learned Critic/PPO/SAC algorithm.'],

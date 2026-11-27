@@ -223,7 +223,7 @@ def bind_checkpoint_intent(root: Path, contract: dict) -> str:
 
 def save_checkpoint(root: Path, contract: dict, *, model, optimizer, epoch: int, updates: int, target_epochs: int,
                     best_state, best_metric, wait: int, log: list, generator=None,
-                    numpy_generator=None) -> dict:
+                    numpy_generator=None, replay_state=None) -> dict:
     """Commit only completed epochs; a partial epoch is replayed after cancellation.
 
     The sidecar detects interrupted writes/corruption even for unpublished failed
@@ -239,6 +239,8 @@ def save_checkpoint(root: Path, contract: dict, *, model, optimizer, epoch: int,
                "optimizer_state": optimizer.state_dict(), "epoch": epoch, "updates": updates,
                "best_state": best_state, "best_metric": best_metric, "wait": wait, "log": log,
                "rng_state": rng_snapshot(generator, numpy_generator)}
+    if replay_state is not None:
+        payload["replay_state"] = replay_state
     generation = f"checkpoint-{uuid.uuid4().hex}"
     target = root / (generation + ".pt")
     sidecar = checkpoint_sidecar(target)

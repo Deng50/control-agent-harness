@@ -1,11 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdir,mkdtemp,readdir} from 'node:fs/promises';
+import {mkdir,mkdtemp,readdir,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {reviewControlRequest} from '../src/review.mjs';
+import {prepareExecution,reviewControlRequest} from '../src/review.mjs';
 
 const output=resolve(import.meta.dirname,'../../test-output/review-command-tests');
 await mkdir(output,{recursive:true});
+
+test('lightweight file settings resolve to the current exact config at review and admission',async()=>{
+  const workspace=await mkdtemp(resolve(output,'settings-'));
+  const policy={mode:'workspace-write',workspaceRoot:workspace};
+  const request={agent:'lightweight',operation:'register_material',workspace,inputs:{local_path:resolve(workspace,'plant.py')}};
+  await writeFile(request.inputs.local_path,'def step(x): return x\n');
+  const file=resolve(workspace,'settings.json');
+  for(const label of ['initial','updated']){
+    const config={name:label,source_kind:'path'};
+    await writeFile(file,JSON.stringify(config));
+    assert.deepEqual(await prepareExecution({...request,config_file:'settings.json'},policy,{structured:true}),
+      await prepareExecution({...request,config},policy,{structured:true}));
+  }
+  for(const bad of [{config_file:'../settings.json'},{config_file:'settings.json',config:{}},{agent:'model',config_file:'settings.json'}])
+    await assert.rejects(prepareExecution({...request,...bad},policy));
+  for(const value of [[],{plan_refs:{}},{unknown_key:1}]){
+    await writeFile(file,JSON.stringify(value));
+    await assert.rejects(prepareExecution({...request,config_file:'settings.json'},policy));
+  }
+});
 
 test('review returns the actual branch scopes and exact editable config without jobs, plans or ledgers',async()=>{
   const workspace=await mkdtemp(resolve(output,'requirements-'));

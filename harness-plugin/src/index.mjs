@@ -345,7 +345,8 @@ export function apply(ctx, config) {
     name: 'control_preflight',
     description: '检查目标操作、所选产物版本、类型和信号接口，返回具体字段和补充材料。只读检查，不启动作业或产生确认。',
     parameters:{agent:{type:'string',enum:Object.keys(agents),required:true},operation:{type:'string',enum:Object.keys(operations),required:true},
-      workspace:{type:'string',required:true},inputs:{type:'object',additionalProperties:true},config:{type:'object',additionalProperties:true}},
+      workspace:{type:'string',required:true},inputs:{type:'object',additionalProperties:true},config:{type:'object',additionalProperties:true},
+      config_file:{type:'string',description:'Lightweight only: workspace-root JSON configuration filename, instead of inline config.'}},
     output:{schema:{type:'object',additionalProperties:true},render:(_args,value)=>[{type:'text',text:JSON.stringify(value)}]},
     execute:(args,{agent})=>prepareExecution(args,ctx.sandboxPolicy.resolve({session:agent.session}),{probe:true}),
   }));
@@ -365,6 +366,7 @@ export function apply(ctx, config) {
     parameters:{
       agent:{type:'string',enum:Object.keys(agents),required:true}, operation:{type:'string',enum:Object.keys(operations),required:true},
       workspace:{type:'string',required:true},inputs:{type:'object',additionalProperties:true},config:{type:'object',additionalProperties:true},
+      config_file:{type:'string',description:'Lightweight only: workspace-root JSON configuration filename, instead of inline config. Its full contents are reviewed.'},
       intent_id:{type:'string',description:'Task label or returned handle. Reuse across revisions of the same task.'},
       next_training:{type:'object',additionalProperties:false,properties:{config:{type:'object',additionalProperties:true,required:true}},description:'Optional frozen train_supervised settings to review together with dataset preparation'},
     },
@@ -387,6 +389,7 @@ export function apply(ctx, config) {
         workspace: { type: 'string', required: true, description: 'Absolute project path containing manifest.json; selected by the user.' },
         inputs: { type: 'object', additionalProperties: true, description: 'Operation-specific required artifact ids/source paths. Obtain the exact inputsSchema from control_help({operation}); do not infer names.' },
         config: { type: 'object', additionalProperties: true, description: 'Operation-specific settings. Obtain configSchema and prerequisites from control_help({operation}); preserve user-confirmed dimensions, units and conditions.' },
+        ...(agentName === 'lightweight' ? {config_file:{type:'string',description:'Use the same workspace-root JSON filename reviewed for this job, instead of inline config.'}} : {}),
         card_id: {type:'string',description:'Returned structured review card from this Session. The Host selects and verifies the exact approved versions.'},
       },
       output: {

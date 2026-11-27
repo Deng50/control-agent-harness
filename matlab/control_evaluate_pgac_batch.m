@@ -63,7 +63,21 @@ end
 
 function decision = validation_decision(scores,evaluation,eligible)
 base=scores.imitation;candidate=scores.candidate;choice=[];reason='no_approved_validation_fallback';
-if eligible&&candidate.feasible&&(~base.feasible||candidate.score<base.score-evaluation.comparison_atol)
+better=false;
+if eligible && candidate.feasible && base.feasible
+    gain=base.score-candidate.score;
+    better=gain>evaluation.comparison_atol;
+    if isfield(evaluation,'min_relative_improvement')
+        better=better && gain+evaluation.comparison_atol>=base.score*evaluation.min_relative_improvement;
+    end
+    if isfield(evaluation,'max_worst_case_relative_regression')
+        for k=1:numel(base.per_scenario)
+            bound=base.per_scenario(k).score*(1+evaluation.max_worst_case_relative_regression);
+            better=better && candidate.per_scenario(k).score<=bound+evaluation.comparison_atol;
+        end
+    end
+end
+if eligible&&candidate.feasible&&(~base.feasible||better)
     choice='candidate';if base.feasible,reason='candidate_strictly_better_on_original_validation';else,reason='candidate_only_feasible_original_validation';end
 elseif base.feasible
     choice='imitation';reason='feasible_imitation_retained_without_required_improvement';

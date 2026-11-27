@@ -24,6 +24,7 @@ from . import external_policy_evaluation as ep
 from .external_expert import _collect_python,ExpertCollectionStopped,ExpertCollectionCancelled
 from .external_policy import load_external_policy
 from .policy_export import export_external_policy_state
+from .pgac_scenarios import ensure_new_physical_conditions, scenario_series
 
 NAMES=('expert','imitation','candidate')
 
@@ -38,23 +39,32 @@ class _CoveragePlant:
     def _inside(self,key,value):
         raw=np.asarray(value,dtype=np.float64);bounds=np.asarray(self.domain[key],dtype=np.float64).reshape(-1,2)
         return raw.shape==(len(bounds),) and np.isfinite(raw).all() and np.all(raw>=bounds[:,0]) and np.all(raw<=bounds[:,1])
-    def _failed(self,phase):
-        self.guard.update(violations=1,status='failed');raise ContractError('Original Plant leaves qualified x/u/d coverage '+phase+' an actual physical subtick; baseline is not replaced')
+    def _failed(self,phase,key,value):
+        raw=np.asarray(value,dtype=np.float64);bounds=np.asarray(self.domain[key],dtype=np.float64).reshape(-1,2)
+        details={'phase':phase,'signal_group':key}
+        if raw.shape==(len(bounds),) and np.isfinite(raw).all():
+            details.update(value=raw.tolist(),max_excess=float(np.maximum(bounds[:,0]-raw,raw-bounds[:,1]).max()))
+        self.guard.update(violations=1,status='failed',first_observed_violation=details)
+        raise ContractError('Original Plant leaves qualified x/u/d coverage '+phase+' an actual physical subtick; baseline is not replaced')
     def step(self,u,d=None):
         d=np.empty(0) if d is None and not self.interface.nd else d;self.guard['before_checks']+=1
-        if not all(self._inside(key,value) for key,value in [('x',self.plant.state),('u',u),('d',d)]):self._failed('before')
+        for key,value in [('x',self.plant.state),('u',u),('d',d)]:
+            if not self._inside(key,value):self._failed('before',key,value)
         value=self.plant.step(u,d);self.guard['after_checks']+=1
-        if not self._inside('x',value):self._failed('after')
+        if not self._inside('x',value):self._failed('after','x',value)
         self.guard['passed_subticks']+=1;return value
     def describe(self):return {**self.plant.describe(),'coverage_guard':copy.deepcopy(self.guard),'coverage_scope':'before x/u/d and after x for every actual original Plant dt step'}
 
 
 def evaluation_config(value):
-    if not isinstance(value,dict) or set(value)-{'q','r','s','comparison_atol'} or not {'q','r','s'}<=value.keys():raise ContractError('Original-Plant evaluation requires explicit normalized quadratic q/r/s')
+    gates = {'min_relative_improvement', 'max_worst_case_relative_regression'}
+    if not isinstance(value,dict) or set(value)-gates-{'q','r','s','comparison_atol'} or not {'q','r','s'}<=value.keys():raise ContractError('Original-Plant evaluation requires explicit normalized quadratic q/r/s')
     result={**value,'comparison_atol':value.get('comparison_atol',1e-12)}
     if any(type(v) not in {int,float} or not math.isfinite(v) for v in result.values()) or result['q']<=0 or result['r']<0 or result['s']<0 or result['comparison_atol']!=1e-12:
         raise ContractError('q must be positive, r/s nonnegative, and frozen comparison_atol must be 1e-12')
-    return {key:float(result[key]) for key in ['q','r','s','comparison_atol']}
+    if any(result[key] < 0 for key in gates & result.keys()) or result.get('min_relative_improvement', 0) > 1:
+        raise ContractError('Relative acceptance thresholds must be nonnegative fractions, with minimum improvement at most 1')
+    return {key:float(number) for key,number in result.items()}
 
 
 def _selection(workspace,candidate_id):
@@ -71,7 +81,7 @@ def _selection(workspace,candidate_id):
     columns,reason=ep._features(selection)
     if columns is None:raise ContractError(reason)
     report=read_json(root/'report.json');frozen=report.get('original_evaluation_config')
-    if not isinstance(frozen,dict) or set(frozen)-{'scenarios','evaluation','benchmark'} or not {'scenarios','evaluation'}<=frozen.keys():raise ContractError('Candidate must retain its prospectively frozen original_evaluation_config')
+    if not isinstance(frozen,dict) or set(frozen)-{'scenarios','evaluation','benchmark','condition_source'} or not {'scenarios','evaluation'}<=frozen.keys():raise ContractError('Candidate must retain its prospectively frozen original_evaluation_config')
     if meta['interface']!=selection['policy_meta']['interface']:raise ContractError('PGAC candidate changed its original action DataInterface')
     for name in ['network.json','scaler.json','data_interface.json','features.json','action_constraints.json','physical_context.json']:
         if read_json(root/'bundle'/name)!=read_json(selection['policy_root']/'bundle'/name):raise ContractError('PGAC candidate changed baseline deployment semantics: '+name)
@@ -91,17 +101,25 @@ def _selection(workspace,candidate_id):
 
 def normalize_original_evaluation(selection,config):
     """Static pre-training normalization; no Plant, expert or NN is executed."""
-    if not isinstance(config,dict) or set(config)-{'scenarios','evaluation','benchmark','plan_refs'}:raise ContractError('Unknown original PGAC evaluation setting')
+    if not isinstance(config,dict) or set(config)-{'scenarios','evaluation','benchmark','plan_refs','condition_source'}:raise ContractError('Unknown original PGAC evaluation setting')
     if not isinstance(config.get('scenarios'),list) or not config['scenarios']:raise ContractError('Review all explicit original validation/test scenarios before evaluation')
     objective=evaluation_config(config.get('evaluation'))
     plan,reason=ep._evaluation_plan(selection,config);bound,_=ep._evaluation_plan(selection,{})
     if plan is None:raise ContractError(reason)
     identity=lambda row:canonical_hash({'condition':ep._condition_hash(row),'steps':row['steps'],'split':row['split']})
-    if sorted(map(identity,plan['trajectories']))!=sorted(map(identity,bound['trajectories'])) or not plan['split']['validation'] or not plan['split']['test']:
+    if not plan['split']['validation'] or not plan['split']['test']:
+        raise ContractError('PGAC requires independent validation and test conditions')
+    mode = config.get('condition_source', 'exact_bound')
+    if mode == 'fresh_holdout':
+        collection = read_json(selection['dataset_root']/'collection-plan.json')
+        ensure_new_physical_conditions(collection['trajectories'], plan['trajectories'])
+    elif mode != 'exact_bound' or sorted(map(identity,plan['trajectories']))!=sorted(map(identity,bound['trajectories'])):
         raise ContractError('PGAC comparison must contain every exact original bound validation/test condition and duration')
     i=selection['physical'];logical=3*sum(row['steps'] for row in plan['trajectories'])*(2*i.nx+3*i.nu+3*i.ny+i.nd+len(selection['expert']['observations'])+8)
     if logical>5_000_000:raise ContractError('One three-controller original evaluation exceeds the five-million-value batch boundary; use smaller confirmed condition batches')
-    return {'scenarios':copy.deepcopy(config['scenarios']),'evaluation':objective,**({'benchmark':ep.benchmark_config(config['benchmark'])} if 'benchmark' in config else {})}
+    return {'scenarios':copy.deepcopy(config['scenarios']),'evaluation':objective,
+            **({'condition_source':mode} if 'condition_source' in config else {}),
+            **({'benchmark':ep.benchmark_config(config['benchmark'])} if 'benchmark' in config else {})}
 
 
 def _plan(selection,config):
@@ -148,14 +166,21 @@ def quadratic_result(result,physical,plan,objective,domain=None):
         u,previous=np.asarray(a['u'][indexes]),np.asarray(a['previous_u'][indexes]);x=np.asarray(a['x'][indexes]);xn=np.asarray(a['next_x'][indexes])
         checks['causal_chain']&=bool(np.allclose(x[0],condition['x0'],atol=1e-12,rtol=0) and np.allclose(previous[0],condition['initial_action'],atol=1e-12,rtol=0)
             and np.allclose(x[1:],xn[:-1],atol=1e-12,rtol=0) and np.allclose(previous[1:],u[:-1],atol=1e-12,rtol=0)
-            and np.allclose(a['time'][indexes],condition['time'][:count],atol=1e-12,rtol=0) and np.allclose(a['reference'][indexes],condition['reference'],atol=1e-12,rtol=0))
+            and np.allclose(a['time'][indexes],condition['time'][:count],atol=1e-12,rtol=0)
+            and np.allclose(a['reference'][indexes],scenario_series(condition,'reference')[:count],atol=1e-12,rtol=0)
+            and np.allclose(a['d'][indexes],scenario_series(condition,'disturbance')[:count],atol=1e-12,rtol=0))
         if rate is not None:
             bounds=np.asarray(rate);delta=u-previous;checks['input_rate']&=bool(np.all(delta>=bounds[:,0]-1e-6) and np.all(delta<=bounds[:,1]+1e-6))
         tracking=np.mean(((a['next_y'][indexes]-a['reference'][indexes])/yr)**2,axis=1)
         action=np.mean((u/ur)**2,axis=1);increment=np.mean(((u-previous)/ur)**2,axis=1)
         terms={'tracking':float(np.mean(tracking)),'action':float(np.mean(action)),'increment':float(np.mean(increment))}
         score=objective['q']*terms['tracking']+objective['r']*terms['action']+objective['s']*terms['increment']
-        checks['finite']&=math.isfinite(score);records.append({'trajectory_id':condition['trajectory_id'],'steps':count,'terms':terms,'score':score if math.isfinite(score) else None})
+        checks['finite']&=math.isfinite(score)
+        records.append({'trajectory_id':condition['trajectory_id'],'family':condition.get('family'),'noise_seed':condition.get('noise_seed'),
+                        'steps':count,'terms':terms,'score':score if math.isfinite(score) else None,
+                        'tracking_rmse_physical':np.sqrt(np.mean((a['next_y'][indexes]-a['reference'][indexes])**2,axis=0)).tolist(),
+                        'peak_abs_state':np.maximum(np.abs(x).max(axis=0),np.abs(xn).max(axis=0)).tolist(),
+                        'peak_abs_action':np.abs(u).max(axis=0).tolist(),'peak_abs_increment':np.abs(u-previous).max(axis=0).tolist()})
     checks['completed_all_trajectories']&=bool(complete)
     feasible=all(checks.values());score=float(np.mean([row['score'] for row in records])) if feasible else None
     return {'feasible':bool(feasible),'score':score,'checks':checks,'per_scenario':records,
@@ -163,9 +188,23 @@ def quadratic_result(result,physical,plan,objective,domain=None):
         'qualified_domain_scope':'actual original before x/u/d and after x at every physical Plant dt subtick, plus logged control endpoints; not a proof of joint coverage' if domain is not None else 'not_applied_to_expert_or_retained_imitation'}
 
 
+def _passes_performance_gate(baseline, candidate, objective, *, validation):
+    tol = objective['comparison_atol']
+    improvement = baseline['score'] - candidate['score']
+    minimum = baseline['score'] * objective.get('min_relative_improvement', 0.)
+    if (validation and improvement <= tol) or improvement + tol < minimum:
+        return False
+    if 'max_worst_case_relative_regression' in objective:
+        base = {row['trajectory_id']:row['score'] for row in baseline['per_scenario']}
+        limit = objective['max_worst_case_relative_regression']
+        return all(row['score'] <= base[row['trajectory_id']] * (1.+limit) + tol
+                   for row in candidate['per_scenario'])
+    return True
+
+
 def validation_choice(scores,objective,*,candidate_eligible=True):
     baseline,candidate=scores['imitation'],scores['candidate'];tol=evaluation_config(objective)['comparison_atol']
-    if candidate_eligible and candidate['feasible'] and (not baseline['feasible'] or candidate['score']<baseline['score']-tol):choice='candidate';reason='candidate_strictly_better_on_original_validation' if baseline['feasible'] else 'candidate_only_feasible_original_validation'
+    if candidate_eligible and candidate['feasible'] and (not baseline['feasible'] or _passes_performance_gate(baseline,candidate,evaluation_config(objective),validation=True)):choice='candidate';reason='candidate_strictly_better_on_original_validation' if baseline['feasible'] else 'candidate_only_feasible_original_validation'
     elif baseline['feasible']:choice='imitation';reason='feasible_imitation_retained_without_required_improvement'
     else:choice=None;reason='no_approved_validation_fallback'
     return {'choice':choice,'reason':reason,'candidate_eligible':bool(candidate_eligible),'scores':scores,'comparison_atol':tol,'selection_partition':'validation','test_used':False}
@@ -173,10 +212,10 @@ def validation_choice(scores,objective,*,candidate_eligible=True):
 
 def final_acceptance(selection,scores,objective):
     """Binary gate for the already frozen version; no alternate epoch search."""
-    chosen=selection['choice'];baseline,candidate=scores['imitation'],scores['candidate'];tol=evaluation_config(objective)['comparison_atol']
+    chosen=selection['choice'];baseline,candidate=scores['imitation'],scores['candidate'];objective=evaluation_config(objective)
     baseline_approved=baseline['feasible'] and selection['scores']['imitation']['feasible']
     if chosen=='candidate':
-        accepted=candidate['feasible'] and (not baseline['feasible'] or candidate['score']<=baseline['score']+tol)
+        accepted=candidate['feasible'] and (not baseline['feasible'] or _passes_performance_gate(baseline,candidate,objective,validation=False))
         if accepted:return {'selected_version':'candidate','candidate_accepted':True,'approved':True,'reason':'fixed_candidate_passed_original_test'}
         return {'selected_version':'imitation' if baseline_approved else None,'candidate_accepted':False,'approved':bool(baseline_approved),
             'reason':'fixed_candidate_rejected_existing_feasible_baseline_retained' if baseline_approved else 'fixed_candidate_rejected_no_approved_fallback'}

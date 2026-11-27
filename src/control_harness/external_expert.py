@@ -15,6 +15,7 @@ from .artifacts import Workspace, atomic_json, confined, file_hash, read_json
 from .contracts import ContractError, DataInterface, MaterialInterface, ModelInterface, canonical_hash
 from .data import trajectory_split
 from .expert_adapter import ExpertFailure, load_external_expert, validate_expert_spec, validate_python_expert_source
+from .pgac_scenarios import SCHEDULE_FIELDS, condition_hash, normalize_schedule, observation_noise, scenario_series
 from .runtime import Cancelled, OperationContext
 
 
@@ -83,8 +84,17 @@ def _vector(value, width, label):
 def _bounded(value, variables, label):
     array = np.asarray(value, dtype=np.float64)
     if array.shape != (len(variables),) or not np.isfinite(array).all(): raise ExpertFailure(label + " is nonfinite or has wrong dimensions")
-    if np.any(array < np.asarray([item.lower for item in variables])-1e-12) or np.any(array > np.asarray([item.upper for item in variables])+1e-12):
-        raise ExpertFailure(label + " violates declared physical bounds")
+    lower = np.asarray([item.lower for item in variables])
+    upper = np.asarray([item.upper for item in variables])
+    outside = (array < lower - 1e-12) | (array > upper + 1e-12)
+    if outside.any():
+        error = ExpertFailure(label + " violates declared physical bounds")
+        error.bound_violations = [
+            {"signal": variables[k].name, "unit": variables[k].unit, "value": float(array[k]),
+             "lower": float(lower[k]), "upper": float(upper[k]),
+             "excess": float(max(lower[k] - array[k], array[k] - upper[k]))}
+            for k in np.flatnonzero(outside)]
+        raise error
     return array
 
 
@@ -102,7 +112,7 @@ def build_expert_collection_plan(physical, expert_spec, config):
     explicit_split = any(isinstance(row, dict) and "split" in row for row in scenarios)
     partitions = {name: [] for name in ("train", "validation", "test")}
     for index, scenario in enumerate(scenarios):
-        if (not isinstance(scenario, dict) or set(scenario) - {"name", "initial_state", "reference", "disturbance", "steps", "initial_previous_action", "split"}
+        if (not isinstance(scenario, dict) or set(scenario) - SCHEDULE_FIELDS - {"name", "initial_state", "reference", "disturbance", "steps", "initial_previous_action", "split"}
                 or type(scenario.get("steps")) is not int or not 1 <= scenario["steps"] <= 100000):
             raise ContractError("Unknown scenario fields or invalid explicit control-update steps")
         if "name" in scenario and (not isinstance(scenario["name"], str) or not scenario["name"].strip()): raise ContractError("Scenario name must be nonempty text")
@@ -113,7 +123,8 @@ def build_expert_collection_plan(physical, expert_spec, config):
         for key, variables in (("x0", interface.states), ("reference", interface.outputs), ("disturbance", interface.disturbances), ("initial_action", interface.controls)):
             try: _bounded(fields[key], variables, key)
             except ExpertFailure as error: raise ContractError(str(error)) from error
-        fingerprint = canonical_hash(fields)
+        fields.update(normalize_schedule(scenario, interface, spec))
+        fingerprint = condition_hash({**fields, "steps": scenario["steps"]})
         if fingerprint in seen: raise ContractError("Duplicate physical expert conditions cannot be separated by names, duration, split or numeric representation")
         seen.add(fingerprint); total += scenario["steps"]
         group = scenario.get("split")
@@ -213,11 +224,15 @@ def _collect_python(plant, expert, plan, context, journal=None):
                 continue
             context.check(); plant.reset(condition["x0"]); expert.reset()
             previous = np.asarray(condition["initial_action"], dtype=np.float64)
-            reference, disturbance = np.asarray(condition["reference"]), np.asarray(condition["disturbance"])
+            references = scenario_series(condition, "reference")
+            disturbances = scenario_series(condition, "disturbance")
+            noise = observation_noise(condition, len(spec["observations"]))
             for step in range(condition["steps"]):
+                reference, disturbance = references[step], disturbances[step]
                 context.check()
                 x = _bounded(plant.state, i.states, "current state"); y = _bounded(plant.output(), i.outputs, "current output")
                 observation = np.asarray([x[item["index"]] if item["source"] == "state" else y[item["index"]] for item in spec["observations"]], dtype=np.float64)
+                observation += noise[step]
                 action, diagnostic = expert.act(observation, reference, disturbance, previous)
                 for tick in range(plan["plant_substeps"]):
                     context.check(); xn = _bounded(plant.step(action, disturbance), i.states, "next state at Plant subtick")
@@ -241,6 +256,10 @@ def _collect_python(plant, expert, plan, context, journal=None):
         report = {"status": "partial" if rows["time"] else "failed", "trajectories": summaries,
             "failure": {"trajectory_id": trajectory, "step_index": completed, "phase": "after_completed_trajectory" if after_completed else "reset_or_control_step", "type": type(error).__name__, "message": str(error), "expert_status": getattr(error, "status", None)},
             "valid_rows": len(rows["time"]), "failure_policy": "stop", "later_trajectories_started": False}
+        if hasattr(error, "bound_violations"):
+            report["failure"]["observed_bound_violations"] = error.bound_violations
+        if hasattr(expert, "source_invocations"):
+            report["expert_source_invocations_this_attempt"] = expert.source_invocations
         kind = ExpertCollectionCancelled if isinstance(error, Cancelled) else ExpertCollectionStopped
         stopped = kind(str(error), _rows_arrays(rows, spec), report, diagnostics)
         raise stopped from error

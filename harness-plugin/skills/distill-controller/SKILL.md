@@ -43,3 +43,13 @@ description: 用已有MPC专家及对象或已有专家数据进行采集、神�
 该训练输出非激活 `external_pgac_candidate`。用 `prepare_handoff` 取得精确的冻结评价配置，确认后执行 `evaluate_external_pgac`：原对象验证只接受一个合格候选或保留可行模仿基线，先保存选择再进行测试；测试只接受/拒绝该版本，不再选择epoch。基线自身不合格时报告无合格回退。保存专家、模仿、候选和实际选择，分别列出预测模型验证与原对象结论。训练、原对象验证或最终测试中的代理越界均不能当作合格优化结果。
 
 按 [评价与报告](../references/evaluation.md) 比较专家、模仿和优化策略的跟踪、约束、动作及推理耗时。保存所有版本，交付权重、缩放、输入顺序、记忆接口、推理样例和报告。
+
+## 在线闭环微调任务
+
+已提供完整 JSON 训练或评价配置时，把该操作的 JSON 对象保存为工作区根目录中的普通文件。在 `control_preflight`、`control_prepare_review` 和 `control_lightweight` 使用同一个 `config_file` 文件名，并省略内联 `config`。实际内容进入工程摘要。文件更新后重新审阅，避免在对话中逐字转录时序数据。
+
+用户提供可执行对象和 MPC 并要求模仿后继续在线 PGAC 时，加载本技能，查询 `warmstart-pgac` 的采样与验收案例。在受支持的 Python 对象上使用正式操作。依次登记原对象和专家，`collect_external_expert` 采集专家，`train_external_imitation` 冻结模仿包，`validate_differentiable_model` 核验滚动模型，`optimize_external_policy` 训练在线候选，`prepare_handoff` 和 `evaluate_external_pgac` 在原对象上验收。可复用同一对象已有的模型资格和已登记的专家材料。用户只要求模仿时，交付模仿包即可。
+
+在训练摘要中列出 `replay.mode=online`、原对象和滚动模型版本、训练工况族与独立验证/盲测工况、学生闭环刷新周期、经验池步数、学生片段占比、每轮更新数，以及新增 MPC 求解和学生仿真的预算。用 `control_help` 取得当前操作 schema 和适配边界。静态记录、映射不全或隐藏动态未能恢复时，说明可完成的阶段。交付时分别说明验证是否选中、独立测试是否通过，以及是否确有改善。
+
+回答“实际求解多少次”时，按采集、验收、计时、学生训练分列。专家的独立控制决策看成功行数；Python 适配器做重复和新模块一致性检查，实际专家函数执行看 `expert.source_invocations_this_adapter`。计时直接调用专家的上下文预检、预热和测量另行计算。区分闭式 MPC 求解、调用约束优化器以及整个专家函数的执行。原程序未对优化器分支计数时说明可核实的层级。

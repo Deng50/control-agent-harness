@@ -94,6 +94,14 @@ test('three PGAC operations use actual immutable numeric dependencies and matchi
  assert.deepEqual(lrRows[0],training[0]);assert.notDeepEqual(lrRows[1].expectedPayload,training[1].expectedPayload);
  assert.deepEqual(domainRows[0],training[0]);assert.notDeepEqual(domainRows[1].expectedPayload,training[1].expectedPayload);
  assert.notDeepEqual(sourceRows[0].bindings,training[0].bindings);
+ const online=structuredClone(value.optimize);
+ online.config.replay={mode:'online',refresh_every:2,student_fraction:.5};
+ const thresholds=structuredClone(online);
+ thresholds.config.original_evaluation.evaluation.max_worst_case_relative_regression=.05;
+ const [onlineRows,gateRows]=await parity([online,thresholds]);
+ assert.deepEqual(onlineRows[0],training[0]);
+ assert.notDeepEqual(onlineRows[1].expectedPayload,training[1].expectedPayload);
+ assert.notDeepEqual(gateRows[1].expectedPayload,onlineRows[1].expectedPayload);
  const resumed=structuredClone(value.optimize);resumed.config.resume_checkpoint='not-opened.pt';resumed.config.resume_checkpoint_sha256='a'.repeat(64);resumed.config.plan_refs={training:{plan_id:'selector-only'}};
  assert.deepEqual((await parity([resumed]))[0],training);
 });

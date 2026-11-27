@@ -9,15 +9,18 @@ checkpoint selection is introduced.
 from __future__ import annotations
 
 import copy
+from collections import Counter
 import hashlib
 import math
 import numpy as np
 import torch
 
 from .artifacts import atomic_json, file_hash, read_json
-from .checkpoints import load_checkpoint, restore_training, save_checkpoint, seed_training, training_contract
+from .checkpoints import current_checkpoint, load_checkpoint, restore_training, save_checkpoint, seed_training, training_contract
 from .contracts import ContractError, DataInterface, ModelInterface, canonical_hash
 from .runtime import OperationContext
+from .pgac_replay import SegmentReplay, normalize_replay
+from .pgac_scenarios import scenario_series, observation_noise
 
 
 class RolloutDomainError(ContractError):
@@ -50,7 +53,7 @@ def _box(raw, variables, label):
 
 def normalize_pgac_config(config, interface, coverage):
     allowed = {'epochs','learning_rate','batch_size','horizon','seed','q','r','s','imitation_weight','constraint_weight',
-        'domain','original_evaluation','resume_checkpoint','resume_checkpoint_sha256','plan_refs'}
+        'domain','original_evaluation','replay','resume_checkpoint','resume_checkpoint_sha256','plan_refs'}
     if not isinstance(config, dict) or set(config) - allowed: raise ContractError('Unknown restricted PGAC setting')
     if not isinstance(config.get('domain'), dict) or set(config['domain']) != {'x','u','d'}: raise ContractError('PGAC domain must explicitly contain x,u,d physical boxes')
     domain = {key: _box(config['domain'][key], variables, 'domain.' + key) for key, variables in
@@ -74,6 +77,10 @@ def normalize_pgac_config(config, interface, coverage):
         if key not in config: raise ContractError('External PGAC requires explicit internal q,r,s weights')
         result[key] = _number(config[key], key)
     if not 0 < math.fsum(result[key] for key in ('q','r','s')) < float('inf'): raise ContractError('At least one finite q,r,s objective weight must be positive')
+    if 'replay' in config:
+        result['replay'] = normalize_replay(config['replay'])
+        if result['replay']['mode'] != 'balanced_starts':
+            result['rollout_semantics'] = 'episode_local_current_policy_with_recorded_exogenous_sequences_v1'
     return result
 
 
@@ -88,7 +95,7 @@ def require_current_full_state(policy, interface):
     return binding
 
 
-def tensor_policy_action(policy, model, state, reference, disturbance, previous):
+def tensor_policy_action(policy, model, state, reference, disturbance, previous, noise=None):
     """Assemble exactly the causal DataInterface order without NumPy/no_grad."""
     values = []; output = None
     for entry in policy.binding['current_features']:
@@ -98,6 +105,8 @@ def tensor_policy_action(policy, model, state, reference, disturbance, previous)
             else:
                 if output is None: output = model.output(state)
                 value = output[..., entry['physical_index']]
+            if noise is not None:
+                value = value + noise[..., entry['index']]
         elif kind == 'reference': value = reference[..., entry['index']]
         elif kind == 'disturbance': value = disturbance[..., entry['index']]
         elif kind == 'previous_action': value = previous[..., entry['index']]
@@ -114,7 +123,8 @@ def check_domain(state, action, disturbance, domain, phase):
         if torch.any(value < bounds[:, 0]) or torch.any(value > bounds[:, 1]): raise RolloutDomainError('PGAC ' + phase + ' leaves qualified ' + name + ' domain; baseline is not replaced')
 
 
-def physical_rollout_loss(policy, model, state, reference, disturbance, previous, expert_action, settings, *, substeps=1, context=None):
+def physical_rollout_loss(policy, model, state, reference, disturbance, previous, expert_action, settings, *, substeps=1, context=None, reference_sequence=None, disturbance_sequence=None,
+                          noise_sequence=None, anchor_mask=None, components=None):
     """Legacy full-batch mean/horizon cost and first-action imitation anchor.
 
     Each control action is held over the declared number of next-state calls.
@@ -130,10 +140,21 @@ def physical_rollout_loss(policy, model, state, reference, disturbance, previous
     xlo = state.new_tensor([v.lower for v in i.states]); xhi = state.new_tensor([v.upper for v in i.states])
     ylo = state.new_tensor([v.lower for v in i.outputs]); yhi = state.new_tensor([v.upper for v in i.outputs])
     yscale = yhi - ylo; uscale = state.new_tensor([v.upper - v.lower for v in i.controls])
-    original_state, initial_previous = state, previous; last_action = previous; cost = state.new_zeros(())
-    for _ in range(settings['horizon']):
+    horizon = settings['horizon']
+    for values,width in ((reference_sequence,i.ny),(disturbance_sequence,i.nd),
+                         (noise_sequence,len(policy.physical_context['physical_mapping']['observations']))):
+        if values is not None and (values.shape!=(len(state),horizon,width) or values.dtype!=state.dtype
+                                   or values.device!=state.device or not torch.isfinite(values).all()):
+            raise ContractError('PGAC exogenous windows must match batch, horizon and channel dimensions')
+    sums = {name:state.new_zeros(()) for name in ('tracking','action','increment','constraint')}
+    original_state = state; last_action = previous
+    for k in range(horizon):
+        reference = reference if reference_sequence is None else reference_sequence[:,k]
+        disturbance = disturbance if disturbance_sequence is None else disturbance_sequence[:,k]
+        noise = None if noise_sequence is None else noise_sequence[:,k]
         context.check(); check_domain(state, None, disturbance, settings['domain'], 'before observation')
-        action = tensor_policy_action(policy, model, state, reference, disturbance, last_action)
+        action = tensor_policy_action(policy, model, state, reference, disturbance, last_action, noise)
+        if k==0: first_action=action
         check_domain(state, action, disturbance, settings['domain'], 'rollout input')
         for _ in range(substeps):
             context.check(); state = model(state, action, disturbance)
@@ -141,16 +162,77 @@ def physical_rollout_loss(policy, model, state, reference, disturbance, previous
             check_domain(state, action, disturbance, settings['domain'], 'predicted subtick')
             output = model.output(state)
             if output.shape != reference.shape or not torch.isfinite(output).all(): raise FloatingPointError('PGAC dynamics returned an invalid output batch')
-            cost = cost + settings['constraint_weight'] / substeps * (((torch.relu(xlo-state)+torch.relu(state-xhi))/(xhi-xlo)).square().mean()
+            sums['constraint'] = sums['constraint'] + settings['constraint_weight'] / substeps * (((torch.relu(xlo-state)+torch.relu(state-xhi))/(xhi-xlo)).square().mean()
                 + ((torch.relu(ylo-output)+torch.relu(output-yhi))/yscale).square().mean())
-        cost = cost + settings['q'] * ((output-reference)/yscale).square().mean()
-        cost = cost + settings['r'] * (action/uscale).square().mean()
-        cost = cost + settings['s'] * ((action-last_action)/uscale).square().mean()
+        sums['tracking'] = sums['tracking'] + settings['q'] * ((output-reference)/yscale).square().mean()
+        sums['action'] = sums['action'] + settings['r'] * (action/uscale).square().mean()
+        sums['increment'] = sums['increment'] + settings['s'] * ((action-last_action)/uscale).square().mean()
         last_action = action
-    protection = ((tensor_policy_action(policy,model,original_state,reference,disturbance,initial_previous)-expert_action)/uscale).square().mean()
-    loss = cost / settings['horizon'] + settings['imitation_weight'] * protection
+    protection = ((first_action-expert_action)/uscale).square().mean(dim=1)
+    if anchor_mask is not None:
+        if anchor_mask.dtype!=torch.bool or anchor_mask.shape!=(len(state),):
+            raise ContractError('Imitation anchors must identify actual expert rows')
+        protection = torch.where(anchor_mask,protection,0.)
+    terms = {key:value/horizon for key,value in sums.items()}
+    terms['imitation'] = settings['imitation_weight'] * protection.mean()
+    loss = sum(terms.values())
+    if components is not None:
+        components.update({key:float(value.detach()) for key,value in terms.items()})
     if not torch.isfinite(loss): raise FloatingPointError('PGAC physical rollout loss is nonfinite')
     return loss
+
+
+def _segment_loss(policy, model, sampler, samples, settings, substeps, context):
+    total_count = sum(map(len, samples.values()))
+    loss = next(policy.network.parameters()).new_zeros(())
+    parts = Counter()
+    for horizon, items in samples.items():
+        for start in range(0, len(items), settings['batch_size']):
+            chunk = items[start : start + settings['batch_size']]
+            components = {}
+            if sampler.settings['mode'] == 'balanced_starts':
+                # This ablation changes only the sampling distribution. The old kernel
+                # holds reference/disturbance and starts an H-step prediction at any row.
+                batch = {
+                    key: torch.stack([ep[key][t] for ep, t in chunk])
+                    for key in ('x', 'previous_u', 'u', 'reference', 'd')
+                }
+                value = physical_rollout_loss(
+                    policy,
+                    model,
+                    batch['x'],
+                    batch['reference'],
+                    batch['d'],
+                    batch['previous_u'],
+                    batch['u'],
+                    settings,
+                    substeps=substeps,
+                    context=context,
+                    components=components,
+                )
+            else:
+                current, series, anchors = sampler.batch(chunk, horizon)
+                value = physical_rollout_loss(
+                    policy,
+                    model,
+                    current['x'],
+                    series['reference'][:, 0],
+                    series['d'][:, 0],
+                    current['previous_u'],
+                    current['u'],
+                    {**settings, 'horizon': horizon},
+                    substeps=substeps,
+                    context=context,
+                    reference_sequence=series['reference'],
+                    disturbance_sequence=series['d'],
+                    noise_sequence=series['noise'],
+                    anchor_mask=anchors,
+                    components=components,
+                )
+            weight = len(chunk) / total_count
+            loss = loss + weight * value
+            parts.update({key: weight * v for key, v in components.items()})
+    return loss, dict(parts)
 
 
 def _state_hash(state):
@@ -160,17 +242,20 @@ def _state_hash(state):
     return value.hexdigest()
 
 
-def _predictor_validation(policy, model, original, settings, substeps, context):
+def _predictor_validation(policy, model, original, settings, substeps, context, *, split='validation'):
     i = model.interface; evaluation = original['evaluation']; runs = []
     for scenario in original['scenarios']:
-        if scenario['split'] != 'validation': continue
+        if scenario['split'] != split: continue
         context.check(); x = torch.tensor(scenario['initial_state'],dtype=torch.float64).unsqueeze(0)
-        r = torch.tensor(scenario['reference'],dtype=torch.float64).unsqueeze(0); d = torch.tensor(scenario['disturbance'],dtype=torch.float64).unsqueeze(0)
+        refs = torch.tensor(scenario_series(scenario,'reference'),dtype=torch.float64)
+        disturbances = torch.tensor(scenario_series(scenario,'disturbance'),dtype=torch.float64)
+        noises = torch.tensor(observation_noise(scenario,len(policy.physical_context['physical_mapping']['observations'])),dtype=torch.float64)
         previous = torch.tensor(scenario['initial_previous_action'],dtype=torch.float64).unsqueeze(0); costs = []; feasible = True
         with torch.no_grad():
-            for _ in range(scenario['steps']):
+            for k in range(scenario['steps']):
+                r=refs[k:k+1]; d=disturbances[k:k+1]
                 context.check(); check_domain(x,None,d,settings['domain'],'before validation observation')
-                u = tensor_policy_action(policy,model,x,r,d,previous); check_domain(x,u,d,settings['domain'],'validation input')
+                u = tensor_policy_action(policy,model,x,r,d,previous,noises[k:k+1]); check_domain(x,u,d,settings['domain'],'validation input')
                 for _ in range(substeps):
                     x = model(x,u,d)
                     if not isinstance(x,torch.Tensor) or x.shape!=(1,i.nx) or x.dtype!=torch.float64 or x.device.type!='cpu': raise FloatingPointError('PGAC validation next-state shape/dtype is invalid')
@@ -181,7 +266,8 @@ def _predictor_validation(policy, model, original, settings, substeps, context):
                 score = evaluation['q']*((y-r)/yscale).square().mean()+evaluation['r']*(u/uscale).square().mean()+evaluation['s']*((u-previous)/uscale).square().mean()
                 if not torch.isfinite(score): raise FloatingPointError('PGAC validation objective is nonfinite')
                 costs.append(float(score)); previous = u
-        runs.append({'name':scenario.get('name'), 'split':'validation','steps':scenario['steps'],'score':math.fsum(costs)/len(costs),'hard_feasible':feasible})
+        runs.append({'name':scenario.get('name'), 'split':split,'steps':scenario['steps'],'score':math.fsum(costs)/len(costs),'hard_feasible':feasible,
+                     **({'family':scenario['family']} if 'family' in scenario else {})})
     if not runs: raise ContractError('PGAC requires explicit original validation conditions before fitting')
     feasible = all(row['hard_feasible'] for row in runs)
     return {'score':math.fsum(row['score'] for row in runs)/len(runs) if feasible else None,'hard_feasible':feasible,'runs':runs,
@@ -211,8 +297,10 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
         substeps = binding['plant_substeps']; dataset_id = selected['dataset_id']
         arrays, interface, dataset, scaler, dataset_meta = read_external_expert_dataset(workspace,dataset_id)
         n = len(arrays['X']); i = model.interface
-        raw = _load_members(selected['dataset_root']/'expert.npz',{'x':(n,i.nx),'reference':(n,i.ny),'d':(n,i.nd),'u':(n,i.nu),
-            'previous_u':(n,i.nu),'trajectory_id':(n,)},dataset_meta['files']['expert.npz'])
+        shapes={'x':(n,i.nx),'reference':(n,i.ny),'d':(n,i.nd),'u':(n,i.nu),'previous_u':(n,i.nu),'trajectory_id':(n,)}
+        if 'replay' in resolved:
+            shapes.update(next_x=(n,i.nx),observation=(n,len(selected['expert']['observations'])),plant_y=(n,i.ny),time=(n,))
+        raw = _load_members(selected['dataset_root']/'expert.npz',shapes,dataset_meta['files']['expert.npz'])
         identifiers = raw['trajectory_id'].astype(np.int64)
         if not np.array_equal(identifiers,raw['trajectory_id']) or not np.array_equal(raw['u'],arrays['y']): raise ContractError('PGAC physical rows/actions do not match the bound expert dataset')
         plan = read_json(selected['dataset_root']/'collection-plan.json'); split = plan['split']
@@ -224,7 +312,8 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
         if sum(p.numel() for p in model.parameters())>2_000_000 or sum(v.numel() for v in model.state_dict().values())>8_000_000:
             raise ContractError('PGAC differentiable model exceeds the single-job parameter/state budget')
         widths = sum([policy.input_dim,*policy.config['hidden_dims'],policy.output_dim])+i.nx+i.ny+i.nu+i.nd+model_widths
-        if min(resolved['batch_size'],int((arrays['split_id']==0).sum()))*resolved['horizon']*substeps*widths*8 > 5_000_000:
+        effective_batch = resolved['batch_size'] if 'replay' in resolved else min(resolved['batch_size'],int((arrays['split_id']==0).sum()))
+        if effective_batch*resolved['horizon']*substeps*widths*8 > 5_000_000:
             raise ContractError('PGAC rollout exceeds its five-million logical activation budget; reduce batch_size or horizon')
         for parameter in model.parameters(): parameter.requires_grad_(False)
         model.eval(); initial_state = copy.deepcopy(policy.network.state_dict())
@@ -237,15 +326,20 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
             'gradient_semantics':qualification.get('gradient_semantics'),'control_substeps':substeps,'initial_weights_sha256':_state_hash(initial_state)}
         contract = training_contract(workspace,'external_physical_policy_optimization',parents,effective,interface.fingerprint)
         start = updates = 0; log = []; best_state = copy.deepcopy(initial_state); best_score = None
+        replay = (SegmentReplay(resolved['replay'],selected,raw,plan,original,resolved['domain'])
+                  if 'replay' in resolved else None)
         if config.get('resume_checkpoint'):
             checkpoint = load_checkpoint(workspace,config['resume_checkpoint'],contract,resolved['epochs'],expected_sha256=config.get('resume_checkpoint_sha256'))
             restore_training(checkpoint,policy.network,optimizer,numpy_generator=rng)
+            if replay is not None:
+                replay.restore(checkpoint.get('replay_state'), checkpoint['epoch'], _state_hash(checkpoint['model_state']))
             start,updates,log,best_state,best_score = (checkpoint[key] for key in ('epoch','updates','log','best_state','best_metric'))
         tensors = {name:torch.from_numpy(raw[name]) for name in ('x','reference','d','u','previous_u')}
         with workspace.stage('external_pgac_candidate',DataInterface.parse(interface.to_dict()),parents,config,compatible_parents=False) as stage:
             def checkpoint_epoch(epoch):
                 return save_checkpoint(stage.root, contract, target_epochs=resolved["epochs"], model=policy.network,optimizer=optimizer,epoch=epoch,updates=updates,
-                    best_state=best_state,best_metric=best_score,wait=0,log=log,numpy_generator=rng)
+                    best_state=best_state,best_metric=best_score,wait=0,log=log,numpy_generator=rng,
+                    replay_state=replay.state if replay is not None else None)
             for name,value in [('resolved_config',resolved),('network_config',policy.config),('scaler',policy.scaler),('data_interface',policy.data_interface),
                 ('action_constraints',policy.action_constraints),('physical_context',policy.physical_context)]: atomic_json(stage.root/(name+'.json'),value)
             torch.save(initial_state,stage.root/'initial_imitation_state.pt')
@@ -256,29 +350,75 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
                 best_score = baseline_validation['score']
                 saved = checkpoint_epoch(start)
                 context.progress('pgac_initial_checkpoint', epoch=start, optimizer_updates=updates, **saved)
+            # Fixed expert training rows are a repeatable deployment/action parity probe.
+            probe = torch.as_tensor(arrays['X'][arrays['split_id']==0][:64],dtype=torch.float64)
+            probe_u=tensors['previous_u'][arrays['split_id']==0][:64]
+            with torch.no_grad():
+                baseline_actions=baseline(probe,previous_action=probe_u)
+                if start==0 and not torch.equal(policy(probe,previous_action=probe_u),baseline_actions):
+                    raise ContractError('Zero-step policy deployment actions differ from actual imitation')
+            if replay is not None:
+                training_eval = {'scenarios':[dict(row,split='train') for row in replay.train_scenarios],
+                                 'evaluation':original['evaluation']}
+                baseline_training = _predictor_validation(baseline,model,training_eval,resolved,substeps,context,split='train')
             first_update = None
             for epoch in range(start,resolved['epochs']):
-                context.check(); epoch_losses = []; order = rng.permutation(groups).tolist()
+                context.check(); epoch_losses = []
+                if replay is not None:
+                    replay.refresh(workspace,policy,epoch,_state_hash(policy.network.state_dict()),context,checkpoint_epoch)
+                    sampler=replay.sampler()
+                    order=range(resolved['replay']['updates_per_epoch'])
+                    drawn=Counter()
+                    sampled_terms=Counter()
+                else:
+                    order=rng.permutation(groups).tolist()
                 for group in order:
-                    context.check(); indexes = np.flatnonzero((identifiers==group)&(arrays['split_id']==0))
-                    batch = rng.choice(indexes,size=min(len(indexes),resolved['batch_size']),replace=False)
+                    context.check()
                     before = copy.deepcopy(policy.network.state_dict()); before_optimizer = copy.deepcopy(optimizer.state_dict())
-                    loss = physical_rollout_loss(policy,model,tensors['x'][batch],tensors['reference'][batch],tensors['d'][batch],tensors['previous_u'][batch],tensors['u'][batch],resolved,substeps=substeps,context=context)
+                    if replay is not None:
+                        samples,counts=sampler.draw(rng,resolved['batch_size'],resolved['horizon']); drawn.update(counts)
+                        loss,batch_terms=_segment_loss(policy,model,sampler,samples,resolved,substeps,context)
+                        sampled_terms.update(batch_terms)
+                        source={'replay_starts':[{ 'source':ep['source'],'episode':ep['id'],'t':t,'horizon':h}
+                                                 for h,items in samples.items() for ep,t in items]}
+                    else:
+                        indexes=np.flatnonzero((identifiers==group)&(arrays['split_id']==0))
+                        batch=rng.choice(indexes,size=min(len(indexes),resolved['batch_size']),replace=False)
+                        loss=physical_rollout_loss(policy,model,tensors['x'][batch],tensors['reference'][batch],tensors['d'][batch],tensors['previous_u'][batch],tensors['u'][batch],resolved,substeps=substeps,context=context)
+                        source={'training_trajectory_id':int(group),'source_rows':batch.tolist()}
                     optimizer.zero_grad(set_to_none=True); loss.backward()
                     norm = float(torch.nn.utils.clip_grad_norm_(policy.network.parameters(),5.,error_if_nonfinite=True)); optimizer.step()
                     if any(not torch.isfinite(p).all() for p in policy.network.parameters()):
                         policy.network.load_state_dict(before); optimizer.load_state_dict(before_optimizer); raise FloatingPointError('Nonfinite PGAC update rolled back; baseline unchanged')
                     if first_update is None: first_update = {'state_sha256_before':_state_hash(before),'learning_rate':optimizer.param_groups[0]['lr'],
-                        'weight_decay':optimizer.param_groups[0]['weight_decay'],'gradient_norm_before_clip':norm,'training_trajectory_id':int(group),'source_rows':batch.tolist()}
+                        'weight_decay':optimizer.param_groups[0]['weight_decay'],'gradient_norm_before_clip':norm,**source}
                     updates += 1; epoch_losses.append(float(loss.detach()))
                 result = _predictor_validation(policy,model,original,resolved,substeps,context); score = result['score']
                 improved = score is not None and (best_score is None or score < best_score-original['evaluation']['comparison_atol'])
                 if improved: best_score,best_state = score,copy.deepcopy(policy.network.state_dict())
                 event = {'epoch':epoch+1,'training_loss':math.fsum(epoch_losses)/len(epoch_losses),'predictor_validation_score':score,
-                    'selected_by_validation':improved,'training_conditions_updated':len(groups),'training_trajectory_order':order,'optimizer_updates':updates}
+                    'selected_by_validation':improved,'optimizer_updates':updates}
+                if replay is None:
+                    event.update(training_conditions_updated=len(groups),training_trajectory_order=order)
+                else:
+                    with torch.no_grad():
+                        # Use the same expert hold-in probe windows each epoch/seed, independent of draw RNG.
+                        fixed={min(resolved['horizon'],len(ep['x'])):[] for ep in replay.expert}
+                        for ep in replay.expert:
+                            fixed[min(resolved['horizon'],len(ep['x']))].append((ep,0))
+                        measured,components=_segment_loss(policy,model,sampler,fixed,resolved,substeps,context)
+                        training_score=_predictor_validation(policy,model,training_eval,resolved,substeps,context,split='train')
+                        event.update(post_update_training_J=training_score['score'],post_update_training_runs=training_score['runs'],
+                            post_update_training_probe_J=float(measured),post_update_training_probe_terms=components,
+                            sampled_optimization_terms={key:value/len(order) for key,value in sampled_terms.items()},
+                            post_update_action_delta_max=float((policy(probe,previous_action=probe_u)-baseline_actions).abs().max()),
+                            sampled_strata=[{'source':a,'family':b,'phase':c,'count':v} for (a,b,c),v in sorted(drawn.items())],
+                            student_control_steps=replay.state['total_steps'],student_episode_count=replay.state['next_id'])
                 log.append(event)
                 saved = checkpoint_epoch(epoch+1)
                 context.progress('restricted_pgac_training',**event,**saved)
+            last_sha=_state_hash(policy.network.state_dict())
+            torch.save(policy.network.state_dict(),stage.root/'last_policy_state.pt')
             policy.network.load_state_dict(best_state,strict=True); policy.eval()
             selected_validation = _predictor_validation(policy,model,original,resolved,substeps,context)
             refs = {'imitation_policy':policy_id,'rollout_model':model_id,'model_validation':validation_id,'external_expert_dataset':dataset_id,
@@ -300,6 +440,21 @@ def train_restricted_pgac(workspace, policy_id, model_id, config, context=None, 
                 'resource_boundary':{'max_logical_rollout_activations':5_000_000,'max_model_parameters':2_000_000,'max_model_state_values':8_000_000,
                     'estimate':'effective_batch*horizon*plant_substeps*(sum(policy widths)+sum(model Linear input/output widths)+nx+ny+nu+nd)*8'},
                 'export':{'directory':'bundle','manifest':'bundle/policy_manifest.json','details':manifest},'confirmation_sources':context.case_confirmation_sources,'log':log}
+            report.update(best_epoch=max((e['epoch'] for e in log if e['selected_by_validation']),default=0),
+                          last_weights_sha256=last_sha,selected_weights_sha256=_state_hash(best_state),
+                          initial_action_parity='exact_same_immutable_weights_and_feature_contract')
+            report['expert_validation_trajectory_ids']=report['validation_trajectory_ids']
+            if original.get('condition_source')=='fresh_holdout':
+                report['validation_trajectory_ids']=[]
+            report['checkpoint_validation_conditions']=[
+                {'name':row.get('name'),'family':row.get('family'),'steps':row['steps'],
+                 'frozen_scenario_sha256':canonical_hash(row)}
+                for row in original['scenarios'] if row['split']=='validation']
+            if replay is not None:
+                report['replay']=replay.summary()
+                report['replay']['last_committed_checkpoint_bytes']=current_checkpoint(stage.root).stat().st_size
+                report['baseline_predictor_training']=baseline_training
+                report['original_plant_closed_loop']='student_training_only' if replay.state['total_steps'] else 'not_run'
             atomic_json(stage.root/'report.json',report); atomic_json(stage.root/'training_log.json',log); context.check()
             return stage.publish({'status':'verified','scope':'numerical_candidate_only','original_plant_gate':'pending','predictor_feasible':selected_validation['hard_feasible'],
                 'checks':['qualified_differentiable_model','exact_imitation_initialization','current_full_state_causal_features','inherited_projection','bounded_real_rollout_gradients','validation_only_selection']},

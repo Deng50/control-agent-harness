@@ -1,0 +1,3654 @@
+{
+  "schema_version": 1,
+  "protocol_sha256": "af687ff80286a3c44104f72d6ddff0c32c44b5ce97491a3e1a27afc3464d8e63",
+  "frozen_weights": {
+    "spring": {
+      "existing": "144a974aaa9fa3810cfb276f7063eaf602f9ffc9ed6e10cde0727916341941c8",
+      "balanced": "928319afdc66238c5da4727c08fa896d4cdd7fe904aab13ce1e65a6d991dc84d",
+      "online": "1d7365d6cbca606512a26accf32e858ad65c5bb1dd98a10c0e4cb38cbd2dad60"
+    },
+    "motor": {
+      "existing": "31f75fc466160ceb918e5d3bc303364a898d5e63e0cf4d645b663b668a0ede43",
+      "balanced": "5ccc23610e6cba316ef91a7d5fb37272f485de6a2643b9ede7fafde3e97d81ed",
+      "online": "8dc82dcf55cb15158a03bec12bcb4f3d8d64617a4e3ea7fb83d93e051ffb23aa"
+    }
+  },
+  "frozen_inputs": {
+    "spring": {
+      "balanced.json": "9234e26657a7abd1f2c9ba2e92d3bc85259e8caeab5448ec75cf1655883706d6",
+      "collection.json": "9ee7856d481fbdeb9de7f4edc81228bbaba084df1a404284fa99890188047926",
+      "evaluation.json": "14748088d6a259b9370be761ad30fae34a0c23372617bcf46225d3d16437ed4c",
+      "existing.json": "f058572f80c894f4ec980b3b8f4bc5059e149daf824db1950e95f7633b727185",
+      "expert-adapter.json": "e5aea0e8f10acaace3d4d7cbea8980d6b111cfed7cfe53f9f30de64e6f2a9015",
+      "imitation.json": "39b05edcef641d7ae85309b443072409ad9e82a294cb9e90bbccd5a4c8b8f3bc",
+      "model.json": "ed18ed2737f1beaa6d1d7b5a464a51777681a34f4b7d920c30b1ea8193ffc601",
+      "mpc.py": "67c0a9ab38dd197c67153a4c2a64aaa7dadeaf5cc0ebf9a510907996b6176178",
+      "online.json": "52ccdbde580edcb6517e94c3a5bdf16cb5487aa04f4bd210b42e602a4a84cf28",
+      "plant-adapter.json": "4cfe0d3a240d32e0c42df395c6ef2b96a2676125e5322f6b7b68f9a51aa8ff83",
+      "plant.py": "9736798e3312ead7178ab6510e87f4a28705eb1587e0a7216ae6118f7c96d0c5",
+      "protocol.json": "af687ff80286a3c44104f72d6ddff0c32c44b5ce97491a3e1a27afc3464d8e63",
+      "sampling.json": "9a38522111ffd03646c85e7d4bc57b23ae0c6a4c9c13e0865c835683e06a2ce0"
+    },
+    "motor": {
+      "balanced.json": "41420a086f46b733663b7fd9d40b5d571134cceef735e30513c0262e733b0131",
+      "collection.json": "a8ece7828dd2fe8a4d94c602b3a7a075a781f7da1827c1ca9a873c57363955c8",
+      "evaluation.json": "4e0cfbbf34993755a3ebb78e502715ae7997b64a844e9ce0d18755d3741b9f62",
+      "existing.json": "4dd07f27a51d0f5d54bc4bef6ca9abc0fc101a4a6916ace1052308af092ad05e",
+      "expert-adapter.json": "30e6fd434645b24ad918ac80a5fc5731a65ba47a4f05110e98c992ae3fb19c4c",
+      "imitation.json": "39b05edcef641d7ae85309b443072409ad9e82a294cb9e90bbccd5a4c8b8f3bc",
+      "model.json": "f8ce848ef2d53f9830b254ba3c5887b724dc7495055416db3a929a7625753d51",
+      "mpc.py": "67c0a9ab38dd197c67153a4c2a64aaa7dadeaf5cc0ebf9a510907996b6176178",
+      "online.json": "f7e73783db493712f5230463ca591b3507c805be4c94199496258d2abbdfc416",
+      "plant-adapter.json": "be31e53198fe2bf527023794ac45a6e116965655b421bf34f759248e74142c6d",
+      "plant.py": "9736798e3312ead7178ab6510e87f4a28705eb1587e0a7216ae6118f7c96d0c5",
+      "protocol.json": "af687ff80286a3c44104f72d6ddff0c32c44b5ce97491a3e1a27afc3464d8e63",
+      "sampling.json": "85849158fd61b88497b7a19a0210567ab1b555f32736440681dc7e2d95bd71af"
+    }
+  },
+  "cases": {
+    "spring": {
+      "imitation_rmse_over_action_span": 0.002927351969512883,
+      "baseline_tensors_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+      "workspace": "test-output/pgac-online-benchmark-v2/spring",
+      "policies": {
+        "mpc": {
+          "scores": {
+            "validation": {
+              "J": 0.0023465393894492002,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.0023859706398470164,
+                  "rmse": 0.04794198199610205,
+                  "delta_u_rms": 0.27354681399539915,
+                  "action_rms": 0.7868273535745164,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0005746084094286433,
+                    "action": 0.00967339506770433,
+                    "increment": 0.0011691853038598983
+                  },
+                  "peak_abs_states": [
+                    0.35218307875379323,
+                    0.29737269403093447
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.001603689700003756,
+                  "rmse": 0.03928643594217693,
+                  "delta_u_rms": 0.22603211301402687,
+                  "action_rms": 0.644963069781712,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00038585601225969273,
+                    "action": 0.006499646271597648,
+                    "increment": 0.0007982893142747783
+                  },
+                  "peak_abs_states": [
+                    0.2834992424140728,
+                    0.23121419519245778
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.0006299522188439397,
+                  "rmse": 0.00820078866936123,
+                  "delta_u_rms": 0.03294634210044728,
+                  "action_rms": 0.46652240247359195,
+                  "normalized_cost_terms": {
+                    "tracking": 1.6813233699880885e-05,
+                    "action": 0.0034006742501520642,
+                    "increment": 1.6960335278120385e-05
+                  },
+                  "peak_abs_states": [
+                    0.23268260587541517,
+                    0.15817526270014373
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.0022819843781054752,
+                  "rmse": 0.04985131670347749,
+                  "delta_u_rms": 0.2507774337132851,
+                  "action_rms": 0.7546565830084366,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0006212884442676034,
+                    "action": 0.008898539973093273,
+                    "increment": 0.0009826456446847046
+                  },
+                  "peak_abs_states": [
+                    0.347119146580732,
+                    0.3390379822857729
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.005962684512823252,
+                  "rmse": 0.1313369455763726,
+                  "delta_u_rms": 0.46993584144062023,
+                  "action_rms": 0.7163609221581947,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004312348318332764,
+                    "action": 0.008018327668677173,
+                    "increment": 0.0034506202354766214
+                  },
+                  "peak_abs_states": [
+                    0.31303856316254436,
+                    0.7341180475753633
+                  ],
+                  "violations": 0,
+                  "max_violation": 2.220446049250313e-16
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.003103018794963309,
+                  "rmse": 0.0932214975169124,
+                  "delta_u_rms": 0.38495445887766294,
+                  "action_rms": 0.5305020953164864,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0021725618998239262,
+                    "action": 0.004397382392737225,
+                    "increment": 0.002315467740778036
+                  },
+                  "peak_abs_states": [
+                    0.23255954157498054,
+                    0.5361844479774921
+                  ],
+                  "violations": 0,
+                  "max_violation": 2.220446049250313e-16
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.0007868226917222901,
+                  "rmse": 0.03090929447330434,
+                  "delta_u_rms": 0.08260389237774687,
+                  "action_rms": 0.43881846620385206,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00023884612120936058,
+                    "action": 0.003008775723148457,
+                    "increment": 0.0001066156724367873
+                  },
+                  "peak_abs_states": [
+                    0.24725702047838322,
+                    0.5565794347963726
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.0020181921792845623,
+                  "rmse": 0.0631328672573246,
+                  "delta_u_rms": 0.154223306986706,
+                  "action_rms": 0.5961220369048306,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0009964397320327422,
+                    "action": 0.00555252317005569,
+                    "increment": 0.0003716379440299338
+                  },
+                  "peak_abs_states": [
+                    0.3259732804368286,
+                    0.8009958611413136
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.05798514101687896,
+              "action_rms": 0.6168466161777026,
+              "delta_u_rms": 0.2343775253132368,
+              "median_call_us": 81.95
+            },
+            "test": {
+              "J": 0.003345288085608858,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.0017842297966598984,
+                  "rmse": 0.03489006263992339,
+                  "delta_u_rms": 0.16434466516613475,
+                  "action_rms": 0.7191549566904314,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00030432911775444453,
+                    "action": 0.008080997683319003,
+                    "increment": 0.0004220182651338897
+                  },
+                  "peak_abs_states": [
+                    0.3421765914778247,
+                    0.29709950522886974
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.0015352793417498967,
+                  "rmse": 0.031624440685285644,
+                  "delta_u_rms": 0.1630138166482667,
+                  "action_rms": 0.6694184193445039,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00025002631216428746,
+                    "action": 0.007001890939963968,
+                    "increment": 0.0004152110065349173
+                  },
+                  "peak_abs_states": [
+                    0.2984152263080772,
+                    0.2317729329714267
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.0015068178935527918,
+                  "rmse": 0.019989186186222956,
+                  "delta_u_rms": 0.10711007702082705,
+                  "action_rms": 0.704568071158235,
+                  "normalized_cost_terms": {
+                    "tracking": 9.989189109687168e-05,
+                    "action": 0.00775650260774431,
+                    "increment": 0.00017925888436574224
+                  },
+                  "peak_abs_states": [
+                    0.33023051707876694,
+                    0.17539806517675385
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.0013657348999846924,
+                  "rmse": 0.01564416228819544,
+                  "delta_u_rms": 0.09455908806527098,
+                  "action_rms": 0.6788663397806254,
+                  "normalized_cost_terms": {
+                    "tracking": 6.11849534248491e-05,
+                    "action": 0.007200929801361619,
+                    "increment": 0.0001397097052458699
+                  },
+                  "peak_abs_states": [
+                    0.31949834422394824,
+                    0.18114980650763107
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.007547522395148509,
+                  "rmse": 0.14786072513723755,
+                  "delta_u_rms": 0.5285993474949564,
+                  "action_rms": 0.8044034797062132,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005465698509527429,
+                    "action": 0.010110389971304127,
+                    "increment": 0.004365894846438964
+                  },
+                  "peak_abs_states": [
+                    0.34534135290893575,
+                    0.7931018952848579
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.008007534336025213,
+                  "rmse": 0.15300244753606423,
+                  "delta_u_rms": 0.5115387054876883,
+                  "action_rms": 0.8240344634125008,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005852437238006523,
+                    "action": 0.010609887451430124,
+                    "increment": 0.004088622612687811
+                  },
+                  "peak_abs_states": [
+                    0.3614734521940663,
+                    0.8308982140964485
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.002491763725060973,
+                  "rmse": 0.06651254162536126,
+                  "delta_u_rms": 0.17415575854637744,
+                  "action_rms": 0.694703668297833,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0011059795483663536,
+                    "action": 0.007540831042913526,
+                    "increment": 0.00047390981616975185
+                  },
+                  "peak_abs_states": [
+                    0.37897940901600746,
+                    0.8187769717743314
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.0025234222966888944,
+                  "rmse": 0.0708077145994749,
+                  "delta_u_rms": 0.18773401943079962,
+                  "action_rms": 0.6631769669811602,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0012534331117001725,
+                    "action": 0.006871932648973921,
+                    "increment": 0.0005506884695569351
+                  },
+                  "peak_abs_states": [
+                    0.3522835163210797,
+                    0.8326083590326223
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.06754141008722067,
+              "action_rms": 0.7197907956714379,
+              "delta_u_rms": 0.24138193473254016,
+              "median_call_us": 81.95
+            }
+          }
+        },
+        "imitation": {
+          "scores": {
+            "validation": {
+              "J": 0.002354364968265057,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.0023820598282008735,
+                  "rmse": 0.04810213218504282,
+                  "delta_u_rms": 0.26806157329889774,
+                  "action_rms": 0.7857033885072865,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0005784537801868331,
+                    "action": 0.009645778354872375,
+                    "increment": 0.0011227657356168799
+                  },
+                  "peak_abs_states": [
+                    0.35627745340719597,
+                    0.30894815699817374
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.001602734789687162,
+                  "rmse": 0.03960862818162986,
+                  "delta_u_rms": 0.22338195715205125,
+                  "action_rms": 0.6432537161019916,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0003922108566076508,
+                    "action": 0.006465239738734711,
+                    "increment": 0.0007796796684543884
+                  },
+                  "peak_abs_states": [
+                    0.2849073299515324,
+                    0.23502966922494098
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.0006370398765312685,
+                  "rmse": 0.00832980362726812,
+                  "delta_u_rms": 0.03809453158373825,
+                  "action_rms": 0.4688834873179793,
+                  "normalized_cost_terms": {
+                    "tracking": 1.734640711721228e-05,
+                    "action": 0.003435183198116713,
+                    "increment": 2.267489588413174e-05
+                  },
+                  "peak_abs_states": [
+                    0.23472003234754693,
+                    0.16305193857099157
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.002287214288992019,
+                  "rmse": 0.04994682165098308,
+                  "delta_u_rms": 0.24898326664412435,
+                  "action_rms": 0.7555248160598209,
+                  "normalized_cost_terms": {
+                    "tracking": 0.000623671248258778,
+                    "action": 0.008919027307534784,
+                    "increment": 0.0009686354229496738
+                  },
+                  "peak_abs_states": [
+                    0.3478990295955511,
+                    0.3400906284587229
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.006004945493731003,
+                  "rmse": 0.13171884078050797,
+                  "delta_u_rms": 0.464656754523041,
+                  "action_rms": 0.7217436808882366,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0043374632541402025,
+                    "action": 0.008139280326595322,
+                    "increment": 0.0033735296800607123
+                  },
+                  "peak_abs_states": [
+                    0.3143658549136757,
+                    0.7539718632193761
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.0031074913618280783,
+                  "rmse": 0.09186330081755162,
+                  "delta_u_rms": 0.4078859222082732,
+                  "action_rms": 0.5470899531527382,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0021097165092739947,
+                    "action": 0.004676678388135396,
+                    "increment": 0.0025995457114952104
+                  },
+                  "peak_abs_states": [
+                    0.23418681130365046,
+                    0.5530538113093438
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.0007904472826035132,
+                  "rmse": 0.031237806962726357,
+                  "delta_u_rms": 0.07827095314199747,
+                  "action_rms": 0.43848372717069345,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0002439501459601388,
+                    "action": 0.0030041871717734862,
+                    "increment": 9.572409540244943e-05
+                  },
+                  "peak_abs_states": [
+                    0.24744347067126982,
+                    0.5474678083481884
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.0020229868245465383,
+                  "rmse": 0.0649069326327091,
+                  "delta_u_rms": 0.1002783775858795,
+                  "action_rms": 0.584338434707293,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0010532274759467593,
+                    "action": 0.005335178223065146,
+                    "increment": 0.00015712114080087845
+                  },
+                  "peak_abs_states": [
+                    0.32723035815256174,
+                    0.761956007471976
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.05821428335480236,
+              "action_rms": 0.6181276504882549,
+              "delta_u_rms": 0.22870166701725037,
+              "median_call_us": 373.95
+            },
+            "test": {
+              "J": 0.0033568018085196904,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.0017847968537902958,
+                  "rmse": 0.03446513210095842,
+                  "delta_u_rms": 0.1735761066374951,
+                  "action_rms": 0.7203924604110242,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00029696133268412856,
+                    "action": 0.008108832765891392,
+                    "increment": 0.0004707603874286104
+                  },
+                  "peak_abs_states": [
+                    0.34712530489360033,
+                    0.3144155230713632
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.0015423957276317372,
+                  "rmse": 0.030909121607488637,
+                  "delta_u_rms": 0.17651041863304212,
+                  "action_rms": 0.6731269903242054,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00023884344963663026,
+                    "action": 0.007079686642233171,
+                    "increment": 0.00048681137321893414
+                  },
+                  "peak_abs_states": [
+                    0.30255551279081755,
+                    0.24799017984613517
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.0015166461853317287,
+                  "rmse": 0.0194987611204616,
+                  "delta_u_rms": 0.12146259918942641,
+                  "action_rms": 0.7074874915164161,
+                  "normalized_cost_terms": {
+                    "tracking": 9.505042130820622e-05,
+                    "action": 0.007820914853940483,
+                    "increment": 0.00023051817190392575
+                  },
+                  "peak_abs_states": [
+                    0.33267542403953687,
+                    0.18669594283738758
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.001372994647337203,
+                  "rmse": 0.015433116646684992,
+                  "delta_u_rms": 0.10269383613867263,
+                  "action_rms": 0.6808001769153929,
+                  "normalized_cost_terms": {
+                    "tracking": 5.954527235754636e-05,
+                    "action": 0.007242013763875473,
+                    "increment": 0.000164781624701196
+                  },
+                  "peak_abs_states": [
+                    0.32153052805181953,
+                    0.18770318399136587
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.0075732812859427776,
+                  "rmse": 0.14855100212923109,
+                  "delta_u_rms": 0.5131914484805841,
+                  "action_rms": 0.8021141190460389,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0055168500583997054,
+                    "action": 0.010052922812078174,
+                    "increment": 0.00411508535615
+                  },
+                  "peak_abs_states": [
+                    0.34669607664500507,
+                    0.7934628264039556
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.00801808227075198,
+                  "rmse": 0.15388995088033985,
+                  "delta_u_rms": 0.4852221772417055,
+                  "action_rms": 0.8168943898137127,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0059205292454883535,
+                    "action": 0.010426819439204968,
+                    "increment": 0.0036787587701122043
+                  },
+                  "peak_abs_states": [
+                    0.3678013924555073,
+                    0.8162548548550084
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.002511557223658293,
+                  "rmse": 0.06899832858045263,
+                  "delta_u_rms": 0.0984696022600995,
+                  "action_rms": 0.6830714010573342,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0011901923367240266,
+                    "action": 0.007290414670975461,
+                    "increment": 0.00015150410264472177
+                  },
+                  "peak_abs_states": [
+                    0.374085257400179,
+                    0.7637489261885188
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.0025346602737135087,
+                  "rmse": 0.07339023380331335,
+                  "delta_u_rms": 0.11064355926137887,
+                  "action_rms": 0.6468114743451698,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0013465316044262493,
+                    "action": 0.006536954427258943,
+                    "increment": 0.00019128120634416025
+                  },
+                  "peak_abs_states": [
+                    0.35053949380872046,
+                    0.7775650600133519
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.06814195585861632,
+              "action_rms": 0.7163373129286618,
+              "delta_u_rms": 0.22272121848030052,
+              "median_call_us": 373.95
+            }
+          }
+        },
+        "existing": {
+          "scores": {
+            "validation": {
+              "J": 0.00223282127193292,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.0022986103868385677,
+                  "rmse": 0.05331778139686142,
+                  "delta_u_rms": 0.25590268507672914,
+                  "action_rms": 0.7367244347431238,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0007106964532708755,
+                    "action": 0.008480670199180862,
+                    "increment": 0.0010232216285856188
+                  },
+                  "peak_abs_states": [
+                    0.33190524193001375,
+                    0.27673690136022405
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.0015562036129628644,
+                  "rmse": 0.044033244398476036,
+                  "delta_u_rms": 0.2148143384834515,
+                  "action_rms": 0.6046371429416876,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00048473165306398024,
+                    "action": 0.005712282416010731,
+                    "increment": 0.0007210187502825449
+                  },
+                  "peak_abs_states": [
+                    0.26669490395152295,
+                    0.20944618132063966
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.0005948721483852454,
+                  "rmse": 0.01667843191733743,
+                  "delta_u_rms": 0.026204473224446346,
+                  "action_rms": 0.43192010302895206,
+                  "normalized_cost_terms": {
+                    "tracking": 6.954252280531497e-05,
+                    "action": 0.002914921490633446,
+                    "increment": 1.0729287765167586e-05
+                  },
+                  "peak_abs_states": [
+                    0.21948505158652903,
+                    0.14613651973650002
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.002203076244977182,
+                  "rmse": 0.05577386843977035,
+                  "delta_u_rms": 0.23342121000388438,
+                  "action_rms": 0.6990317175683091,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0007776811001842027,
+                    "action": 0.007635083471351566,
+                    "increment": 0.0008513353324949609
+                  },
+                  "peak_abs_states": [
+                    0.321526955027529,
+                    0.3085933719212846
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.005556413671273102,
+                  "rmse": 0.1278833368048348,
+                  "delta_u_rms": 0.4471168554208938,
+                  "action_rms": 0.6747398704520194,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004088536958084703,
+                    "action": 0.007113654574650124,
+                    "increment": 0.003123648162522945
+                  },
+                  "peak_abs_states": [
+                    0.2909121993158654,
+                    0.6977805893936443
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.0029259898069516634,
+                  "rmse": 0.09037624750051838,
+                  "delta_u_rms": 0.3978410896556903,
+                  "action_rms": 0.511429575315885,
+                  "normalized_cost_terms": {
+                    "tracking": 0.002041966528068739,
+                    "action": 0.004086878289184163,
+                    "increment": 0.0024730864471629223
+                  },
+                  "peak_abs_states": [
+                    0.21983429759059137,
+                    0.5098276252987147
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.0007571861341686553,
+                  "rmse": 0.0336975814591967,
+                  "delta_u_rms": 0.08610245759837613,
+                  "action_rms": 0.4072036253886444,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0002838817490497992,
+                    "action": 0.0025908561332758664,
+                    "increment": 0.0001158380188200025
+                  },
+                  "peak_abs_states": [
+                    0.23170150617098637,
+                    0.5308998538989287
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.0019702181699060807,
+                  "rmse": 0.06686139382746033,
+                  "delta_u_rms": 0.09472637980480418,
+                  "action_rms": 0.5478667817561012,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0011176114961376873,
+                    "action": 0.004689968914871678,
+                    "increment": 0.0001402044848581877
+                  },
+                  "peak_abs_states": [
+                    0.3068486760259219,
+                    0.7480841809461893
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.061077735718056934,
+              "action_rms": 0.5766941563993403,
+              "delta_u_rms": 0.21951618615853447,
+              "median_call_us": 299.40000000000003
+            },
+            "test": {
+              "J": 0.0031590354675223647,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.0017002754041957142,
+                  "rmse": 0.04022079336397588,
+                  "delta_u_rms": 0.15644599833737824,
+                  "action_rms": 0.6727460695765967,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0004044280547069116,
+                    "action": 0.00707167615829311,
+                    "increment": 0.0003824273499340462
+                  },
+                  "peak_abs_states": [
+                    0.3237142134353217,
+                    0.2840339925719688
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.0014685669383582805,
+                  "rmse": 0.036338417081332994,
+                  "delta_u_rms": 0.16132285856206918,
+                  "action_rms": 0.6293695755702293,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0003301201389942284,
+                    "action": 0.006189157228960165,
+                    "increment": 0.00040664163585370905
+                  },
+                  "peak_abs_states": [
+                    0.2805945038115694,
+                    0.21920288043210912
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.001430006009463138,
+                  "rmse": 0.029813057359193616,
+                  "delta_u_rms": 0.09818180472104067,
+                  "action_rms": 0.6528608426392893,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00022220459727564215,
+                    "action": 0.0066598012476825445,
+                    "increment": 0.0001506197934106338
+                  },
+                  "peak_abs_states": [
+                    0.30800163381101675,
+                    0.16578984243303344
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.0012913684702197102,
+                  "rmse": 0.02644800849923995,
+                  "delta_u_rms": 0.08139239010083228,
+                  "action_rms": 0.6283052352995494,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00017487428839396715,
+                    "action": 0.006168241698512846,
+                    "increment": 0.0001035112682238447
+                  },
+                  "peak_abs_states": [
+                    0.2974875760602698,
+                    0.1672575390276071
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.007005387170924388,
+                  "rmse": 0.1441972339093082,
+                  "delta_u_rms": 0.49392219544927546,
+                  "action_rms": 0.7491541695516166,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005198210566773936,
+                    "action": 0.008769249527446442,
+                    "increment": 0.0038118614868348794
+                  },
+                  "peak_abs_states": [
+                    0.3182455776571627,
+                    0.7330189590273444
+                  ],
+                  "violations": 0,
+                  "max_violation": 2.220446049250313e-16
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.007463025047224009,
+                  "rmse": 0.15001124925460105,
+                  "delta_u_rms": 0.46636117584729014,
+                  "action_rms": 0.7620514702479085,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0056258437257315115,
+                    "action": 0.009073788176671859,
+                    "increment": 0.003398324161526048
+                  },
+                  "peak_abs_states": [
+                    0.3406772609680699,
+                    0.754570469765682
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.0024438026431251847,
+                  "rmse": 0.07247686387752265,
+                  "delta_u_rms": 0.08811118946953955,
+                  "action_rms": 0.6319775905709369,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0013132239493802368,
+                    "action": 0.006240557421622607,
+                    "increment": 0.00012130596421464216
+                  },
+                  "peak_abs_states": [
+                    0.3475769360603679,
+                    0.7461771266805302
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.002469852056668491,
+                  "rmse": 0.07560887977979196,
+                  "delta_u_rms": 0.10235602598377945,
+                  "action_rms": 0.6054139219418918,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0014291756753887584,
+                    "action": 0.005726969013766611,
+                    "increment": 0.0001636993133623771
+                  },
+                  "peak_abs_states": [
+                    0.32743853717988686,
+                    0.7641950906622712
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.07188931289062078,
+              "action_rms": 0.6664848594247523,
+              "delta_u_rms": 0.20601170480890063,
+              "median_call_us": 299.40000000000003
+            }
+          },
+          "selected": "candidate",
+          "selected_epoch": 1,
+          "cost": {
+            "common_expert_training_decisions": 432,
+            "total_common_expert_collection_decisions": 720,
+            "expert_control_function_evaluations_for_training": 1296,
+            "expert_control_function_evaluations_for_entire_collection": 2160,
+            "expert_function_calls_per_decision": 3,
+            "slsqp_solver_calls": "not_counted; feasible unconstrained QP solutions return directly",
+            "extra_training_mpc_calls": 0,
+            "student_plant_steps": 0,
+            "optimizer_updates": 192
+          },
+          "deployment": {
+            "python_isolated": true,
+            "product_package_imported": false,
+            "selected_version": "candidate",
+            "n_cases": 8,
+            "max_action_or_state_delta": 0.0,
+            "J": 0.0031590354675223647
+          },
+          "selection_sha256": "bf4438c33af56392c9525d677c6bad52610e06a9862012629ee3ce7728ed1401",
+          "relative_test_improvement": 0.05891510797431865,
+          "worst_test_relative_regression": -0.025568798200347298,
+          "artifact_id": "external_optimized_policy-6c566dcd4bf2"
+        },
+        "balanced": {
+          "scores": {
+            "validation": {
+              "J": 0.002235266107879974,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.0023004221536994445,
+                  "rmse": 0.05319966721345305,
+                  "delta_u_rms": 0.2552020655725332,
+                  "action_rms": 0.7380005221108541,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0007075511479055379,
+                    "action": 0.008510074541185832,
+                    "increment": 0.0010176264730076179
+                  },
+                  "peak_abs_states": [
+                    0.33569768795126675,
+                    0.28365485587854766
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.0015587733808092236,
+                  "rmse": 0.044406195935979415,
+                  "delta_u_rms": 0.2104772255200669,
+                  "action_rms": 0.6034755487266116,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0004929775593761486,
+                    "action": 0.0056903552798575775,
+                    "increment": 0.0006921978509785171
+                  },
+                  "peak_abs_states": [
+                    0.2677895096930907,
+                    0.21272794074778117
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.0005939527385601251,
+                  "rmse": 0.014738969353028866,
+                  "delta_u_rms": 0.03207432848633711,
+                  "action_rms": 0.43764174867848155,
+                  "normalized_cost_terms": {
+                    "tracking": 5.430930439738103e-05,
+                    "action": 0.0029926609404118624,
+                    "increment": 1.6074414810147754e-05
+                  },
+                  "peak_abs_states": [
+                    0.22279278222127766,
+                    0.15226054775057968
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.0021975315965294044,
+                  "rmse": 0.05408790463535396,
+                  "delta_u_rms": 0.2374455827309436,
+                  "action_rms": 0.7088769484460979,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0007313753569607863,
+                    "action": 0.007851664500597684,
+                    "increment": 0.0008809438243505841
+                  },
+                  "peak_abs_states": [
+                    0.3288679456849741,
+                    0.31765479203993247
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.0056044330545116,
+                  "rmse": 0.12792496423679273,
+                  "delta_u_rms": 0.450640986589628,
+                  "action_rms": 0.6858179786102906,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004091199118746174,
+                    "action": 0.0073491609341422666,
+                    "increment": 0.003173082793663645
+                  },
+                  "peak_abs_states": [
+                    0.2983845852771742,
+                    0.7172032654627147
+                  ],
+                  "violations": 0,
+                  "max_violation": 2.220446049250313e-16
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.002904186761262577,
+                  "rmse": 0.08943479958900738,
+                  "delta_u_rms": 0.39701723424470214,
+                  "action_rms": 0.5187230990248582,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0019996458443814783,
+                    "action": 0.004204275835343015,
+                    "increment": 0.0024628544419892607
+                  },
+                  "peak_abs_states": [
+                    0.21998089179503783,
+                    0.5205115611037078
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.0007550350909206664,
+                  "rmse": 0.03294827189851607,
+                  "delta_u_rms": 0.08025180935220157,
+                  "action_rms": 0.4120841790155652,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00027139715527463586,
+                    "action": 0.0026533339155458188,
+                    "increment": 0.00010063051412972042
+                  },
+                  "peak_abs_states": [
+                    0.24097089550692202,
+                    0.5437017613323263
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.0019677940867467523,
+                  "rmse": 0.0666433286373094,
+                  "delta_u_rms": 0.10102637845216796,
+                  "action_rms": 0.5490654169355805,
+                  "normalized_cost_terms": {
+                    "tracking": 0.001110333312965106,
+                    "action": 0.004710513001166296,
+                    "increment": 0.0001594738928618854
+                  },
+                  "peak_abs_states": [
+                    0.31632128892489714,
+                    0.759008030939463
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.06042301268743011,
+              "action_rms": 0.5817106801935426,
+              "delta_u_rms": 0.22051695136857255,
+              "median_call_us": 321.65
+            },
+            "test": {
+              "J": 0.0031722755287670497,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.0017030941875245012,
+                  "rmse": 0.039996959022687496,
+                  "delta_u_rms": 0.16170310964097845,
+                  "action_rms": 0.6742611040758026,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0003999391827656356,
+                    "action": 0.007103563069836255,
+                    "increment": 0.0004085608698056609
+                  },
+                  "peak_abs_states": [
+                    0.3278718730610974,
+                    0.29197237257517983
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.0014705558741896446,
+                  "rmse": 0.03592644594193589,
+                  "delta_u_rms": 0.16421509089017208,
+                  "action_rms": 0.631779795917286,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0003226773795047104,
+                    "action": 0.006236651727020117,
+                    "increment": 0.0004213530636885544
+                  },
+                  "peak_abs_states": [
+                    0.28458778645741295,
+                    0.22574547191503377
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.0014267700756474945,
+                  "rmse": 0.027312558802548438,
+                  "delta_u_rms": 0.10591832763924114,
+                  "action_rms": 0.6612469257234286,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00018649396708566654,
+                    "action": 0.00683199213716696,
+                    "increment": 0.00017529206452958801
+                  },
+                  "peak_abs_states": [
+                    0.3130909299017693,
+                    0.17224853218053524
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.0012878467877281737,
+                  "rmse": 0.023766669454163235,
+                  "delta_u_rms": 0.08961298904408747,
+                  "action_rms": 0.6364078527833776,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00014121364423586393,
+                    "action": 0.006328358673192958,
+                    "increment": 0.00012547637195962094
+                  },
+                  "peak_abs_states": [
+                    0.30285493794977186,
+                    0.1748090547195797
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.007099120464873462,
+                  "rmse": 0.14451149978830874,
+                  "delta_u_rms": 0.5000840841900653,
+                  "action_rms": 0.7644950662555243,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005220893392766588,
+                    "action": 0.009132073536391228,
+                    "increment": 0.00390756392594088
+                  },
+                  "peak_abs_states": [
+                    0.32888837225861717,
+                    0.7538255307319232
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.007499823270345228,
+                  "rmse": 0.14955613393733602,
+                  "delta_u_rms": 0.4719665824239527,
+                  "action_rms": 0.7772849714589865,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005591759299570598,
+                    "action": 0.00944018635712496,
+                    "increment": 0.0034805071082022764
+                  },
+                  "peak_abs_states": [
+                    0.3484213222335541,
+                    0.7756638235829649
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.002426459862509381,
+                  "rmse": 0.07106040224749352,
+                  "delta_u_rms": 0.09808281445655631,
+                  "action_rms": 0.640845468501867,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0012623951918938954,
+                    "action": 0.006416920539052771,
+                    "increment": 0.0001503162264331133
+                  },
+                  "peak_abs_states": [
+                    0.36110922411236485,
+                    0.7600457266722515
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.0024645337073185107,
+                  "rmse": 0.07512413420433789,
+                  "delta_u_rms": 0.11154178560145404,
+                  "action_rms": 0.6086665499865401,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0014109088849878426,
+                    "action": 0.005788671391758083,
+                    "increment": 0.00019439953023688656
+                  },
+                  "peak_abs_states": [
+                    0.3393831119104662,
+                    0.775587726780698
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.0709068504248514,
+              "action_rms": 0.6743734668378516,
+              "delta_u_rms": 0.21289059798581345,
+              "median_call_us": 321.65
+            }
+          },
+          "selected": "candidate",
+          "selected_epoch": 1,
+          "cost": {
+            "common_expert_training_decisions": 432,
+            "total_common_expert_collection_decisions": 720,
+            "expert_control_function_evaluations_for_training": 1296,
+            "expert_control_function_evaluations_for_entire_collection": 2160,
+            "expert_function_calls_per_decision": 3,
+            "slsqp_solver_calls": "not_counted; feasible unconstrained QP solutions return directly",
+            "extra_training_mpc_calls": 0,
+            "student_plant_steps": 0,
+            "optimizer_updates": 192
+          },
+          "deployment": {
+            "python_isolated": true,
+            "product_package_imported": false,
+            "selected_version": "candidate",
+            "n_cases": 8,
+            "max_action_or_state_delta": 0.0,
+            "J": 0.0031722755287670493
+          },
+          "selection_sha256": "62848f27f7fddb81a73b4aa9c6f25241498b4715fdb67033a8e73df5a3e007d8",
+          "relative_test_improvement": 0.05497085925189449,
+          "worst_test_relative_regression": -0.027667047581195647,
+          "artifact_id": "external_optimized_policy-e5c1c78cce9b"
+        },
+        "online": {
+          "scores": {
+            "validation": {
+              "J": 0.0022289762040164206,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.0023110253224318438,
+                  "rmse": 0.05469116695629627,
+                  "delta_u_rms": 0.2671774013157653,
+                  "action_rms": 0.7294008763687256,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0007477809357603684,
+                    "action": 0.00831290060074164,
+                    "increment": 0.0011153713089663358
+                  },
+                  "peak_abs_states": [
+                    0.33111495528497736,
+                    0.2730494553582042
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.001569496238325335,
+                  "rmse": 0.04562935736911975,
+                  "delta_u_rms": 0.22221736499348171,
+                  "action_rms": 0.5970869737122855,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0005205095634797108,
+                    "action": 0.005570513346513991,
+                    "increment": 0.000771571207885098
+                  },
+                  "peak_abs_states": [
+                    0.2643170503500288,
+                    0.2029202795628439
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.0005971857850766614,
+                  "rmse": 0.01746528590394644,
+                  "delta_u_rms": 0.03014408913379269,
+                  "action_rms": 0.43001802863380384,
+                  "normalized_cost_terms": {
+                    "tracking": 7.625905292664755e-05,
+                    "action": 0.002889304764845358,
+                    "increment": 1.4197907964156852e-05
+                  },
+                  "peak_abs_states": [
+                    0.22097589531383283,
+                    0.15032515934036153
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.0022038154073968494,
+                  "rmse": 0.05527747908764784,
+                  "delta_u_rms": 0.2469930949999522,
+                  "action_rms": 0.7011667087638587,
+                  "normalized_cost_terms": {
+                    "tracking": 0.000763899923571336,
+                    "action": 0.00768179302310534,
+                    "increment": 0.0009532123277758659
+                  },
+                  "peak_abs_states": [
+                    0.3252180974165938,
+                    0.31498852382631043
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.0055442266877311205,
+                  "rmse": 0.12715334399402317,
+                  "delta_u_rms": 0.45832247584044405,
+                  "action_rms": 0.6812544486352714,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004041993222215597,
+                    "action": 0.007251681621646058,
+                    "increment": 0.003282179560320538
+                  },
+                  "peak_abs_states": [
+                    0.2923658030184447,
+                    0.7103758541391786
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.002874844423896398,
+                  "rmse": 0.08911080466940978,
+                  "delta_u_rms": 0.4029642432139564,
+                  "action_rms": 0.5120517774901849,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0019851838772074262,
+                    "action": 0.0040968284817321544,
+                    "increment": 0.002537190332953072
+                  },
+                  "peak_abs_states": [
+                    0.2172703670129842,
+                    0.5137642251402038
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.0007584420222987935,
+                  "rmse": 0.03411125691218307,
+                  "delta_u_rms": 0.08341338169144842,
+                  "action_rms": 0.40487018716804135,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00029089446203223933,
+                    "action": 0.002561247944648201,
+                    "increment": 0.00010871550383130099
+                  },
+                  "peak_abs_states": [
+                    0.23546360598536922,
+                    0.5365358399772141
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.0019727737449743645,
+                  "rmse": 0.06742666268596575,
+                  "delta_u_rms": 0.1029382064499468,
+                  "action_rms": 0.5420130470039922,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0011365887102417515,
+                    "action": 0.004590283486289873,
+                    "increment": 0.0001655667866739355
+                  },
+                  "peak_abs_states": [
+                    0.312752258136549,
+                    0.7586041185144786
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.061358169697324015,
+              "action_rms": 0.5747327559720203,
+              "delta_u_rms": 0.22677128220484846,
+              "median_call_us": 267.35
+            },
+            "test": {
+              "J": 0.003154648286140705,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.0017119573096651686,
+                  "rmse": 0.041891480737142,
+                  "delta_u_rms": 0.16817688649157408,
+                  "action_rms": 0.6657907636619672,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0004387240395875849,
+                    "action": 0.006926208452774772,
+                    "increment": 0.00044192914296874684
+                  },
+                  "peak_abs_states": [
+                    0.32445475341831576,
+                    0.2893688022280179
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.0014756072784099415,
+                  "rmse": 0.03727574689334729,
+                  "delta_u_rms": 0.17276699170796014,
+                  "action_rms": 0.625460980706306,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00034737032661422254,
+                    "action": 0.006112522474782719,
+                    "increment": 0.00046638177224716203
+                  },
+                  "peak_abs_states": [
+                    0.28166003325078726,
+                    0.22088469161691615
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.0014333583195385267,
+                  "rmse": 0.030078746684380053,
+                  "delta_u_rms": 0.10866902220029953,
+                  "action_rms": 0.6521362290948874,
+                  "normalized_cost_terms": {
+                    "tracking": 0.000226182750525776,
+                    "action": 0.006645025957782804,
+                    "increment": 0.00018451494353076861
+                  },
+                  "peak_abs_states": [
+                    0.3096681068298206,
+                    0.173567000453537
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.0012940948608617078,
+                  "rmse": 0.02684796055616104,
+                  "delta_u_rms": 0.0909555780968637,
+                  "action_rms": 0.6271305388103038,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00018020324650629477,
+                    "action": 0.006145198636070343,
+                    "increment": 0.00012926433104585428
+                  },
+                  "peak_abs_states": [
+                    0.29977627840545007,
+                    0.1750574975186114
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.006998719317036166,
+                  "rmse": 0.14331357884517618,
+                  "delta_u_rms": 0.5093590441345348,
+                  "action_rms": 0.7591322825627783,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005134695470353133,
+                    "action": 0.009004403475452716,
+                    "increment": 0.0040538536850257345
+                  },
+                  "peak_abs_states": [
+                    0.32307440812139737,
+                    0.7452853802625646
+                  ],
+                  "violations": 0,
+                  "max_violation": 2.220446049250313e-16
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.0074223505044427466,
+                  "rmse": 0.14860261242225786,
+                  "delta_u_rms": 0.48310781379126755,
+                  "action_rms": 0.7735310810391547,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005520684104679946,
+                    "action": 0.009349223958337552,
+                    "increment": 0.0036467681210340316
+                  },
+                  "peak_abs_states": [
+                    0.34449077280362256,
+                    0.7712092866772685
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.002434165674733254,
+                  "rmse": 0.07219492917451692,
+                  "delta_u_rms": 0.09728944582873444,
+                  "action_rms": 0.6316862979822444,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0013030269496283784,
+                    "action": 0.006234805922789263,
+                    "increment": 0.00014789431671347273
+                  },
+                  "peak_abs_states": [
+                    0.3538284564826556,
+                    0.7565161849058971
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.00246693302443813,
+                  "rmse": 0.07586823591987685,
+                  "delta_u_rms": 0.11360354924746117,
+                  "action_rms": 0.6009877981495576,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0014389973053985231,
+                    "action": 0.005643536461322709,
+                    "increment": 0.00020165260002531776
+                  },
+                  "peak_abs_states": [
+                    0.3347382467733455,
+                    0.7757529603511574
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 0.07200916140410728,
+              "action_rms": 0.6669819965008998,
+              "delta_u_rms": 0.21799104143733694,
+              "median_call_us": 267.35
+            }
+          },
+          "selected": "candidate",
+          "selected_epoch": 9,
+          "cost": {
+            "common_expert_training_decisions": 432,
+            "total_common_expert_collection_decisions": 720,
+            "expert_control_function_evaluations_for_training": 1296,
+            "expert_control_function_evaluations_for_entire_collection": 2160,
+            "expert_function_calls_per_decision": 3,
+            "slsqp_solver_calls": "not_counted; feasible unconstrained QP solutions return directly",
+            "extra_training_mpc_calls": 0,
+            "student_plant_steps": 1152,
+            "optimizer_updates": 192
+          },
+          "deployment": {
+            "python_isolated": true,
+            "product_package_imported": false,
+            "selected_version": "candidate",
+            "n_cases": 8,
+            "max_action_or_state_delta": 0.0,
+            "J": 0.003154648286140705
+          },
+          "selection_sha256": "5089d42a6e960d7cd9e4a8952260bada811a6c656ae06be95d838e7d2d33597c",
+          "relative_test_improvement": 0.060222060732305516,
+          "worst_test_relative_regression": -0.026720444541528998,
+          "artifact_id": "external_optimized_policy-855f37ead1ae"
+        }
+      }
+    },
+    "motor": {
+      "imitation_rmse_over_action_span": 0.004414298338113922,
+      "baseline_tensors_sha256": "8ee4b37c730d74fe67d9b841115fdb9e01e17888fb1b9fa093fe869a5f0e3013",
+      "workspace": "test-output/pgac-online-benchmark-v2/motor",
+      "policies": {
+        "mpc": {
+          "scores": {
+            "validation": {
+              "J": 0.009222379581312234,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.005346637257415108,
+                  "rmse": 4.603196813639664,
+                  "delta_u_rms": 0.988121308795109,
+                  "action_rms": 5.568605670130697,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0033108470164222433,
+                    "action": 0.013458927564848847,
+                    "increment": 0.0004237776566384373
+                  },
+                  "peak_abs_states": [
+                    2.2972605834043316,
+                    8.465794791713174
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.0038970855240637657,
+                  "rmse": 3.90785721096432,
+                  "delta_u_rms": 0.7145211376744066,
+                  "action_rms": 4.803317017737275,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0023861481220759113,
+                    "action": 0.010013825682675566,
+                    "increment": 0.0002215887396629897
+                  },
+                  "peak_abs_states": [
+                    2.0779271723427826,
+                    6.603965760330955
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.004474921638964952,
+                  "rmse": 4.172756508401421,
+                  "delta_u_rms": 0.8693954907406404,
+                  "action_rms": 5.171526298992804,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0027206088872510034,
+                    "action": 0.011607935877245752,
+                    "increment": 0.0003280592531771522
+                  },
+                  "peak_abs_states": [
+                    2.082018831814025,
+                    7.432827764659598
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.0033272493883763285,
+                  "rmse": 3.694620108601014,
+                  "delta_u_rms": 0.8687355518841366,
+                  "action_rms": 4.259668331046707,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0021328465229498387,
+                    "action": 0.00787533606359472,
+                    "increment": 0.00032756139718204667
+                  },
+                  "peak_abs_states": [
+                    1.893599595171525,
+                    6.4625669325700015
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.017815886849656293,
+                  "rmse": 9.204357213518332,
+                  "delta_u_rms": 2.956892823739348,
+                  "action_rms": 8.245728460929715,
+                  "normalized_cost_terms": {
+                    "tracking": 0.013237529955319833,
+                    "action": 0.029510433095219765,
+                    "increment": 0.003794798251337351
+                  },
+                  "peak_abs_states": [
+                    4.730289770992647,
+                    9.295367595435371
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.01618324455159697,
+                  "rmse": 8.79900094074991,
+                  "delta_u_rms": 2.7864187784880956,
+                  "action_rms": 7.790404329515709,
+                  "normalized_cost_terms": {
+                    "tracking": 0.012097252743018407,
+                    "action": 0.02634131927835811,
+                    "increment": 0.0033698479206211345
+                  },
+                  "peak_abs_states": [
+                    4.700436847903108,
+                    9.182806316536986
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.011968666435051317,
+                  "rmse": 7.2763490894260485,
+                  "delta_u_rms": 1.855559605024132,
+                  "action_rms": 7.47341565052084,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00827269626112364,
+                    "action": 0.024241294047504264,
+                    "increment": 0.0014944016700509175
+                  },
+                  "peak_abs_states": [
+                    4.627632961796188,
+                    9.019577538796339
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.01076534500537314,
+                  "rmse": 6.890345679321735,
+                  "delta_u_rms": 1.7791428322689928,
+                  "action_rms": 7.111057134105997,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007418259934460581,
+                    "action": 0.021947540609600604,
+                    "increment": 0.0013738494868116894
+                  },
+                  "peak_abs_states": [
+                    4.478585864713621,
+                    8.481659551758534
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 6.0685604455778055,
+              "action_rms": 6.3029653616224675,
+              "delta_u_rms": 1.6023484410768576,
+              "median_call_us": 101.60000000000001
+            },
+            "test": {
+              "J": 0.00714039181197897,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.0065552385330743335,
+                  "rmse": 5.067627486961715,
+                  "delta_u_rms": 1.152113022018562,
+                  "action_rms": 6.220969698690341,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004012632554157799,
+                    "action": 0.016797076385426813,
+                    "increment": 0.000576113027562823
+                  },
+                  "peak_abs_states": [
+                    2.6391563678015704,
+                    8.522443749881516
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.008878276216755673,
+                  "rmse": 6.012636438760551,
+                  "delta_u_rms": 1.393443371558514,
+                  "action_rms": 7.006299130601185,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00564871827261112,
+                    "action": 0.021305654300114114,
+                    "increment": 0.0008427449781859196
+                  },
+                  "peak_abs_states": [
+                    3.337843600037505,
+                    9.124804672068267
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.006504488586740166,
+                  "rmse": 5.109099114752454,
+                  "delta_u_rms": 1.177067932321091,
+                  "action_rms": 6.073922616116787,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0040785771506819226,
+                    "action": 0.01601238539347873,
+                    "increment": 0.0006013406759108717
+                  },
+                  "peak_abs_states": [
+                    2.7327349392475426,
+                    8.15111213852132
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.002897259482161005,
+                  "rmse": 3.4402558935051117,
+                  "delta_u_rms": 0.8126285984485403,
+                  "action_rms": 3.9901056099068377,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0018492750957494772,
+                    "action": 0.006910131414153652,
+                    "increment": 0.00028661685721199606
+                  },
+                  "peak_abs_states": [
+                    1.7997734371976064,
+                    6.022798760374664
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.010050419961827383,
+                  "rmse": 6.891528552924549,
+                  "delta_u_rms": 2.3435027863101268,
+                  "action_rms": 6.239095924460958,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007420807155589739,
+                    "action": 0.01689510327891724,
+                    "increment": 0.002383682860001445
+                  },
+                  "peak_abs_states": [
+                    3.427020607079869,
+                    6.727295141945462
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.010633772031758061,
+                  "rmse": 7.134007985571967,
+                  "delta_u_rms": 2.3458915570506966,
+                  "action_rms": 6.302495429335509,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007952198427844467,
+                    "action": 0.017240212081942274,
+                    "increment": 0.002388544790556311
+                  },
+                  "peak_abs_states": [
+                    4.138419516673555,
+                    8.005761499355417
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.006683812059261224,
+                  "rmse": 5.524142020531121,
+                  "delta_u_rms": 1.4626842064533605,
+                  "action_rms": 5.37159998408071,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004768147666093383,
+                    "action": 0.012523474995215231,
+                    "increment": 0.0009285785971389312
+                  },
+                  "peak_abs_states": [
+                    3.6951779510755234,
+                    6.832326958458002
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.004919867624253909,
+                  "rmse": 4.757018991349666,
+                  "delta_u_rms": 1.1778435035751986,
+                  "action_rms": 4.570455635391531,
+                  "normalized_cost_terms": {
+                    "tracking": 0.003535817138134593,
+                    "action": 0.009066434338143319,
+                    "increment": 0.0006021333849454422
+                  },
+                  "peak_abs_states": [
+                    3.2678879350684262,
+                    5.974387463458411
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 5.492039560544642,
+              "action_rms": 5.7218680035729825,
+              "delta_u_rms": 1.4831468722170111,
+              "median_call_us": 101.60000000000001
+            }
+          }
+        },
+        "imitation": {
+          "scores": {
+            "validation": {
+              "J": 0.009254533861654722,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.005403404699581137,
+                  "rmse": 4.6486142205458245,
+                  "delta_u_rms": 0.9536689919469026,
+                  "action_rms": 5.557939632790187,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0033765022142907596,
+                    "action": 0.013407418820199617,
+                    "increment": 0.00039474155651085985
+                  },
+                  "peak_abs_states": [
+                    2.3217145466105182,
+                    8.31743079911543
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.003872483586444193,
+                  "rmse": 3.8782258967868803,
+                  "delta_u_rms": 0.7458354607369532,
+                  "action_rms": 4.820319742814224,
+                  "normalized_cost_terms": {
+                    "tracking": 0.002350099391641938,
+                    "action": 0.010084844801633934,
+                    "increment": 0.00024143686392912473
+                  },
+                  "peak_abs_states": [
+                    2.1437166281705786,
+                    6.546670013060981
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.004451807087799408,
+                  "rmse": 4.11682179315396,
+                  "delta_u_rms": 0.9243091157218152,
+                  "action_rms": 5.24177440253592,
+                  "normalized_cost_terms": {
+                    "tracking": 0.002648159636966779,
+                    "action": 0.011925433544739928,
+                    "increment": 0.00037081047804099135
+                  },
+                  "peak_abs_states": [
+                    2.1280532880137915,
+                    7.421786342531191
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.0033926480445722173,
+                  "rmse": 3.745845230783783,
+                  "delta_u_rms": 0.9189615941562779,
+                  "action_rms": 4.26739041316681,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0021923994520290013,
+                    "action": 0.007903915337842014,
+                    "increment": 0.00036653229667285044
+                  },
+                  "peak_abs_states": [
+                    1.8670906511888727,
+                    6.255110556501199
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.017955876028291254,
+                  "rmse": 9.264822287301119,
+                  "delta_u_rms": 2.756804470633165,
+                  "action_rms": 8.23206900202421,
+                  "normalized_cost_terms": {
+                    "tracking": 0.013412020627386178,
+                    "action": 0.029412743079031176,
+                    "increment": 0.0032985984762599844
+                  },
+                  "peak_abs_states": [
+                    4.682562803328743,
+                    9.398872322834881
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.016223234846828506,
+                  "rmse": 8.879441163552983,
+                  "delta_u_rms": 2.550907305453382,
+                  "action_rms": 7.630656078447677,
+                  "normalized_cost_terms": {
+                    "tracking": 0.012319449277656115,
+                    "action": 0.025272097303624348,
+                    "increment": 0.0028242743407185062
+                  },
+                  "peak_abs_states": [
+                    4.575607965573315,
+                    9.135326184728996
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.01194086609856257,
+                  "rmse": 7.259119802879197,
+                  "delta_u_rms": 1.6839837908472008,
+                  "action_rms": 7.49586024516451,
+                  "normalized_cost_terms": {
+                    "tracking": 0.008233565673836393,
+                    "action": 0.024387118409304586,
+                    "increment": 0.0012308165832622003
+                  },
+                  "peak_abs_states": [
+                    4.638589184481068,
+                    9.071043528502605
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.010795950501158499,
+                  "rmse": 6.932176384012132,
+                  "delta_u_rms": 1.5480388128117029,
+                  "action_rms": 7.060778048331657,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007508604596727427,
+                    "action": 0.021638275454775265,
+                    "increment": 0.00104011465536956
+                  },
+                  "peak_abs_states": [
+                    4.457851544499424,
+                    8.420852903276595
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 6.090633347376985,
+              "action_rms": 6.288348445659399,
+              "delta_u_rms": 1.5103136927884249,
+              "median_call_us": 311.65000000000003
+            },
+            "test": {
+              "J": 0.007125265291375759,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.006496988690160718,
+                  "rmse": 5.00557368464353,
+                  "delta_u_rms": 1.1511579408885078,
+                  "action_rms": 6.2694916909709,
+                  "normalized_cost_terms": {
+                    "tracking": 0.003914963736311846,
+                    "action": 0.017060124159354668,
+                    "increment": 0.0005751582486417836
+                  },
+                  "peak_abs_states": [
+                    2.732494876471891,
+                    8.511095564936115
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.008787362765559454,
+                  "rmse": 5.931156388565301,
+                  "delta_u_rms": 1.397438954653974,
+                  "action_rms": 7.072796989662466,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0054966587665029685,
+                    "action": 0.021712004017785783,
+                    "increment": 0.0008475849097154476
+                  },
+                  "peak_abs_states": [
+                    3.4781527984255565,
+                    9.077397868673875
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.006419333288592667,
+                  "rmse": 4.996977460290209,
+                  "delta_u_rms": 1.2511916148432638,
+                  "action_rms": 6.185144855604661,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0039015287091638106,
+                    "action": 0.01660417399514445,
+                    "increment": 0.0006794620039297284
+                  },
+                  "peak_abs_states": [
+                    2.8701314337339587,
+                    8.230133292014909
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.0029395344063153934,
+                  "rmse": 3.469707553266109,
+                  "delta_u_rms": 0.8534190484288702,
+                  "action_rms": 4.007959520248624,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0018810735164362326,
+                    "action": 0.006972109164909541,
+                    "increment": 0.0003161128785682458
+                  },
+                  "peak_abs_states": [
+                    1.81965191741178,
+                    5.870178944929451
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.010048686570869837,
+                  "rmse": 6.827505316519157,
+                  "delta_u_rms": 2.4054870390040333,
+                  "action_rms": 6.3975936927027,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007283567007358959,
+                    "action": 0.017764411917061365,
+                    "increment": 0.0025114443987918366
+                  },
+                  "peak_abs_states": [
+                    3.6168500759514486,
+                    6.841346310301652
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.010563829994773403,
+                  "rmse": 7.15948069754682,
+                  "delta_u_rms": 2.2745570826895483,
+                  "action_rms": 6.153146036505777,
+                  "normalized_cost_terms": {
+                    "tracking": 0.008009088102897735,
+                    "action": 0.01643281516778071,
+                    "increment": 0.002245490417714058
+                  },
+                  "peak_abs_states": [
+                    4.098613880465872,
+                    7.876298920564753
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.006797658546970828,
+                  "rmse": 5.631056736817536,
+                  "delta_u_rms": 1.2426819762782746,
+                  "action_rms": 5.281961101763358,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004954499995821586,
+                    "action": 0.012108990052318223,
+                    "increment": 0.0006702510825377074
+                  },
+                  "peak_abs_states": [
+                    3.55799439165709,
+                    6.683382503643489
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.004948728067763774,
+                  "rmse": 4.7829655744300705,
+                  "delta_u_rms": 1.0872111301454963,
+                  "action_rms": 4.55993776232476,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0035744937009661213,
+                    "action": 0.00902475364421673,
+                    "increment": 0.0005130330041285795
+                  },
+                  "peak_abs_states": [
+                    3.3208130341159525,
+                    5.870888722940257
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 5.475552926509842,
+              "action_rms": 5.741003956222906,
+              "delta_u_rms": 1.4578930983664962,
+              "median_call_us": 311.65000000000003
+            }
+          }
+        },
+        "existing": {
+          "scores": {
+            "validation": {
+              "J": 0.00901982220068029,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.005217430827389849,
+                  "rmse": 4.353785029641713,
+                  "delta_u_rms": 1.0363748516312872,
+                  "action_rms": 5.861761875422119,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0029617881381769203,
+                    "action": 0.014913303942774415,
+                    "increment": 0.0004661774449191721
+                  },
+                  "peak_abs_states": [
+                    2.8539028087468616,
+                    8.8248465091377
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.0037602969864842365,
+                  "rmse": 3.6611296932933395,
+                  "delta_u_rms": 0.7534323132764517,
+                  "action_rms": 5.043559866887017,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0020943547861115913,
+                    "action": 0.011040579917913802,
+                    "increment": 0.0002463803171393685
+                  },
+                  "peak_abs_states": [
+                    2.476705760578378,
+                    6.763955345386742
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.0043868850055711435,
+                  "rmse": 4.0064402405766195,
+                  "delta_u_rms": 0.8668158491465133,
+                  "action_rms": 5.3533574758964475,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0025080567814549453,
+                    "action": 0.01243855740656961,
+                    "increment": 0.0003261153282689196
+                  },
+                  "peak_abs_states": [
+                    2.416218687982093,
+                    7.5906498967400315
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.0033112869850242,
+                  "rmse": 3.573205737171638,
+                  "delta_u_rms": 0.9937945958340957,
+                  "action_rms": 4.467133591832032,
+                  "normalized_cost_terms": {
+                    "tracking": 0.001994968631274423,
+                    "action": 0.00866114693024052,
+                    "increment": 0.00042865785534247137
+                  },
+                  "peak_abs_states": [
+                    2.3301220113075916,
+                    6.470667952698293
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.017562841786075124,
+                  "rmse": 8.682499030535435,
+                  "delta_u_rms": 3.0262017561191508,
+                  "action_rms": 9.295012068444015,
+                  "normalized_cost_terms": {
+                    "tracking": 0.011779029596132619,
+                    "action": 0.03749880614258676,
+                    "increment": 0.003974781713862254
+                  },
+                  "peak_abs_states": [
+                    5.98702066764765,
+                    9.76415555818274
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.01591789801257016,
+                  "rmse": 8.353206472013659,
+                  "delta_u_rms": 2.841544616633446,
+                  "action_rms": 8.653508335758463,
+                  "normalized_cost_terms": {
+                    "tracking": 0.010902509119389203,
+                    "action": 0.0325013917174658,
+                    "increment": 0.003504503389027134
+                  },
+                  "peak_abs_states": [
+                    5.704754140719102,
+                    9.6991771142645
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.011598309326277338,
+                  "rmse": 6.796431724433967,
+                  "delta_u_rms": 2.0056004977547346,
+                  "action_rms": 8.137433275473677,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007217419403889449,
+                    "action": 0.0287403733996468,
+                    "increment": 0.0017458478110217188
+                  },
+                  "peak_abs_states": [
+                    5.638520783340284,
+                    9.463105699024268
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.010403628676050273,
+                  "rmse": 6.385969534310001,
+                  "delta_u_rms": 1.943906794682124,
+                  "action_rms": 7.805037280728645,
+                  "normalized_cost_terms": {
+                    "tracking": 0.006371969827052421,
+                    "action": 0.026440367601373266,
+                    "increment": 0.0016400927197965842
+                  },
+                  "peak_abs_states": [
+                    5.510284004250749,
+                    8.703551529121517
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 5.726583432747047,
+              "action_rms": 6.827100471305302,
+              "delta_u_rms": 1.6834589093847252,
+              "median_call_us": 368.90000000000003
+            },
+            "test": {
+              "J": 0.00697968818754095,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.006334975752247503,
+                  "rmse": 4.759501823763231,
+                  "delta_u_rms": 1.1103484701448978,
+                  "action_rms": 6.52760315604747,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0035395090016258623,
+                    "action": 0.018493751285955252,
+                    "increment": 0.0005351014432088172
+                  },
+                  "peak_abs_states": [
+                    3.171531681802229,
+                    8.715875505155863
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.008532124712660528,
+                  "rmse": 5.567607417976278,
+                  "delta_u_rms": 1.4610214207737988,
+                  "action_rms": 7.489219427255797,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004843476931360076,
+                    "action": 0.024343926922563215,
+                    "increment": 0.0009264685728992575
+                  },
+                  "peak_abs_states": [
+                    4.154807556226284,
+                    9.344220329766749
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.006291025197072863,
+                  "rmse": 4.783459449681702,
+                  "delta_u_rms": 1.2694123415656757,
+                  "action_rms": 6.425330806482213,
+                  "normalized_cost_terms": {
+                    "tracking": 0.003575231922929558,
+                    "action": 0.017918782974274895,
+                    "increment": 0.0006993957000517585
+                  },
+                  "peak_abs_states": [
+                    3.382290416423952,
+                    8.509377203065677
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.00287351825519962,
+                  "rmse": 3.316093861740728,
+                  "delta_u_rms": 0.9374021661596659,
+                  "action_rms": 4.1846583987865795,
+                  "normalized_cost_terms": {
+                    "tracking": 0.001718199765605396,
+                    "action": 0.007600419233739172,
+                    "increment": 0.00038139011333369524
+                  },
+                  "peak_abs_states": [
+                    2.2539409573747604,
+                    6.0655142352122215
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.009847128832371847,
+                  "rmse": 6.299456917879178,
+                  "delta_u_rms": 2.6718265090197995,
+                  "action_rms": 7.355860189143979,
+                  "normalized_cost_terms": {
+                    "tracking": 0.006200493353158725,
+                    "action": 0.023484669757913756,
+                    "increment": 0.003098375388151444
+                  },
+                  "peak_abs_states": [
+                    4.811661350471379,
+                    7.146942910540137
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.010507596414866977,
+                  "rmse": 6.7716774273919365,
+                  "delta_u_rms": 2.483348739463882,
+                  "action_rms": 7.049728049765622,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00716493987197648,
+                    "action": 0.021570601378321265,
+                    "increment": 0.002676658403557661
+                  },
+                  "peak_abs_states": [
+                    5.065384322659826,
+                    8.313192841239164
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.006594838339558201,
+                  "rmse": 5.204405554015542,
+                  "delta_u_rms": 1.702891403124108,
+                  "action_rms": 5.959649087918025,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004232162057916846,
+                    "action": 0.015415545681910657,
+                    "increment": 0.00125861073386892
+                  },
+                  "peak_abs_states": [
+                    4.604730037101067,
+                    7.114827388209081
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.0048562979963500666,
+                  "rmse": 4.298686313790144,
+                  "delta_u_rms": 1.6146928878724323,
+                  "action_rms": 5.43586105410646,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0028872975038072967,
+                    "action": 0.012824906857444179,
+                    "increment": 0.0011316115981535653
+                  },
+                  "peak_abs_states": [
+                    4.456389321036354,
+                    6.719884496313657
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 5.125111095779843,
+              "action_rms": 6.303488771188269,
+              "delta_u_rms": 1.6563679922655326,
+              "median_call_us": 368.90000000000003
+            }
+          },
+          "selected": "candidate",
+          "selected_epoch": 15,
+          "cost": {
+            "common_expert_training_decisions": 360,
+            "total_common_expert_collection_decisions": 648,
+            "expert_control_function_evaluations_for_training": 1080,
+            "expert_control_function_evaluations_for_entire_collection": 1944,
+            "expert_function_calls_per_decision": 3,
+            "slsqp_solver_calls": "not_counted; feasible unconstrained QP solutions return directly",
+            "extra_training_mpc_calls": 0,
+            "student_plant_steps": 0,
+            "optimizer_updates": 192
+          },
+          "deployment": {
+            "python_isolated": true,
+            "product_package_imported": false,
+            "selected_version": "candidate",
+            "n_cases": 8,
+            "max_action_or_state_delta": 0.0,
+            "J": 0.006979688187540951
+          },
+          "selection_sha256": "731e0e2a834a94968d90e0b96b0fe176bd56d1ff50eebcd9ecd85bc46340b9c3",
+          "relative_test_improvement": 0.020431113492856423,
+          "worst_test_relative_regression": -0.005323218939934482,
+          "artifact_id": "external_optimized_policy-2a2121c36878"
+        },
+        "balanced": {
+          "scores": {
+            "validation": {
+              "J": 0.009051065124665664,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.005395335665484328,
+                  "rmse": 4.642714021317448,
+                  "delta_u_rms": 1.0018079063442413,
+                  "action_rms": 5.556367491975186,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0033679364818340043,
+                    "action": 0.013399834941787593,
+                    "increment": 0.0004355985595546148
+                  },
+                  "peak_abs_states": [
+                    2.6372581661453722,
+                    8.382632921745007
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.003898139069242845,
+                  "rmse": 3.915748040854157,
+                  "delta_u_rms": 0.7266091429726872,
+                  "action_rms": 4.789073816279659,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0023957941749145582,
+                    "action": 0.009954526049381691,
+                    "increment": 0.000229149673025826
+                  },
+                  "peak_abs_states": [
+                    2.303079609161168,
+                    6.452430366877284
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.004490515824691433,
+                  "rmse": 4.179773193516996,
+                  "delta_u_rms": 0.8564950698074192,
+                  "action_rms": 5.181649471083707,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0027297662420692603,
+                    "action": 0.011653425017874159,
+                    "increment": 0.0003183957485262221
+                  },
+                  "peak_abs_states": [
+                    2.3050164669591298,
+                    7.344028192877816
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.003376284416968987,
+                  "rmse": 3.697918159299394,
+                  "delta_u_rms": 0.9891002527655973,
+                  "action_rms": 4.333567420082651,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0021366560488869086,
+                    "action": 0.008150957718924394,
+                    "increment": 0.00042461775608548997
+                  },
+                  "peak_abs_states": [
+                    2.242657416794378,
+                    6.260759760610515
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.017309998419519725,
+                  "rmse": 8.722853685889142,
+                  "delta_u_rms": 3.0108553983792232,
+                  "action_rms": 8.991804726609208,
+                  "normalized_cost_terms": {
+                    "tracking": 0.011888777566473403,
+                    "action": 0.035092253577027645,
+                    "increment": 0.0039345704123043895
+                  },
+                  "peak_abs_states": [
+                    5.855354015634269,
+                    9.442670412565079
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.015602189513572222,
+                  "rmse": 8.36372627644393,
+                  "delta_u_rms": 2.7988719813161484,
+                  "action_rms": 8.347217924849055,
+                  "normalized_cost_terms": {
+                    "tracking": 0.010929987066762296,
+                    "action": 0.030241339880608238,
+                    "increment": 0.003400036617967266
+                  },
+                  "peak_abs_states": [
+                    5.6268371644972275,
+                    9.159197649198454
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.0117346845022953,
+                  "rmse": 6.946807633417793,
+                  "delta_u_rms": 1.9997621004180774,
+                  "action_rms": 7.959824993261018,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007540333796204955,
+                    "action": 0.02749948520978419,
+                    "increment": 0.0017356981155679338
+                  },
+                  "peak_abs_states": [
+                    5.613182515967545,
+                    9.151104985749773
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.010601373585550461,
+                  "rmse": 6.625450379863844,
+                  "delta_u_rms": 1.9277687740497003,
+                  "action_rms": 7.516266652306651,
+                  "normalized_cost_terms": {
+                    "tracking": 0.00685884261500593,
+                    "action": 0.02452008002976434,
+                    "increment": 0.0016129741519969988
+                  },
+                  "peak_abs_states": [
+                    5.437649778636402,
+                    8.301682642140593
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 5.886873923825338,
+              "action_rms": 6.584471562055892,
+              "delta_u_rms": 1.6639088282566368,
+              "median_call_us": 560.75
+            },
+            "test": {
+              "J": 0.007036404929388562,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.006567344293156655,
+                  "rmse": 5.091570025422444,
+                  "delta_u_rms": 1.090858729115956,
+                  "action_rms": 6.19187188939203,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0040506383318406735,
+                    "action": 0.016640311412605566,
+                    "increment": 0.0005164812356286801
+                  },
+                  "peak_abs_states": [
+                    2.936199923365488,
+                    8.306277470309379
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.008775347451870672,
+                  "rmse": 5.883220650967557,
+                  "delta_u_rms": 1.460273071465112,
+                  "action_rms": 7.152007619920706,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005408169566870489,
+                    "action": 0.02220104730703291,
+                    "increment": 0.0009255197236311423
+                  },
+                  "peak_abs_states": [
+                    3.9740653357254523,
+                    8.908982910155906
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.00641377595118187,
+                  "rmse": 4.967762598870591,
+                  "delta_u_rms": 1.2648065593980389,
+                  "action_rms": 6.233795462514354,
+                  "normalized_cost_terms": {
+                    "tracking": 0.003856041443552733,
+                    "action": 0.016866408797076626,
+                    "increment": 0.0006943297016911043
+                  },
+                  "peak_abs_states": [
+                    3.279807853015789,
+                    8.223846367186697
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.002932214674232091,
+                  "rmse": 3.438111542544266,
+                  "delta_u_rms": 0.9262682112246661,
+                  "action_rms": 4.054695833256647,
+                  "normalized_cost_terms": {
+                    "tracking": 0.001846970465465018,
+                    "action": 0.007135658984474312,
+                    "increment": 0.0003723840273981521
+                  },
+                  "peak_abs_states": [
+                    2.1662976671271235,
+                    5.861381130902224
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.009728723001108644,
+                  "rmse": 6.360180914329894,
+                  "delta_u_rms": 2.653430129907767,
+                  "action_rms": 7.104301833724865,
+                  "normalized_cost_terms": {
+                    "tracking": 0.006320609572344727,
+                    "action": 0.021905861347511494,
+                    "increment": 0.003055855665929839
+                  },
+                  "peak_abs_states": [
+                    4.664461075603327,
+                    6.8971657997357765
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.010307067316263166,
+                  "rmse": 6.776019730615261,
+                  "delta_u_rms": 2.4522463202054317,
+                  "action_rms": 6.820431558088027,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007174131779638642,
+                    "action": 0.02019022857576522,
+                    "increment": 0.002610031256493525
+                  },
+                  "peak_abs_states": [
+                    5.004776847679215,
+                    7.9251994930833565
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.006666574527479163,
+                  "rmse": 5.323574246361904,
+                  "delta_u_rms": 1.66683750618872,
+                  "action_rms": 5.800054268757902,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004428194180707456,
+                    "action": 0.014600967673844088,
+                    "increment": 0.001205879892377357
+                  },
+                  "peak_abs_states": [
+                    4.5224293404340825,
+                    6.847466359316532
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.004900192219816231,
+                  "rmse": 4.462271245240738,
+                  "delta_u_rms": 1.568546609883802,
+                  "action_rms": 5.17903340786331,
+                  "normalized_cost_terms": {
+                    "tracking": 0.003111228854078489,
+                    "action": 0.011641661041564347,
+                    "increment": 0.0010678552375772432
+                  },
+                  "peak_abs_states": [
+                    4.290790494027054,
+                    6.276008193293974
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 5.287838869294082,
+              "action_rms": 6.06702398418973,
+              "delta_u_rms": 1.6354083921736868,
+              "median_call_us": 560.75
+            }
+          },
+          "selected": "candidate",
+          "selected_epoch": 10,
+          "cost": {
+            "common_expert_training_decisions": 360,
+            "total_common_expert_collection_decisions": 648,
+            "expert_control_function_evaluations_for_training": 1080,
+            "expert_control_function_evaluations_for_entire_collection": 1944,
+            "expert_function_calls_per_decision": 3,
+            "slsqp_solver_calls": "not_counted; feasible unconstrained QP solutions return directly",
+            "extra_training_mpc_calls": 0,
+            "student_plant_steps": 0,
+            "optimizer_updates": 192
+          },
+          "deployment": {
+            "python_isolated": true,
+            "product_package_imported": false,
+            "selected_version": "candidate",
+            "n_cases": 8,
+            "max_action_or_state_delta": 0.0,
+            "J": 0.007036404929388561
+          },
+          "selection_sha256": "58b3ef47e6a775f0ef8b91c5418c951f9629e0b360337604390b8f65067e2c31",
+          "relative_test_improvement": 0.01247116540274662,
+          "worst_test_relative_regression": 0.010828955744141444,
+          "artifact_id": "external_optimized_policy-c29907d175fb"
+        },
+        "online": {
+          "scores": {
+            "validation": {
+              "J": 0.00909575799043667,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "validation-positive-0",
+                  "family": "positive",
+                  "noise_seed": 820021,
+                  "J": 0.005490611546984985,
+                  "rmse": 4.775468132469914,
+                  "delta_u_rms": 1.0371918151877195,
+                  "action_rms": 5.414489087297071,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0035632962319118275,
+                    "action": 0.012724258713740914,
+                    "increment": 0.00046691270030051944
+                  },
+                  "peak_abs_states": [
+                    2.7579468237114932,
+                    8.439872605701806
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-positive-1",
+                  "family": "positive",
+                  "noise_seed": 820022,
+                  "J": 0.0040634576410996095,
+                  "rmse": 4.145939481655277,
+                  "delta_u_rms": 0.6481899444687963,
+                  "action_rms": 4.587975072681335,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0026857522164918783,
+                    "action": 0.009136074334872093,
+                    "increment": 0.00018235685942294327
+                  },
+                  "peak_abs_states": [
+                    2.2082518569420584,
+                    6.305408797604823
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-0",
+                  "family": "negative",
+                  "noise_seed": 821021,
+                  "J": 0.004756455190123676,
+                  "rmse": 4.554125872008717,
+                  "delta_u_rms": 0.7589356517898497,
+                  "action_rms": 4.809304135518254,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0032406347590779924,
+                    "action": 0.010038804803781673,
+                    "increment": 0.0002499927619608003
+                  },
+                  "peak_abs_states": [
+                    2.1679079860963935,
+                    6.983530323443651
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-negative-1",
+                  "family": "negative",
+                  "noise_seed": 821022,
+                  "J": 0.0034781449747155677,
+                  "rmse": 3.8659066623766147,
+                  "delta_u_rms": 1.0390047045029769,
+                  "action_rms": 4.1554626174155,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0023351928628449845,
+                    "action": 0.007494735054139615,
+                    "increment": 0.0004685463437410235
+                  },
+                  "peak_abs_states": [
+                    2.3755660559857317,
+                    6.282928532860659
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 822021,
+                  "J": 0.016721558914477314,
+                  "rmse": 8.584599912857202,
+                  "delta_u_rms": 3.0230156232982206,
+                  "action_rms": 8.805528097594712,
+                  "normalized_cost_terms": {
+                    "tracking": 0.011514899322473108,
+                    "action": 0.03365335289823348,
+                    "increment": 0.003966416431729656
+                  },
+                  "peak_abs_states": [
+                    6.010811848554772,
+                    8.901291185576643
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 822022,
+                  "J": 0.015290601522845875,
+                  "rmse": 8.268607461075923,
+                  "delta_u_rms": 2.8682499820929346,
+                  "action_rms": 8.281432495213249,
+                  "normalized_cost_terms": {
+                    "tracking": 0.010682792085212571,
+                    "action": 0.02976654694998868,
+                    "increment": 0.0035706848783750517
+                  },
+                  "peak_abs_states": [
+                    5.685939594275962,
+                    9.079284084697488
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 823021,
+                  "J": 0.012133135880729529,
+                  "rmse": 7.260967768627463,
+                  "delta_u_rms": 2.050443673758966,
+                  "action_rms": 7.662365710185348,
+                  "normalized_cost_terms": {
+                    "tracking": 0.008237758271413575,
+                    "action": 0.025482573036729256,
+                    "increment": 0.0018247913451641341
+                  },
+                  "peak_abs_states": [
+                    5.655206449244062,
+                    8.741738588267706
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "validation-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 823022,
+                  "J": 0.010832098252516794,
+                  "rmse": 6.768549338359566,
+                  "delta_u_rms": 2.024336448839867,
+                  "action_rms": 7.438845429672473,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007158321897782455,
+                    "action": 0.02401754397854125,
+                    "increment": 0.0017786189488288202
+                  },
+                  "peak_abs_states": [
+                    5.5536941699755635,
+                    8.156603098546618
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 6.028020578678834,
+              "action_rms": 6.394425330697242,
+              "delta_u_rms": 1.6811709804924162,
+              "median_call_us": 435.55
+            },
+            "test": {
+              "J": 0.007147677073737248,
+              "feasible": true,
+              "per_condition": [
+                {
+                  "name": "blind_test-positive-0",
+                  "family": "positive",
+                  "noise_seed": 920033,
+                  "J": 0.006820530114136639,
+                  "rmse": 5.370516088372046,
+                  "delta_u_rms": 0.992436629833371,
+                  "action_rms": 5.939598563558957,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0045066317274160906,
+                    "action": 0.015311992663294974,
+                    "increment": 0.0004274871806575607
+                  },
+                  "peak_abs_states": [
+                    2.8665542882573276,
+                    8.038796082551276
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-positive-1",
+                  "family": "positive",
+                  "noise_seed": 920034,
+                  "J": 0.009062692841626413,
+                  "rmse": 6.149552376107069,
+                  "delta_u_rms": 1.4098501267698278,
+                  "action_rms": 6.921858718761825,
+                  "normalized_cost_terms": {
+                    "tracking": 0.005908905379138141,
+                    "action": 0.020795194497612454,
+                    "increment": 0.0008627071961601128
+                  },
+                  "peak_abs_states": [
+                    3.941059946597744,
+                    8.703292229679473
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-0",
+                  "family": "negative",
+                  "noise_seed": 921033,
+                  "J": 0.006760986403384318,
+                  "rmse": 5.380625494075534,
+                  "delta_u_rms": 1.1912110861025822,
+                  "action_rms": 5.82989208855699,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0045236141730461855,
+                    "action": 0.014751580626831335,
+                    "increment": 0.0006158784078358047
+                  },
+                  "peak_abs_states": [
+                    3.1354957107826023,
+                    7.780471250776919
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-negative-1",
+                  "family": "negative",
+                  "noise_seed": 921034,
+                  "J": 0.003031219266284756,
+                  "rmse": 3.611252119443768,
+                  "delta_u_rms": 0.9728231347471638,
+                  "action_rms": 3.8740699719999427,
+                  "normalized_cost_terms": {
+                    "tracking": 0.0020376784172167362,
+                    "action": 0.006514070376715119,
+                    "increment": 0.0004107573140187927
+                  },
+                  "peak_abs_states": [
+                    2.271741008679259,
+                    5.8441977022605744
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-0",
+                  "family": "cross_zero",
+                  "noise_seed": 922033,
+                  "J": 0.00943793574772867,
+                  "rmse": 6.246111749475617,
+                  "delta_u_rms": 2.703432389565475,
+                  "action_rms": 7.027400553107029,
+                  "normalized_cost_terms": {
+                    "tracking": 0.006095923747958961,
+                    "action": 0.02143418339141014,
+                    "increment": 0.0031721122764547284
+                  },
+                  "peak_abs_states": [
+                    4.852038046553377,
+                    6.528761913443971
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-cross_zero-1",
+                  "family": "cross_zero",
+                  "noise_seed": 922034,
+                  "J": 0.010222620061877503,
+                  "rmse": 6.724838673308698,
+                  "delta_u_rms": 2.487559627380985,
+                  "action_rms": 6.843466295693799,
+                  "normalized_cost_terms": {
+                    "tracking": 0.007066164872191919,
+                    "action": 0.02032683634561502,
+                    "increment": 0.0026857434460832576
+                  },
+                  "peak_abs_states": [
+                    5.022257805956377,
+                    7.971399289635512
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-0",
+                  "family": "midcourse",
+                  "noise_seed": 923033,
+                  "J": 0.0068262061779035274,
+                  "rmse": 5.401916606869071,
+                  "delta_u_rms": 1.8984047184544781,
+                  "action_rms": 5.818572748800911,
+                  "normalized_cost_terms": {
+                    "tracking": 0.004559484848057479,
+                    "action": 0.014694352792139138,
+                    "increment": 0.0015642102756294384
+                  },
+                  "peak_abs_states": [
+                    4.828892134266651,
+                    6.9341734458432995
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                },
+                {
+                  "name": "blind_test-midcourse-1",
+                  "family": "midcourse",
+                  "noise_seed": 923034,
+                  "J": 0.005019225976956157,
+                  "rmse": 4.413388939457,
+                  "delta_u_rms": 1.828945561775233,
+                  "action_rms": 5.427346976843472,
+                  "normalized_cost_terms": {
+                    "tracking": 0.003043437801706467,
+                    "action": 0.012784763544727414,
+                    "increment": 0.0014518410885144628
+                  },
+                  "peak_abs_states": [
+                    4.718871053417419,
+                    6.703328704744931
+                  ],
+                  "violations": 0,
+                  "max_violation": 0.0
+                }
+              ],
+              "rmse": 5.4122752558886,
+              "action_rms": 5.960275739665365,
+              "delta_u_rms": 1.6855829093286394,
+              "median_call_us": 435.55
+            }
+          },
+          "selected": "imitation",
+          "selected_epoch": 16,
+          "cost": {
+            "common_expert_training_decisions": 360,
+            "total_common_expert_collection_decisions": 648,
+            "expert_control_function_evaluations_for_training": 1080,
+            "expert_control_function_evaluations_for_entire_collection": 1944,
+            "expert_function_calls_per_decision": 3,
+            "slsqp_solver_calls": "not_counted; feasible unconstrained QP solutions return directly",
+            "extra_training_mpc_calls": 0,
+            "student_plant_steps": 1152,
+            "optimizer_updates": 192
+          },
+          "deployment": {
+            "python_isolated": true,
+            "product_package_imported": false,
+            "selected_version": "imitation",
+            "n_cases": 8,
+            "max_action_or_state_delta": 0.0,
+            "J": 0.00712526529137576
+          },
+          "selection_sha256": "abdabf29bc3fdb288feb472c1f111d6554f9e1570413e29174f7c9b955eacd9e",
+          "relative_test_improvement": -0.0031453961985969947,
+          "worst_test_relative_regression": 0.05322252318613496,
+          "artifact_id": "external_optimized_policy-010c71e9d233"
+        }
+      }
+    }
+  }
+}

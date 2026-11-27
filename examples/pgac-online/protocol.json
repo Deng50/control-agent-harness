@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "primary_case": "spring",
+  "transfer_case": "motor",
+  "case_sources": {"spring": "spring-damper", "motor": "dc-motor"},
+  "expert": "Frozen finite-horizon receding control law from the repository controller's horizon and q/r/s. Quadratic program includes state, output, force and force-increment bounds.",
+  "primary_metric": "Equal-scenario mean of per-step normalized next-output tracking, action and action-change quadratic terms; q/r/s taken from the case's published MPC before fitting. Lower is better.",
+  "min_relative_improvement": 0.005,
+  "max_worst_case_relative_regression": 0.05,
+  "hard_constraints": "No violations of any physical state, output, action or slew limit beyond the product's 1e-6 numerical tolerance.",
+  "imitation_quality": "On unused expert trajectories, projected action RMSE divided by full action span must be below 0.05.",
+  "partitions": {"student_train": 720011, "validation": 820021, "blind_test": 920033},
+  "paired_noise_seeds_per_family": 2,
+  "families": ["positive", "negative", "cross_zero", "midcourse"],
+  "evaluation_steps": 36,
+  "network": {"hidden_dims": [32, 32], "activation": "tanh", "epochs": 280, "learning_rate": 0.003, "batch_size": 32, "patience": 45, "seed": 57231},
+  "optimizer": {"epochs": 16, "batch_size": 16, "horizon": 12, "learning_rate": 0.0005, "seed": 731, "imitation_weight": 0.08, "constraint_weight": 100.0},
+  "arms": ["imitation", "existing", "balanced", "online"],
+  "pairing": "One tensor-identical baseline per case, one seed and matched Adam-update/minibatch/horizon budgets across optimizer arms. Estimate direction/phase-balanced sampling alone with balanced_starts, retaining older constant future exogenous inputs and full horizon. Only online uses additional original-Plant student episodes. Report actual costs separately.",
+  "blind_policy": "Freeze the protocol, exact generated scenarios and all candidate training configurations before any blind evaluation. Train all arms before opening any blind scores. Keep all outcomes. No retuning on this test."
+}

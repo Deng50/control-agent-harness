@@ -71,8 +71,8 @@
       "sha256": "a6d5d973754ec9072da887c7a5e7ba0b62f663998e672d6231d022e13a8188a4"
     },
     ".agents/skills/warmstart-pgac/SKILL.md": {
-      "bytes": 1299,
-      "sha256": "040e745ae0bb52b53ad9edff297ef424c878b64d167705c9be40eb444521971e"
+      "bytes": 1917,
+      "sha256": "d22b3e1bf1a17a5cf21863928fa08795a900d0d39398cdcc26091d6f23c0f1a6"
     },
     "README.md": {
       "bytes": 8956,
@@ -535,6 +535,10 @@
       "bytes": 1298,
       "sha256": "314c624195c99e9be15c70527e5875fa19928fa688020b56083329ccaea9bd44"
     },
+    "cases/spring/online-review.md": {
+      "bytes": 3049,
+      "sha256": "89294de2c967a1e30f8f0597e2026903e79215e8c5ba89a47383d448d278293f"
+    },
     "cases/spring/reference.json": {
       "bytes": 1364,
       "sha256": "4d4c94e48540aece5b288c601caaf1f8cacacf34b18c7939e5abb936f5c0eb3e"
@@ -632,16 +636,16 @@
       "sha256": "c5831b032720ea7eb1d55cdaf4cdf61950d0c2286dcab1e29e4387fab8ef7477"
     },
     "index.json": {
-      "bytes": 9979,
-      "sha256": "e7770d3e5010dd4f3a509500109b9e3d2998b92be56b054c899ec80f5e21ba01"
+      "bytes": 10087,
+      "sha256": "e770692e19477ba2c651c9e9b32f989d5f57337a882923d859874688fe037d4c"
     },
     "knowledge/controller-decisions.md": {
       "bytes": 5378,
       "sha256": "ae1724bd7442849e3122fad29e508440f7f8c7067a9ed4ad7dfffcb57d9856da"
     },
     "knowledge/distillation-decisions.md": {
-      "bytes": 4103,
-      "sha256": "a05c9e76d46a91cfc663ff95a407d20ad6ed6000f9c49dcd2c570a12cccb0dae"
+      "bytes": 4725,
+      "sha256": "48926f8965ef14b18afdf7c229b73a29cd16b452f8e1769a6eafa06a8e5e0f10"
     },
     "knowledge/estimation.md": {
       "bytes": 1819,
@@ -660,8 +664,8 @@
       "sha256": "dfe3241b2f406b2cdc36088ca0646bb36da861666ad15d81bdbfc1791e9c5b87"
     },
     "knowledge/pgac.md": {
-      "bytes": 2061,
-      "sha256": "fe5761c7cad984de400968ae764fdf747feb39814ab08530eeb5744c199ab130"
+      "bytes": 3024,
+      "sha256": "9621c97f60fe5aea473d94eb97f73f8c09e660050f409d283f5df4edf2a7c631"
     },
     "knowledge/physics.md": {
       "bytes": 932,

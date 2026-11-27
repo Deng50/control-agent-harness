@@ -1,0 +1,564 @@
+{
+  "started": "2026-11-27T14:37:30.223Z",
+  "session_id": "session-8d5bc5e9-347d-4ee4-af4d-2efd4ffe3d05",
+  "role": "control-lightweight",
+  "provider": "deepseek-official",
+  "model": "deepseek-flash",
+  "workspace": "pgac-online-natural-task",
+  "user_request": "我有这个被控对象和 MPC，请采集专家数据，训练轻量网络，再用 PGAC 做在线闭环微调，并在独立工况上对比三种控制器。工作区内的材料说明.md 给出了原始程序、接口、工况和我的验收条件。请按这些文件执行并交付可加载的策略包，告知最终选用哪一版。",
+  "additional_operator_messages": [
+    "在这个任务的测试工作区里，确认卡工作目录已准备好，刚才的额外系统权限请求已结束。请保持当前权限，复用已有对象和专家，按已给工况配置从采集审核继续，直到交付。"
+  ],
+  "completed_turns": 9,
+  "final_turn_reason": "completed",
+  "final_answer_sha256": "e83294556b5c422e54e164e551024ef0c4287e3e7ad60468b51ca87acf85dfcb",
+  "post_delivery_questions": [
+    {
+      "turn": 8,
+      "prior_answer_sha256": "891521142eca8328cd011b5ca82224921b7a5d0f0b3a1d2ee850309987542244",
+      "original_accounting_excerpt": [
+        "- **MPC 求解**：1296 次（采集 720 + 验收 576）；PGAC 训练阶段新增 0 次"
+      ],
+      "question": "麻烦复核一下专家的成本。你给的 1296 次是控制决策还是 MPC 程序的实际执行次数？本次 Python 专家适配器每个成功决策在原模块执行两次、在新模块执行一次做一致性校验。两组推理计时各有最多 24 个上下文预检、4 次预热和 24 次计时，直接调用原始专家。请仅依据这次弹簧的已有报告，分别列出专家采集及训练子集、验收、计时和学生 PGAC 训练的决策数和实际调用数，补充一份简短勘误并说明权重和指标是否受影响。沿用当前结果。"
+    }
+  ],
+  "final_answer_accounting_excerpt": [
+    "复核结论：**1296 是控制决策数，不是程序执行次数**。此前表述有误，已据本次报告更正。勘误见 [勘误-专家计入.md](勘误-专家计入.md)，[交付说明.md](交付说明.md) 第 1 节已同步。",
+    "| 阶段 | 专家控制决策数 | 专家模块实际执行次数 | 依据 |",
+    "- 专家决策合计 720 + 576 = 1296；执行合计 **3888**，加计时直接调用后 **3944–3992 次**。"
+  ],
+  "loaded_skills": [
+    {
+      "seq": 23,
+      "skill": "distill-controller"
+    },
+    {
+      "seq": 115,
+      "skill": "warmstart-pgac"
+    },
+    {
+      "seq": 280,
+      "skill": "diagnose-windows-sandbox-acl"
+    }
+  ],
+  "confirmed_cards": {
+    "source": "test_fixture",
+    "count": 6,
+    "prepared": [
+      {
+        "seq": 185,
+        "operation": "register_material",
+        "received_confirmation": false
+      },
+      {
+        "seq": 388,
+        "operation": "collect_external_expert",
+        "config_file": "collection.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 445,
+        "operation": "train_external_imitation",
+        "config_file": "imitation.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 527,
+        "operation": "sample_model",
+        "config_file": "sampling.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 569,
+        "operation": "validate_differentiable_model",
+        "config_file": "qualification.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 619,
+        "operation": "optimize_external_policy",
+        "config_file": "online.json",
+        "received_confirmation": true
+      },
+      {
+        "seq": 701,
+        "operation": "evaluate_external_pgac",
+        "config_file": "evaluation.json",
+        "received_confirmation": true
+      }
+    ]
+  },
+  "role_tool_calls": [
+    {
+      "seq": 191,
+      "operation": "register_material"
+    },
+    {
+      "seq": 208,
+      "operation": "register_plant"
+    },
+    {
+      "seq": 224,
+      "operation": "register_expert"
+    },
+    {
+      "seq": 238,
+      "operation": "register_expert",
+      "config_file": "expert-adapter.json"
+    },
+    {
+      "seq": 254,
+      "operation": "collect_external_expert",
+      "config_file": "collection.json",
+      "error": true
+    },
+    {
+      "seq": 396,
+      "operation": "collect_external_expert",
+      "config_file": "collection.json",
+      "error": true
+    },
+    {
+      "seq": 419,
+      "operation": "collect_external_expert",
+      "config_file": "collection.json"
+    },
+    {
+      "seq": 469,
+      "operation": "train_external_imitation",
+      "config_file": "imitation.json"
+    },
+    {
+      "seq": 511,
+      "operation": "register_model",
+      "config_file": "model-source.json"
+    },
+    {
+      "seq": 551,
+      "operation": "sample_model",
+      "config_file": "sampling.json"
+    },
+    {
+      "seq": 593,
+      "operation": "validate_differentiable_model",
+      "config_file": "qualification.json"
+    },
+    {
+      "seq": 642,
+      "operation": "optimize_external_policy",
+      "config_file": "online.json"
+    },
+    {
+      "seq": 678,
+      "operation": "prepare_handoff"
+    },
+    {
+      "seq": 728,
+      "operation": "evaluate_external_pgac",
+      "config_file": "evaluation.json"
+    },
+    {
+      "seq": 847,
+      "operation": "prepare_bundle_archive"
+    },
+    {
+      "seq": 889,
+      "operation": "prepare_bundle_archive"
+    }
+  ],
+  "completed_operations": [
+    {
+      "operation": "register_material",
+      "job": "control-engineering-8f0a882fc07c40e5",
+      "artifact": "material-51d956bfb7a3",
+      "status": "verified"
+    },
+    {
+      "operation": "register_plant",
+      "job": "control-engineering-fb6cdc026de148ca",
+      "artifact": "plant_model-9faa4e8912bb",
+      "status": "verified"
+    },
+    {
+      "operation": "register_expert",
+      "job": "control-engineering-c8bd932f146240f1",
+      "artifact": "external_expert-d9f3481609f7",
+      "status": "verified"
+    },
+    {
+      "operation": "collect_external_expert",
+      "job": "control-engineering-0234b8d9096b4eb8",
+      "artifact": "external_expert_dataset-3aa80f489acd",
+      "status": "verified"
+    },
+    {
+      "operation": "train_external_imitation",
+      "job": "control-engineering-5d605fc47c424b81",
+      "artifact": "external_imitation_policy-034382e9aede",
+      "status": "verified"
+    },
+    {
+      "operation": "register_model",
+      "job": "control-engineering-87bd986005ff4739",
+      "artifact": "nominal_model-2f7293536cab",
+      "status": "verified"
+    },
+    {
+      "operation": "sample_model",
+      "job": "control-engineering-d2d37b7524304fe3",
+      "artifact": "sampled_dataset-9db5ecfb2742",
+      "status": "verified"
+    },
+    {
+      "operation": "validate_differentiable_model",
+      "job": "control-engineering-04616f708ea44feb",
+      "artifact": "differentiable_validation-2111317930ca",
+      "status": "verified"
+    },
+    {
+      "operation": "optimize_external_policy",
+      "job": "control-engineering-78baf6694c284075",
+      "artifact": "external_pgac_candidate-0fb1f9a7f8ea",
+      "status": "verified"
+    },
+    {
+      "operation": "prepare_handoff",
+      "job": "control-engineering-b4459ef6210549b2",
+      "artifact": "external_pgac_candidate-0fb1f9a7f8ea",
+      "status": "needs_input"
+    },
+    {
+      "operation": "evaluate_external_pgac",
+      "job": "control-engineering-e69e06e669634d1d",
+      "artifact": "external_optimized_policy-cb3943a33ca4",
+      "status": "verified"
+    },
+    {
+      "operation": "prepare_bundle_archive",
+      "job": "control-engineering-a566f9c5e0e04a6d",
+      "artifact": "external_optimized_policy-cb3943a33ca4",
+      "status": "verified"
+    }
+  ],
+  "failed_attempts": [
+    {
+      "operation": "prepare_bundle_archive",
+      "job": "control-engineering-3ccd84c5a1d84c6e"
+    },
+    {
+      "operation": "register_expert",
+      "job": "control-engineering-f52cf51769b84a23"
+    }
+  ],
+  "expert_work": {
+    "accounting": "Successful Python expert decisions are checked by two calls in the live module and one in a fresh module. The timing harness invokes the raw function directly.",
+    "collection_decisions": 720,
+    "collection_function_calls": 2160,
+    "train_decisions": 432,
+    "train_function_calls": 1296,
+    "evaluation_decisions": 576,
+    "evaluation_function_calls": 1728,
+    "timing_pairs": 2,
+    "timing_raw_function_calls": 104,
+    "additional_pgac_training_calls": 0
+  },
+  "training": {
+    "best_epoch": 9,
+    "trained_epochs": 16,
+    "optimizer_updates": 192,
+    "initial_action_parity": "exact_same_immutable_weights_and_feature_contract",
+    "replay": {
+      "mode": "online",
+      "expert_training_steps": 432,
+      "expert_training_episodes": 12,
+      "declared_student_conditions": 8,
+      "effective_student_conditions": 8,
+      "student_control_steps": 1152,
+      "original_plant_substeps": 1152,
+      "extra_mpc_calls": 0,
+      "student_episodes_collected": 32,
+      "retained_steps": 1152,
+      "retained_episodes": [
+        {
+          "id": 0,
+          "family": "positive",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-positive-0"
+        },
+        {
+          "id": 1,
+          "family": "positive",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-positive-1"
+        },
+        {
+          "id": 2,
+          "family": "negative",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-negative-0"
+        },
+        {
+          "id": 3,
+          "family": "negative",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-negative-1"
+        },
+        {
+          "id": 4,
+          "family": "cross_zero",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-cross_zero-0"
+        },
+        {
+          "id": 5,
+          "family": "cross_zero",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-cross_zero-1"
+        },
+        {
+          "id": 6,
+          "family": "midcourse",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-midcourse-0"
+        },
+        {
+          "id": 7,
+          "family": "midcourse",
+          "policy_sha256": "613bc0f1d0e55fb89a3034a4f35086bc09fd9174f1e1f43b0c53b0a5aea5508a",
+          "steps": 36,
+          "condition": "student_train-midcourse-1"
+        },
+        {
+          "id": 8,
+          "family": "positive",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-positive-0"
+        },
+        {
+          "id": 9,
+          "family": "positive",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-positive-1"
+        },
+        {
+          "id": 10,
+          "family": "negative",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-negative-0"
+        },
+        {
+          "id": 11,
+          "family": "negative",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-negative-1"
+        },
+        {
+          "id": 12,
+          "family": "cross_zero",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-cross_zero-0"
+        },
+        {
+          "id": 13,
+          "family": "cross_zero",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-cross_zero-1"
+        },
+        {
+          "id": 14,
+          "family": "midcourse",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-midcourse-0"
+        },
+        {
+          "id": 15,
+          "family": "midcourse",
+          "policy_sha256": "f42649c9c6627e1322d136257869843a3997e56a9e1b4b2920f7999be49b905c",
+          "steps": 36,
+          "condition": "student_train-midcourse-1"
+        },
+        {
+          "id": 16,
+          "family": "positive",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-positive-0"
+        },
+        {
+          "id": 17,
+          "family": "positive",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-positive-1"
+        },
+        {
+          "id": 18,
+          "family": "negative",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-negative-0"
+        },
+        {
+          "id": 19,
+          "family": "negative",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-negative-1"
+        },
+        {
+          "id": 20,
+          "family": "cross_zero",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-cross_zero-0"
+        },
+        {
+          "id": 21,
+          "family": "cross_zero",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-cross_zero-1"
+        },
+        {
+          "id": 22,
+          "family": "midcourse",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-midcourse-0"
+        },
+        {
+          "id": 23,
+          "family": "midcourse",
+          "policy_sha256": "fa36aa662de6a6ebb6e7dff7f476850cd69a32c65b5cf7e2a096997e7030acfd",
+          "steps": 36,
+          "condition": "student_train-midcourse-1"
+        },
+        {
+          "id": 24,
+          "family": "positive",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-positive-0"
+        },
+        {
+          "id": 25,
+          "family": "positive",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-positive-1"
+        },
+        {
+          "id": 26,
+          "family": "negative",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-negative-0"
+        },
+        {
+          "id": 27,
+          "family": "negative",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-negative-1"
+        },
+        {
+          "id": 28,
+          "family": "cross_zero",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-cross_zero-0"
+        },
+        {
+          "id": 29,
+          "family": "cross_zero",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-cross_zero-1"
+        },
+        {
+          "id": 30,
+          "family": "midcourse",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-midcourse-0"
+        },
+        {
+          "id": 31,
+          "family": "midcourse",
+          "policy_sha256": "aa9faf8b32199817522d3d4d4158b54dc5dd6ebefd15bb741551ac64b4f4ab70",
+          "steps": 36,
+          "condition": "student_train-midcourse-1"
+        }
+      ]
+    }
+  },
+  "final_acceptance": {
+    "selected_version": "candidate",
+    "candidate_accepted": true,
+    "approved": true,
+    "reason": "fixed_candidate_passed_original_test"
+  },
+  "test": {
+    "expert": {
+      "J": 0.003345288085608858,
+      "feasible": true
+    },
+    "imitation": {
+      "J": 0.0033568018085196904,
+      "feasible": true
+    },
+    "candidate": {
+      "J": 0.003154648286140705,
+      "feasible": true
+    }
+  },
+  "isolated_process_verification": {
+    "python_isolated": true,
+    "product_package_imported": false,
+    "selected_version": "candidate",
+    "n_cases": 8,
+    "max_action_or_state_delta": 0,
+    "J": 0.003154648286140705
+  },
+  "package": {
+    "path": "artifacts/external_optimized_policy-cb3943a33ca4/bundle",
+    "model_sha256": "1d7365d6cbca606512a26accf32e858ad65c5bb1dd98a10c0e4cb38cbd2dad60",
+    "report_sha256": "fd188a1729f858a938192ba943423edbbd5743eb55c6206d67f8ee514b8de263",
+    "archives": [
+      {
+        "path": ".report-downloads/a74f0f19b1e0ca2d9a20fdbe1db7dec3fbbc522ab2c6c6237007451a2bf8794a.zip",
+        "sha256": "27dbc9068960b87658aaf0b0ae290f45c7e75014dafc247c531fc2a1ebcf70bc"
+      }
+    ]
+  },
+  "pinned_fixture_sha256": {
+    "collection.json": "9ee7856d481fbdeb9de7f4edc81228bbaba084df1a404284fa99890188047926",
+    "evaluation.json": "14748088d6a259b9370be761ad30fae34a0c23372617bcf46225d3d16437ed4c",
+    "expert-adapter.json": "698c68c485cacc2d7c52072470139e8a6169909b3589a4ee9b9cf73ed9aacc4e",
+    "imitation.json": "39b05edcef641d7ae85309b443072409ad9e82a294cb9e90bbccd5a4c8b8f3bc",
+    "model-source.json": "86bee8f7b1291576d1e04070b2844582192b3ec7aa75c842bcb7a748ec2a840b",
+    "model.json": "ed18ed2737f1beaa6d1d7b5a464a51777681a34f4b7d920c30b1ea8193ffc601",
+    "mpc.py": "67c0a9ab38dd197c67153a4c2a64aaa7dadeaf5cc0ebf9a510907996b6176178",
+    "online.json": "52ccdbde580edcb6517e94c3a5bdf16cb5487aa04f4bd210b42e602a4a84cf28",
+    "plant-adapter.json": "d65f5e350fd5cb22ebe689b770db30547f8698f89e0758785abe7a05c050a01e",
+    "plant.py": "9736798e3312ead7178ab6510e87f4a28705eb1587e0a7216ae6118f7c96d0c5",
+    "protocol.json": "af687ff80286a3c44104f72d6ddff0c32c44b5ce97491a3e1a27afc3464d8e63",
+    "qualification.json": "34c84c6e0c8dea6bcef40789ce88170965388fa46c461223497c35ab8ae949c1",
+    "sampling.json": "6b9ed2cda4956bda6fc2680a664b9e1c71d3fd387fa80ab63983bf530aba24a8",
+    "材料说明.md": "fac5b3cd9eb43fdc3119c3ceed795fe8a21e9e51eb1acf5ff8fca2dfa9b2be9d"
+  }
+}

@@ -244,11 +244,15 @@
       "暖启动",
       "感知残差",
       "Actor",
-      "Critic"
+      "Critic",
+      "学生在线闭环",
+      "PGAC经验池",
+      "片段回放",
+      "正负阶跃配平"
     ],
     "instructions": ".agents/skills/warmstart-pgac/SKILL.md",
     "knowledge": "knowledge/pgac.md",
-    "case": "cases/spring/README.md",
+    "case": "cases/spring/online-review.md",
     "code": "controlkit/policy.py",
     "evidence": "runs/pgac/report.json"
   },

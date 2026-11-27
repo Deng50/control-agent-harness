@@ -21,6 +21,7 @@ import threadpoolctl
 
 from .artifacts import atomic_json,read_json,file_hash
 from .contracts import ContractError,DataInterface,MaterialInterface,ModelInterface,canonical_hash
+from .pgac_scenarios import SCHEDULE_FIELDS, condition_hash, normalize_schedule
 from .runtime import OperationContext,Cancelled
 from .external_expert import (_expert_selection,_plant_selection,_collect_python,_vector,_bounded,
     ExpertCollectionStopped,ExpertCollectionCancelled)
@@ -58,7 +59,8 @@ def prepare_external_imitation_evaluation(workspace,policy_id,config=None):
     plan,reason=_evaluation_plan(selection,config)
     if plan is None:return {**result,'status':'not_applicable','reason':reason,'config_suggestions':None}
     scenarios=[{'name':'bound-'+row['split']+'-trajectory-'+str(row['trajectory_id']),'initial_state':row['x0'],'reference':row['reference'],
-        'disturbance':row['disturbance'],'steps':row['steps'],'initial_previous_action':row['initial_action'],'split':row['split']} for row in plan['trajectories']]
+        'disturbance':row['disturbance'],'steps':row['steps'],'initial_previous_action':row['initial_action'],'split':row['split'],
+        **{k:row[k] for k in SCHEDULE_FIELDS if k in row}} for row in plan['trajectories']]
     return {**result,'status':'proposal','confirmation_required':['signals','sampling'],
         'config_suggestions':{'scenarios':scenarios,'benchmark':settings,'metrics':metric_settings},
         'resolved_source_trajectory_ids':[row['trajectory_id'] for row in plan['trajectories']],
@@ -100,8 +102,7 @@ def _selection(workspace,policy_id):
 
 
 def _condition_hash(row):
-    fields={key:[0. if float(v)==0 else float(v) for v in row[key]] for key in ('x0','reference','disturbance','initial_action')}
-    return canonical_hash(fields)
+    return condition_hash(row)
 
 
 def _evaluation_plan(selection,config):
@@ -119,13 +120,14 @@ def _evaluation_plan(selection,config):
         if not isinstance(custom,list) or not custom:raise ContractError('Custom evaluation scenarios must be a nonempty list')
         trajectories=[]
         for index,row in enumerate(custom):
-            if not isinstance(row,dict) or set(row)-{'name','initial_state','reference','disturbance','steps','initial_previous_action','split'} or type(row.get('steps')) is not int or row['steps']<1:
+            if not isinstance(row,dict) or set(row)-SCHEDULE_FIELDS-{'name','initial_state','reference','disturbance','steps','initial_previous_action','split'} or type(row.get('steps')) is not int or not 1 <= row['steps'] <= 100000:
                 raise ContractError('Invalid explicit evaluation scenario')
             group=row.get('split','test')
             if group not in {'validation','test'}:raise ContractError('Autonomous evaluation does not label training conditions as independent held-out data')
             condition={'trajectory_id':index,'steps':row['steps'],'x0':_vector(row.get('initial_state'),i.nx,'initial_state'),
                 'reference':_vector(row.get('reference'),i.ny,'reference'),'disturbance':_vector(row.get('disturbance'),i.nd,'disturbance'),
                 'initial_action':_vector(row.get('initial_previous_action'),i.nu,'initial_previous_action'),'split':group}
+            condition.update(normalize_schedule(row,i,expert))
             if _condition_hash(condition) in training:raise ContractError('Custom scenario overlaps a training physical prefix; labels or duration do not make it independent')
             trajectories.append(condition)
         origin='explicit_custom_independent_conditions'

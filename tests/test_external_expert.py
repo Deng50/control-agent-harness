@@ -93,6 +93,24 @@ class ExternalExpertTests(unittest.TestCase):
         root, metadata = self.ws.resolve(result)
         return root, metadata, read_json(root / "report.json")
 
+    def test_dynamic_reference_disturbance_and_seeded_sensor_noise_at_decisions(self):
+        expert,plant,_,_=self.register()
+        config=configuration()
+        first=config['scenarios'][0]
+        first.update(family='reversal',reference_sequence=[first['reference'],[.1],[-.2],[-.2]],
+                     disturbance_sequence=[first['disturbance'],[-.04],[.02],[.07]],
+                     observation_noise_std=[.01],noise_seed=123)
+        root,_,_=self.collect(expert,plant,config)
+        with np.load(root/'expert.npz',allow_pickle=False) as rows:
+            idx=rows['trajectory_id']==0
+            np.testing.assert_array_equal(rows['reference'][idx],first['reference_sequence'])
+            np.testing.assert_array_equal(rows['d'][idx],first['disturbance_sequence'])
+            np.testing.assert_allclose(rows['observation'][idx]-rows['plant_y'][idx],
+                                       np.random.default_rng(123).normal(size=(4,1))*.01,atol=1e-15)
+            x,u,d=rows['x'][idx],rows['u'][idx],rows['d'][idx]
+            next_x=.85*(.85*x+.2*u+.05*d)+.2*u+.05*d
+            np.testing.assert_allclose(rows['next_x'][idx],next_x,atol=1e-15)
+
     def test_real_scipy_expert_memory_reset_period_and_causal_arrays_match_independent_oracle(self):
         expert, plant, _, _ = self.register()
         root, metadata, report = self.collect(expert, plant)
@@ -105,6 +123,7 @@ class ExternalExpertTests(unittest.TestCase):
         self.assertEqual(report["source"]["kind"], "declared_simulation"); self.assertFalse(report["source"]["measured"])
         self.assertFalse(any(row["kind"] in {"controller", "controller_design", "nominal_model"} for row in self.ws.manifest["artifacts"].values()))
         diagnostics = read_json(root / "diagnostics.json")
+        self.assertEqual(report["expert"]["source_invocations_this_adapter"], 3 * len(diagnostics))
         with np.load(root / "expert.npz", allow_pickle=False) as arrays:
             row = 0
             for trajectory, scenario in enumerate(configuration()["scenarios"]):
@@ -144,6 +163,7 @@ class ExternalExpertTests(unittest.TestCase):
         with patch.dict(os.environ, {"CONTROL_COLLECTION_RESUME": json.dumps(commits[0])}):
             resumed, _, report = self.collect(expert, plant, context=context)
         self.assertEqual(report["restored_trajectories"], 1)
+        self.assertEqual(report["expert"]["source_invocations_this_adapter"], 3 * (report["valid_rows"] - 4))
         with np.load(baseline / "expert.npz") as before, np.load(resumed / "expert.npz") as after:
             for key in before.files:
                 np.testing.assert_array_equal(after[key], before[key])

@@ -166,6 +166,8 @@ print(json.dumps(policy.predict(query['features'],query['previous_action']).toli
             with self.assertRaises(ExpertCollectionStopped) as stopped:_collect_python(guarded,expert,plan,OperationContext())
             self.assertEqual(len(stopped.exception.arrays['time']),0);guard=guarded.describe()['coverage_guard']
             self.assertEqual(guard['before_checks'],1);self.assertEqual(guard['after_checks'],1);self.assertEqual(guard['passed_subticks'],0);self.assertEqual(guard['violations'],1)
+            self.assertAlmostEqual(guard['first_observed_violation']['max_excess'],.5)
+            self.assertEqual(guard['first_observed_violation']['signal_group'],'x')
             self.assertEqual(guard['status'],'failed');self.assertIn('actual physical subtick',stopped.exception.report['failure']['message'])
         finally:expert.close();original.close()
 
@@ -216,6 +218,63 @@ print(json.dumps(policy.predict(query['features'],query['previous_action']).toli
         self.assertFalse(pg.final_acceptance(no_val_baseline,{'candidate':bad,'imitation':good(.2)},objective)['approved'],'A validation-infeasible baseline cannot become an approved fallback based on test alone')
         for bad_cfg in [{'q':0,'r':0,'s':0},{'q':1,'r':-1,'s':0},{'q':True,'r':0,'s':0},{'q':1,'r':0,'s':0,'comparison_atol':.1}]:
             with self.assertRaises(ContractError):pg.evaluation_config(bad_cfg)
+
+    def test_predeclared_relative_gain_and_regressing_negative_step(self):
+        objective={'q':1,'r':0,'s':0,'min_relative_improvement':.02,'max_worst_case_relative_regression':.05}
+        def scores(a,b):
+            return {'feasible':True,'score':(a+b)/2,'per_scenario':[
+                {'trajectory_id':1,'score':a},{'trajectory_id':2,'score':b}]}
+        base=scores(1.,1.)
+        good={'imitation':base,'candidate':scores(.93,.98)}
+        chosen=pg.validation_choice(good,objective)
+        self.assertEqual(chosen['choice'],'candidate')
+        for candidate in (scores(.6,1.06),scores(.99,.99)):
+            result={'imitation':base,'candidate':candidate}
+            self.assertEqual(pg.validation_choice(result,objective)['choice'],'imitation')
+            self.assertEqual(pg.final_acceptance(chosen,result,objective)['selected_version'],'imitation')
+
+    def test_fewer_violations_with_a_worse_peak_cannot_select_an_infeasible_version(self):
+        physical = ModelInterface.parse(self.physical)
+        condition = {'trajectory_id': 0, 'x0': [0.], 'initial_action': [0.], 'reference': [0.],
+                     'disturbance': [], 'time': [0., .2, .4], 'steps': 3}
+        plan = {'trajectories': [condition], 'control_period': .2}
+        objective = {'q': 1., 'r': .01, 's': .01}
+
+        def measure(actions):
+            u = np.array(actions).reshape(3, 1)
+            zeros = np.zeros_like(u)
+            arrays = dict(u=u, previous_u=np.vstack(([0.], u[:-1])), x=zeros, next_x=zeros,
+                          plant_y=zeros, next_y=zeros, reference=zeros, d=np.empty((3, 0)),
+                          trajectory_id=np.zeros(3), time=np.array(condition['time']))
+            result = {'arrays': arrays, 'status': 'completed', 'action_constraints': {'rate_bounds': None},
+                      'report': {'trajectories': [{'trajectory_id': 0, 'status': 'completed'}]}}
+            metrics = ep._metrics(result, physical, plan, {})[0]['metrics']['constraints']['input']
+            return metrics, pg.quadratic_result(result, physical, plan, objective)
+
+        original, baseline = measure([1.1, 1.1, 0.])
+        changed, candidate = measure([1.8, 0., 0.])
+        self.assertEqual((original['count'], changed['count']), (2, 1))
+        self.assertGreater(changed['max_violation'], original['max_violation'])
+        scores = {'imitation': baseline, 'candidate': candidate}
+        self.assertFalse(baseline['feasible'])
+        self.assertFalse(candidate['feasible'])
+        self.assertFalse(pg.final_acceptance(pg.validation_choice(scores, objective), scores, objective)['approved'])
+
+    def test_fresh_holdouts_bound_before_training_require_independent_physics(self):
+        selection=ep._selection(self.workspace,self.policy)
+        _,config=self.make_candidate()
+        config['condition_source']='fresh_holdout'
+        with self.assertRaisesRegex(ContractError,'physical prefix'):
+            pg.normalize_original_evaluation(selection,config)
+        for k,row in enumerate(config['scenarios']):
+            row['initial_state']=[.37+.01*k]
+        normalized=pg.normalize_original_evaluation(selection,config)
+        self.assertEqual(normalized['condition_source'],'fresh_holdout')
+        first,second=config['scenarios'][:2]
+        second.update({k:copy.deepcopy(first[k]) for k in ('initial_state','reference','disturbance','initial_previous_action')})
+        second.update(noise_seed=10,observation_noise_std=[.01])
+        with self.assertRaisesRegex(ContractError,'physical prefix'):
+            pg.normalize_original_evaluation(selection,config)
 
     def test_cancel_after_validation_archives_actual_prefix_and_preserves_active(self):
         candidate,config=self.make_candidate();before=copy.deepcopy(self.workspace.manifest['active'])
