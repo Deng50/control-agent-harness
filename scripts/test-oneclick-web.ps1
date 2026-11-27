@@ -36,11 +36,16 @@ function Read-ControlStartupResource($Python,$Directory) {
 }
 '@)
 [IO.File]::WriteAllText((Join-Path $scripts 'prepare-workspace.ps1'),'# Test fixture.')
+[IO.File]::WriteAllText((Join-Path $scripts 'knowledge-host-peers.mjs'),'// Test preload.')
 [IO.File]::WriteAllText((Join-Path $scripts 'start-web.ps1'),@'
 param([int]$Port)
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
-& node.exe (Join-Path $projectRoot 'vendor\deepseek-harness\apps\cli\lib\bin.js') web --patch (Join-Path $projectRoot 'config\web.overlay.yml') --port $Port
+$options = @()
+if (Test-Path -LiteralPath (Join-Path $projectRoot 'listening')) {
+    $options = @('--import', ([uri](Join-Path $PSScriptRoot 'knowledge-host-peers.mjs')).AbsoluteUri)
+}
+& node.exe @options (Join-Path $projectRoot 'vendor\deepseek-harness\apps\cli\lib\bin.js') web --patch (Join-Path $projectRoot 'config\web.overlay.yml') --port $Port
 exit $LASTEXITCODE
 '@)
 [IO.File]::WriteAllText($overlay,'# Test fixture.')
@@ -101,6 +106,16 @@ $port = Get-TestPort
 $freePort = Get-TestPort
 while ($freePort -eq $port) { $freePort = Get-TestPort }
 $launcher = Join-Path $scripts 'start-control-harness.ps1'
+$pattern = Get-ControlWebCommandPattern $fixture
+$validPreload = ([uri](Join-Path $scripts 'knowledge-host-peers.mjs')).AbsoluteUri
+$foreignPreload = ([uri](Join-Path $foreignRoot 'scripts\knowledge-host-peers.mjs')).AbsoluteUri
+$webArgs = '"{0}" web --patch "{1}" --port {2} --no-open' -f $cli,$overlay,$port
+if (("node $webArgs").Replace('/','\') -notmatch $pattern -or
+    ("node --import $validPreload $webArgs").Replace('/','\') -notmatch $pattern -or
+    ("node --import $foreignPreload $webArgs").Replace('/','\') -match $pattern -or
+    ("node --import $validPreload --import $foreignPreload $webArgs").Replace('/','\') -match $pattern) {
+    throw 'Unexpected Web Host command matching for legacy, same-checkout or foreign preload.'
+}
 $first = $null
 try {
     $launchArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"{0}"' -f $launcher),'-Port',[string]$port,'-NoOpen')

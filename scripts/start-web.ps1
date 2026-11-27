@@ -93,7 +93,8 @@ foreach ($patch in $AdditionalPatch) {
   $patches += $patchPath
 }
 if ($VerifyMatlab) { $patches += Join-Path $projectRoot 'config/matlab-startup-check.overlay.yml' }
-$launchArgs = @($cliPath, 'web')
+$knowledgeHostPeers = ([uri](Join-Path $PSScriptRoot 'knowledge-host-peers.mjs')).AbsoluteUri
+$launchArgs = @('--import', $knowledgeHostPeers, $cliPath, 'web')
 foreach ($patch in $patches) { $launchArgs += @('--patch', $patch) }
 $launchArgs += @('--port', $Port)
 if ($NoOpen) { $launchArgs += '--no-open' }

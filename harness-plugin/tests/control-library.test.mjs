@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { registerHooks } from 'node:module';
+import { registerKnowledgeHostPeers } from '../../scripts/knowledge-host-peers.mjs';
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
@@ -66,23 +66,10 @@ test('optional knowledge plugin imports packaged articles locally and reuses its
   const { Context } = await load(`${vendor}/vendor/cordis/lib/index.js`);
   const ctx = new Context();
   try {
-    // The Web loader supplies host packages to external bundles. Standalone
-    // node:test resolves those same two imports from the pinned build.
-    const hostPackages = new Map([
-      ['@deepseek-ai/cordis', 'vendor/cordis/lib/index.js'],
-      ['@deepseek-ai/dsh-storage-domain', 'packages/storage/storage-domain/lib/index.js'],
-      ['@deepseek-ai/dsh-tools', 'packages/core/tools/lib/index.js'],
-    ]);
-    const pluginModules = [knowledgePlugin, knowledgeTools].map(path => pathToFileURL(resolve(root, path)).href);
-    const hooks = registerHooks({ resolve(specifier, context, next) {
-      if (pluginModules.includes(context.parentURL) && hostPackages.has(specifier)) {
-        return next(pathToFileURL(resolve(root, vendor, hostPackages.get(specifier))).href, context);
-      }
-      return next(specifier, context);
-    } });
+    const hooks = registerKnowledgeHostPeers(root, resolve(root, '.dsh/profiles/web'));
     let serviceModule, toolsModule;
     try { [serviceModule, toolsModule] = await Promise.all([load(knowledgePlugin), load(knowledgeTools)]); }
-    finally { hooks.deregister(); }
+    finally { hooks?.deregister(); }
     ctx.provide('webServer', { register: () => () => {} });
     const storage = await load(`${vendor}/packages/storage/storage/lib/index.js`);
     const json = await load(`${vendor}/packages/storage/storage-json/lib/index.js`);

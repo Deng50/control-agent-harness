@@ -17,15 +17,19 @@ function Test-ControlWebReady([string]$Url) {
     finally { if ($response) { $response.Dispose() } }
 }
 
+function Get-ControlWebCommandPattern([string]$ProjectRoot) {
+    $cli = [regex]::Escape((Join-Path $ProjectRoot 'vendor\deepseek-harness\apps\cli\lib\bin.js'))
+    $overlay = [regex]::Escape((Join-Path $ProjectRoot 'config\web.overlay.yml'))
+    $preloadUri = ([uri](Join-Path $ProjectRoot 'scripts\knowledge-host-peers.mjs')).AbsoluteUri
+    $preload = [regex]::Escape($preloadUri.Replace('/','\'))
+    return '^\s*(?:"[^"]+"|[^\s"]+)(?:\s+--import\s+"?'+$preload+'"?)?\s+"?'+$cli+'"?\s+web\s+--patch\s+"?'+$overlay+'"?(?:\s+--patch\s+(?:"[^"]+"|[^\s"]+))*\s+--port\s+(?<port>\d{1,5})(?:\s+--no-open)?\s*$'
+}
+
 function Get-ControlExistingWeb([string]$ProjectRoot, [int]$Port, [switch]$FindOtherPort) {
     $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop)
     $requested = @($listeners | Where-Object LocalPort -eq $Port)
     if (-not $requested.Count -and -not $FindOtherPort) { return }
-
-    # Match the actual argv shape built by start-web.ps1, including paths with spaces.
-    $cli = [regex]::Escape((Join-Path $ProjectRoot 'vendor\deepseek-harness\apps\cli\lib\bin.js'))
-    $overlay = [regex]::Escape((Join-Path $ProjectRoot 'config\web.overlay.yml'))
-    $pattern = '^\s*(?:"[^"]+"|[^\s"]+)\s+"?'+$cli+'"?\s+web\s+--patch\s+"?'+$overlay+'"?(?:\s+--patch\s+(?:"[^"]+"|[^\s"]+))*\s+--port\s+(?<port>\d{1,5})(?:\s+--no-open)?\s*$'
+    $pattern = Get-ControlWebCommandPattern $ProjectRoot
     $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $fallback = $null
     foreach ($process in @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction Stop)) {
