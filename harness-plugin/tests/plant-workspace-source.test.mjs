@@ -55,7 +55,7 @@ test('a native read in this chat binds a confined workspace-source replay and it
       await ctx.plugin(fs.default,{cwd});
       await ctx.plugin(wd.default,{defaultDirectory:cwd});
       await ctx.plugin(attachments.default,{dshHome:join(root,'private-home')});
-      await ctx.plugin(toolFs,{read:true,readImage:false,write:false,edit:false});
+      await ctx.plugin(toolFs,{read:true,readImage:false,write:true,edit:false});
       const guard=installPlantWorkspace(ctx,config,opts=>preflightWorkspace({ctx,config,...opts}));
       const agent=agentOf(ctx);
       session.append('user/message',llm.createUserMessage({source:{kind:'user'},
@@ -65,6 +65,14 @@ test('a native read in this chat binds a confined workspace-source replay and it
       const observed=await nativeCall(ctx,agent,'read',{file_path:sourcePath});
       assert.equal(observed.isError,false,observed.error?.message);
       assert.equal(observed.meta.path,sourcePath);
+      // Reading a script does not turn every independent matrix/reference pair into a source conversion.
+      const measured={sampleTime:0.25,absTolerance:1e-12,trajectories:[{initialCondition:[4],inputs:[[3,1]],states:[[4],[5.25]]}]};
+      await guard.verifyReference(agent,'measured-reference.json',measured);
+      await assert.rejects(guard.verifyReference(agent,'measured-reference.json',measured,name),/回放/);
+      const notes=join(cwd,'接口说明.md');
+      const write=await nativeCall(ctx,agent,'write',{file_path:notes,content:'状态与输入采用 SI 单位。'});
+      assert.equal(write.isError,false,write.error?.message);
+      assert.equal(await readFile(notes,'utf8'),'状态与输入采用 SI 单位。');
       // Even an actual read of a same-name file outside the chat root grants no replay authority.
       assert.equal((await nativeCall(ctx,agent,'read',{file_path:outsidePath})).isError,false);
       assert.equal((await replay(outsidePath)).isError,true);
@@ -90,6 +98,8 @@ test('a native read in this chat binds a confined workspace-source replay and it
       const coldGuard=installPlantWorkspace(restored,config,()=>assert.fail('Using a recorded proof must not run a new worker.'));
       const coldAgent=agentOf(restored);
       await coldGuard.verifyReference(coldAgent,proof.referenceFile,reference);
+      await coldGuard.verifyReference(coldAgent,proof.referenceFile,reference,name);
+      await assert.rejects(coldGuard.verifyReference(coldAgent,proof.referenceFile,reference,'unread.py'));
       await assert.rejects(coldGuard.verifyReference(coldAgent,'invented.json',reference));
       await assert.rejects(coldGuard.verifyReference(coldAgent,proof.referenceFile,{...reference,parameters:{gain:3}}));
       await writeFile(sourcePath,source+'\n# The workspace source changed.\n');
@@ -106,14 +116,15 @@ test('a native read in this chat binds a confined workspace-source replay and it
       const completed=await nativeCall(ctx,agent,'control_build_zoh_plant');
       assert.equal(completed.isError,false,completed.error?.message);
       const raw='mcp__matlab__evaluate_matlab_code';
-      restored.tools.register(defineTool({name:raw,description:'Detect an unexpected extra dispatch',parameters:{},output,
-        execute:()=>assert.fail('A workspace-source delivery must seal the same turn.')}));
-      const denied=await nativeCall(restored,coldAgent,raw);
-      assert.equal(denied.error?.info.code,'PLANT_DELIVERY_COMPLETE');
+      restored.tools.register(defineTool({name:raw,description:'Observe the permitted next MATLAB operation',parameters:{},output,
+        execute:()=>({dispatched:true})}));
+      const next=await nativeCall(restored,coldAgent,raw);
+      assert.deepEqual(next.value,{dispatched:true},
+        'A workspace-source replay/build in ordinary chat must leave other independently authorized tools available.');
       const evidence=join(root,'workspace-source.json');
       await writeFile(evidence,JSON.stringify({workspace:cwd,session:sessionId,read:observed.meta.path,sourceSha,
         replay:proof,states:reference.trajectories[0].states,cold_proof_verified:true,
-        changed_source_rejected:true,unread_and_outside_rejected:true,fixture_delivery_gate:denied.error.info.code},null,2));
+        changed_source_rejected:true,unread_and_outside_rejected:true,ordinary_chat_continued:next.value.dispatched},null,2));
       console.log('原生工作区源码回放及来源校验：',evidence);
     } finally {
       await restored.fiber.dispose();

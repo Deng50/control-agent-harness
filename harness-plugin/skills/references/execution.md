@@ -28,7 +28,7 @@
 
    权限回执里的 `previous_failure` 表示 Host 沿用了上次记录。用户要求复检时，用上述工具实际检查。向用户提供 Host 卡片中的普通账户命令，禁止自行建议管理员提升、递归授予 FullControl 或切换沙箱权限。
 
-4. 调用 `control_build_zoh_plant`，提交新模型名、`Ac`、`Bc`、`initialCondition`、`sampleTime`、`inputNames` 和回放工具返回的 `referenceFile`。只在源回放成功且输入一致时声明完成对照。参考输入行顺序为控制后接扰动，状态比输入多一行，首行是初态。保持用户提供的物理参数和采样周期一致。
+4. 调用 `control_build_zoh_plant`，提交新模型名、`Ac`、`Bc`、`initialCondition`、`sampleTime`、`inputNames`、原文件名 `pythonSource` 和回放工具返回的 `referenceFile`。用成功回执的 `comparison.basis` 区分原始 Python 回放（`python_replay`）、给定数值轨迹（`supplied_trajectories`）及单独运行模型（`none`）。参考输入行顺序为控制后接扰动，状态比输入多一行，首行是初态。保持用户提供的物理参数和采样周期一致。
 5. 向用户报告通过的步骤、源文件摘要、保存绝对路径、重载仿真工况和最大误差。失败时报告工具的阶段、MATLAB 标识和消息、已生效修改及文件状态。会话核验通过后，在原轮次读回现场，只纠正失败步骤。等待上次调用终态时，可在原权限内检查工程文件、材料和作业记录。禁止另启普通 MATLAB 或手工组装 SLX。
 
    收到保存、重载和逐点比较成功的回执后，本轮直接向用户交付。若收到 `PLANT_DELIVERY_COMPLETE`，使用同一成功回执的路径和误差。用户在新消息中要求调试时，再按新请求读取模型。

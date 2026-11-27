@@ -15,8 +15,12 @@ function insideDirectory(parent, path) {
   return child !== '' && !isAbsolute(child) && child !== '..' && !child.startsWith('..' + sep);
 }
 
+export function isManagedWorkspace(codeRoot, workspace) {
+  return typeof workspace === 'string' && isAbsolute(workspace) && insideDirectory(join(codeRoot,'workspaces'),workspace);
+}
+
 export function canPrepareSessionWorkspace(codeRoot, workspace, security) {
-  return typeof workspace === 'string' && isAbsolute(workspace) && insideDirectory(join(codeRoot,'workspaces'),workspace) &&
+  return isManagedWorkspace(codeRoot,workspace) &&
     security?.owner_is_current_user === true && security.filesystem?.toUpperCase() === 'NTFS' &&
     security.effective_rights?.WRITE_DAC === true && security.right_errors?.WRITE_OWNER === 5;
 }
@@ -42,6 +46,29 @@ function prepareOwnedWorkspace(ctx, config, workspace) {
   })().finally(()=>pendingPreparations.delete(key));
   pendingPreparations.set(key,prepare);
   return prepare;
+}
+
+// A native shell does not publish engineering ledgers. Prepare only the
+// standing workspace grant it will actually consume; its own confined
+// dispatch verifies the result. An alternate runner that already works
+// needs no ACL adjustment.
+export async function prepareShellWorkspaceGrant(ctx, config, policy, signal) {
+  const workspace = policy.workspaceRoot;
+  let security;
+  try { security = inspectHostSecurity(workspace); } catch { return; }
+  if (!canPrepareSessionWorkspace(config.codeRoot,workspace,security)) return;
+  signal.throwIfAborted();
+  try {
+    // confine prepares the provider's grant but does not spawn a process.
+    await ctx.sandbox.confine([config.pythonPath,'-V'],policy,signal);
+    return;
+  } catch (error) {
+    if (error.api !== 'SetNamedSecurityInfoW' || error.win32Code !== 5 ||
+        !error.message.endsWith(`: grantWrite(${workspace})`)) throw error;
+  }
+  signal.throwIfAborted();
+  const receipt = await prepareOwnedWorkspace(ctx,config,workspace);
+  if (!receipt.prepared) throw new Error('目录的 ACL 不允许自动准备 PowerShell 工作区：' + (receipt.reason ?? workspace));
 }
 
 function windowsRecovery(codeRoot, workspace, security) {

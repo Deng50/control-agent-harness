@@ -21,7 +21,7 @@ import { preflightWorkspace } from './workspace-preflight.mjs';
 import { installCasePlans } from './case-plans.mjs';
 import { confirmationRequirements } from './case-requirements.mjs';
 import { prepareExecution, prepareControlCard, reviewControlRequest } from './review.mjs';
-import { installSessionWorkspace, ensureProfessionalPreset } from './session-workspace.mjs';
+import { installSessionWorkspace, ensureProfessionalPreset, installManagedShellWorkspace } from './session-workspace.mjs';
 import { requiresMatlabBatch, assertMatlabBatchAvailable, matlabCollectionJob } from './matlab-job.mjs';
 
 export { agents } from './roles.mjs';
@@ -93,6 +93,7 @@ export function apply(ctx, config) {
   };
   const casePlans = installCasePlans(ctx, { codeRoot: config.codeRoot, resolveRequirements: confirmationRequirements, proposeBatch, matlabGrants });
   installSessionWorkspace(ctx,preflight);
+  installManagedShellWorkspace(ctx,config);
   const slots = new WorkerSlots(config.maxConcurrentWorkers);
   const history = new JobHistory();
   const pendingWrites = new Set();

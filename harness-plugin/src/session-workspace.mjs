@@ -1,6 +1,7 @@
 /** Attach only the invoking native Session through Harness's own Workspace API. */
 import { isAbsolute } from 'node:path';
 import { authorizeWorkspace } from './job-history.mjs';
+import { isManagedWorkspace, prepareShellWorkspaceGrant } from './workspace-preflight.mjs';
 
 const professionalPresets = new Set(['control-model', 'control-controller', 'control-lightweight']);
 
@@ -73,5 +74,28 @@ export function installSessionWorkspace(ctx, preflight) {
         return { kind: 'success', text: JSON.stringify(await ensureSessionWorkspace(ctx, agent, args, preflight, signal)) };
       } catch (error) { return { kind: 'error', text: error instanceof Error ? error.message : String(error) }; }
     },
+  });
+}
+
+/** Native chat can select a professional preset without opening the engineering panel. */
+export function installManagedShellWorkspace(ctx, config) {
+  if (process.platform !== 'win32') return;
+  ctx.on('tools/execute', async (exec, next) => {
+    const { agent } = exec;
+    const session = agent?.session;
+    if (exec.name !== 'pwsh' || !session || agent.id !== session.id || exec.arguments?.sandbox_permissions !== undefined) return next();
+    const cwd = session.header.cwd;
+    if (!isManagedWorkspace(config.codeRoot,cwd)) return next();
+    const policy = ctx.sandboxPolicy.resolve({session});
+    if (policy.mode !== 'workspace-write' || policy.workspaceRoot !== cwd || policy.additionalWritableRoots?.length) return next();
+    const preset = ctx.agentPresets.presetForSession(session);
+    if (!professionalPresets.has(preset) || ctx.agentPresets.composedPreset(agent.ctx) !== preset) return next();
+    // The standard single-command tool advertises this field only with its
+    // confining executor. Persistent terminal tools also use the name pwsh.
+    const tool = ctx.tools.executable(exec.name,agent,exec.toolSet);
+    if (!tool?.parameters?.properties?.sandbox_permissions || agent.ctx.get('shell')?.sandboxMode === undefined) return next();
+    await prepareShellWorkspaceGrant(ctx,config,policy,exec.signal);
+    exec.signal.throwIfAborted();
+    return next();
   });
 }

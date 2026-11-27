@@ -9,7 +9,7 @@ import { readWorkspaceBytes, workspacePythonName, maxPythonBytes } from './works
 
 export function replayTool(ctx,config,getContext,check) {
   return defineTool({name:'control_replay_plant_source',
-    description:'Run the original Python step in the native workspace-write sandbox. Select a chat attachment by filename or ID, or a .py file in the Session workspace root previously inspected with read by filename or its absolute path. Supply either an inline request {parameters,sampleTime,absTolerance,trajectories:[{initialCondition,controls,disturbances}]} or a requestFile JSON filename. Returns a new referenceFile, source SHA-256 and sample count.',
+    description:'Generate Python reference trajectories for a source-to-Simulink build. Requires a module-level step(x,u,d,dt,parameters). Select an attached file by name or ID, or a previously inspected .py in the workspace root. Runs in the native workspace-write sandbox. Supply {parameters,sampleTime,absTolerance,trajectories:[{initialCondition,controls,disturbances}]} or requestFile. Use an empty disturbance row per step when there are no disturbances. Returns referenceFile, source SHA-256 and sample count.',
     parameters:{source:{type:'string',required:true},request:{type:'object',additionalProperties:true},
       requestFile:{type:'string',description:'Single workspace JSON filename, alternative to inline request'}},
     output:{schema:{type:'object',additionalProperties:true},render:(_args,value)=>[{type:'text',text:JSON.stringify(value)}]},

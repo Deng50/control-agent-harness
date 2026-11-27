@@ -73,7 +73,7 @@ export async function buildZohPlant(ctx, config, args, execution, preflight, ver
   if (reference !== undefined && referenceFile !== undefined) throw new Error('reference 与 referenceFile 只能选择一项。');
   return withSessionSlxTarget(ctx, config, model, execution, preflight, 'build_zoh_plant', async (target,workspace) => {
     const ref = referenceFile === undefined ? reference : await readPlantReference(workspace, referenceFile);
-    await verifyReference?.(execution.agent,referenceFile,ref);
+    const source=await verifyReference?.(execution.agent,referenceFile,ref,args.pythonSource,execution.callId);
     // Python case files can contain other settings. Only finite scalar physical
     // parameters are copied to MATLAB; model expressions never enter this interface.
     const physical = {};
@@ -99,7 +99,8 @@ export async function buildZohPlant(ctx, config, args, execution, preflight, ver
         'control_harness_build_zoh_plant', expressions, {model,target,validate:result=>verifySimulation(result,ref)});
       if (receipt.status === 'simulated') {
         const file = await verifySavedFile(target, receipt.bytes);
-        return {...receipt,...file,file_created_by_operation:true};
+        return {...receipt,...file,file_created_by_operation:true,comparison:{...receipt.comparison,
+          basis:source?'python_replay':ref?'supplied_trajectories':'none',...(source?{source}: {})}};
       }
     } catch (error) {
       const observed = receipt ?? error.modelReceipt;
@@ -129,7 +130,7 @@ export async function buildZohPlant(ctx, config, args, execution, preflight, ver
 export function buildZohPlantTool(ctx,config,preflight,verifyReference) {
   return defineTool({
     name:'control_build_zoh_plant',
-    description:'Build a discrete Simulink plant from inspected continuous LTI dynamics using exact zero-order hold. Supply case or user parameters, ordered control then disturbance inputs, initial state and period. Saves to this conversation, closes, reloads and simulates the SLX. For an uploaded Python source, use control_replay_plant_source and pass its returned referenceFile for independent sample comparison.',
+    description:'Build a discrete Simulink plant from continuous LTI matrices using exact zero-order hold. Saves, closes, reloads and simulates the SLX. For a conversion from Python, set pythonSource to the original filename and pass the referenceFile from control_replay_plant_source. Matrix-only builds may supply independent numeric trajectories. The receipt identifies the comparison basis.',
     parameters:{
       model:{type:'string', required:true, description:'Unique MATLAB model name'},
       Ac:{...matrix, required:true, description:'Continuous state matrix, n × n'},
@@ -137,6 +138,7 @@ export function buildZohPlantTool(ctx,config,preflight,verifyReference) {
       initialCondition:{...vector,required:true}, sampleTime:{type:'number',required:true},
       inputNames:{type:'array',items:{type:'string'},required:true},
       parameters:{type:'object',additionalProperties:true,description:'Optional named finite scalar physical parameters from the user or case; must agree with Python replay when supplied'},
+      pythonSource:{type:'string',description:'Original Python filename or attachmentId if converting from source; requires its verified source replay.'},
       referenceFile:{type:'string',description:'Optional reference JSON filename in the current conversation workspace (up to 2 MiB)'},
       reference:{type:'object',additionalProperties:false,description:'Alternatively supply trajectories inline',properties:{sampleTime:{type:'number'},absTolerance:{type:'number'},
         parameters:{type:'object',additionalProperties:true},source_sha256:{type:'string'},

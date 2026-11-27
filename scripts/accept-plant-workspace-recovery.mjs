@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import {randomUUID, createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-import {readFile, writeFile, copyFile} from 'node:fs/promises';
+import {readFile, writeFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
-import {openLayer, project} from './matlab-layer-harness.mjs';
+import {attachFixtureSource, configureFixtureFileGeneration, openLayer, project} from './matlab-layer-harness.mjs';
 import {matlabString} from '../harness-plugin/src/simulink-native.mjs';
 
 const [fixture,source,caseParameters] = process.argv.slice(2);
@@ -17,20 +17,17 @@ const ps = (script,args) => JSON.parse(execFileSync('powershell.exe',['-NoProfil
 const before = ps('new-workspace-acl-fixture.ps1',['-Name',name]);
 const evidence = {workspace,before,status:'running'};
 const record = () => writeFile(join(workspace,'recovery.json'),JSON.stringify(evidence,null,2));
-const sourceHash = createHash('sha256').update(await readFile(source)).digest('hex');
+const sourceData=await readFile(source);
+const sourceHash = createHash('sha256').update(sourceData).digest('hex');
 assert.equal(sourceHash,'c4f054989498454dd25c2f4f78668fcba29bad2231e51fba57d7ae737dbea7b9');
-await copyFile(source,join(workspace,'plant_numpy.py'));
 const p = JSON.parse(await readFile(caseParameters,'utf8'));
 const dt=p.sample_time, physics={mass:p.mass,damping:p.damping,stiffness:p.stiffness};
 const model = 'AclPlant_' + id.slice(0,8);
 const args = {model,Ac:[[0,1],[-p.stiffness/p.mass,-p.damping/p.mass]],Bc:[[0,0],[1/p.mass,1/p.mass]],
-  inputNames:['ControlForce','LoadForce'],sampleTime:dt,initialCondition:[0.5,0],referenceFile:'python-reference.json'};
+  inputNames:['ControlForce','LoadForce'],sampleTime:dt,initialCondition:[0.5,0]};
 const trajectories=[[0.5,0],[-0.27,0.17],[0,0]].map((initialCondition,i)=>({initialCondition,
   controls:Array.from({length:19},(_,k)=>[Math.sin(0.33*k+i)]),
   disturbances:Array.from({length:19},(_,k)=>[(k+i)%4===0 ? 0.11 : -0.07])}));
-await writeFile(join(workspace,'request.json'),JSON.stringify({parameters:physics,sampleTime:dt,absTolerance:1e-12,trajectories}));
-execFileSync(join(project,'.venv/Scripts/python.exe'),['-I','-B',join(project,'scripts/plant-step-reference.py'),
-  '--source',join(workspace,'plant_numpy.py'),'--request',join(workspace,'request.json'),'--output',join(workspace,args.referenceFile)],{windowsHide:true});
 const layer = await openLayer({fixture:resolve(fixture),workspace,managed:true});
 async function success(tool,arg) {
   const r=await layer.call(tool,arg);assert.equal(r.isError,false,r.error?.message);return r.value;
@@ -44,23 +41,29 @@ async function fixtureAction(fixtureModel, action) {
 }
 try {
   evidence.pid=layer.marker.matlab_pid; evidence.session=layer.agent.id; evidence.source_sha256=sourceHash;
+  await attachFixtureSource(layer,resolve(fixture),{name:'plant_numpy.py',data:sourceData});
+  await configureFixtureFileGeneration(layer,resolve(fixture));
   const first = await layer.call('control_build_zoh_plant',args);
   assert.equal(first.isError,true);
   evidence.refusal=JSON.parse(first.error.message);
   assert.equal(evidence.refusal.stage,'workspace_preflight');
   assert.match(first.error.message,/check_WRITE_OWNER/);
-  const denied=await layer.call('mcp__matlab__evaluate_matlab_code',{code:'disp(314159);'});
-  assert.equal(denied.isError,true);
-  assert.match(denied.error.message,/check_WRITE_OWNER/);
-  evidence.sibling_denial={message:denied.error.message,info:denied.error.info};
+  const sibling=await success('mcp__matlab__evaluate_matlab_code',{code:'disp(314159);'});
+  evidence.unrelated_matlab=sibling.content.map(block=>block.text).join('').trim();
+  assert.equal(evidence.unrelated_matlab,'314159');
   await record();
   evidence.repair=ps('prepare-workspace.ps1',['-Workspace',workspace,'-Prepare']);
   assert.ok(evidence.repair.prepared);
   assert.deepEqual(evidence.repair.added_leaf_rights,['WRITE_OWNER']);
   evidence.recheck=await success('control_recheck_plant_workspace',{});
-  evidence.build=await success('control_build_zoh_plant',args);
+  evidence.replay=await success('control_replay_plant_source',{source:'plant_numpy.py',
+    request:{parameters:physics,sampleTime:dt,absTolerance:1e-12,trajectories}});
+  assert.equal(evidence.replay.source_sha256,sourceHash);
+  evidence.build=await success('control_build_zoh_plant',{...args,pythonSource:'plant_numpy.py',referenceFile:evidence.replay.referenceFile});
   assert.equal(evidence.build.session_verified,true);
   assert.equal(evidence.build.matlab_pid,evidence.pid);
+  assert.equal(evidence.build.comparison.basis,'python_replay');
+  assert.equal(evidence.build.comparison.source.sha256,sourceHash);
   assert.equal(evidence.build.comparison.samples,60);
   assert.ok(evidence.build.comparison.max_abs_error<=1e-12);
   const invalidSolver=await layer.call('control_simulate_simulink_model',{model,solver:'auto',solverType:'Fixed-step'});

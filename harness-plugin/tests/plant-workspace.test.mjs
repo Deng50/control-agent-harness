@@ -19,6 +19,26 @@ const [{Context},{Session},prompt,tools,executor,projection,commands,policy,llm]
 ].map(built));
 const output={schema:{type:'object',additionalProperties:true},render:()=>[{type:'text',text:'{}'}]};
 
+const pythonAttachment={type:'file',attachment:{name:'plant.py',attachmentId:'sha256:'+'a'.repeat(64),bytes:17}};
+
+function sendUser(agent, text, attachments=[], rpcId) {
+  return agent.session.append('user/message',llm.createUserMessage({
+    source:rpcId ? {kind:'user',rpcId} : {kind:'user'},
+    content:[{type:'text',text},...attachments],
+  }),{surfaceOp:'append'});
+}
+
+async function registerPanelRequest(ctx,agent) {
+  const requestId=randomUUID();
+  const command=await ctx.commands.execute(agent,'/control-plant-request '+JSON.stringify({requestId}),[],AbortSignal.timeout(5000));
+  assert.equal(command.result.kind,'success',command.result.text);
+  return requestId;
+}
+
+async function sendPanelRequest(ctx,agent,text,attachment=pythonAttachment) {
+  sendUser(agent,text,[attachment],await registerPanelRequest(ctx,agent));
+}
+
 test('verified delivery stops native siblings, both live and after replay, until the next genuine user request',async()=>{
   const cwd=join(project,'test-output'), original=new Context(), restored=new Context();
   const raw='mcp__matlab__evaluate_matlab_code', build='control_build_zoh_plant', recheck='control_recheck_plant_workspace';
@@ -30,14 +50,12 @@ test('verified delivery stops native siblings, both live and after replay, until
   async function setup(ctx) {
     for (const p of [prompt.default,tools.default,executor,projection.default,commands.default]) await ctx.plugin(p);
     await ctx.plugin(policy.default,{mode:'workspace-write',workspaceRoot:cwd});
-    installPlantWorkspace(ctx,{codeRoot:project},async()=>{checks++;return {ok:true,workspace:cwd,sandbox_mode:'workspace-write'};});
+    const guard=installPlantWorkspace(ctx,{codeRoot:project},async()=>{checks++;return {ok:true,workspace:cwd,sandbox_mode:'workspace-write'};});
     for (const name of [raw,build,'read','pwsh']) ctx.tools.register(defineTool({
       name,description:'Count the native tool body',parameters:{},output:{...output,render:(_,v)=>[{type:'text',text:JSON.stringify(v)}]},
-      execute:async()=>{if(name===build)return buildBody(); if(name===raw)rawCalls++;return {};},
+      execute:async(_,exec)=>{if(name===build)return buildBody(exec,guard); if(name===raw)rawCalls++;return {};},
     }));
   }
-  const user=(a,text,file=false)=>a.session.append('user/message',llm.createUserMessage({source:{kind:'user'},
-    content:[{type:'text',text},...(file?[{type:'file',attachment:{name:'plant.py',attachmentId:'sha256:'+'a'.repeat(64),bytes:17}}]:[])]}),{surfaceOp:'append'});
   const chat=()=>{const id=randomUUID(),session=Session.create(id,undefined,{...Session.create(id).header,cwd});
     session.append('turn/start',{turn:1});return {id,session,ctx:original.plugin(()=>{}).ctx,options:{}};};
   const call=async(ctx,a,names,logged=true,signal=AbortSignal.timeout(5000))=>(await ctx.tools.execute({agent:ctx===original?a:{...a,ctx:ctx.plugin(()=>{}).ctx},signal,
@@ -45,7 +63,7 @@ test('verified delivery stops native siblings, both live and after replay, until
   try {
     await setup(original);await setup(restored);
     for(const logged of [true,false]) {
-      const a=chat();user(a,'将我上传的 Python 转成 Simulink 被控对象',true);
+      const a=chat();await sendPanelRequest(original,a,'将我上传的 Python 转成 Simulink 被控对象');
       const [done,blocked]=await call(original,a,[build,raw],logged);
       assert.equal(done.isError,false);assert.equal(blocked.error.info.code,'PLANT_DELIVERY_COMPLETE');assert.equal(rawCalls,0);
       assert.deepEqual(JSON.parse(blocked.error.message).verified_delivery,{model:result.model,path:result.path,sha256:result.sha256,bytes:result.bytes});
@@ -57,12 +75,12 @@ test('verified delivery stops native siblings, both live and after replay, until
       const view=logged?restored:original;
       for(const name of [build,raw,recheck,'pwsh']) assert.equal((await call(view,a,[name],logged))[0].error.info.code,'PLANT_DELIVERY_COMPLETE');
       assert.equal((await call(view,a,['read'],logged))[0].isError,false);assert.equal(checks,0);
-      user(a,'请继续调试刚才的模型，检查块的实际属性。');
+      sendUser(a,'请继续调试刚才的模型，检查块的实际属性。');
       const debug=(await call(view,a,[raw],logged))[0];
       assert.equal(debug.isError,false,JSON.stringify({logged,error:debug.error}));
       assert.equal(rawCalls,1);rawCalls=0;
     }
-    const ended=chat();user(ended,'将 Python 转换成 Simulink',true);
+    const ended=chat();await sendPanelRequest(original,ended,'将 Python 转换成 Simulink');
     await call(original,ended,[build],false);
     assert.equal((await call(original,chat(),[raw]))[0].isError,false);
     assert.equal((await call(original,ended,[raw],false))[0].error.info.code,'PLANT_DELIVERY_COMPLETE');
@@ -72,17 +90,17 @@ test('verified delivery stops native siblings, both live and after replay, until
     let settle,notify;
     buildBody=()=>new Promise(resolve=>{settle=resolve;notify();});
     for(const logged of [true,false]) {
-      const late=chat();user(late,'把 Python 上传转成 Simulink',true);
+      const late=chat();await sendPanelRequest(original,late,'把 Python 上传转成 Simulink');
       const started=new Promise(r=>{notify=r;});
       const finishing=call(original,late,[build],logged);
       await started;
-      user(late,'请检查模型默认输入值。');
+      sendUser(late,'请检查模型默认输入值。');
       settle(result);await finishing;
       assert.equal((await call(logged?restored:original,late,[raw],logged))[0].isError,false);
     }
     // Body return can resemble a verified delivery even though native cancellation
     // supersedes that return. Only the final native result can release the task.
-    const cancelled=chat();user(cancelled,'将 Python 转换成 Simulink',true);
+    const cancelled=chat();await sendPanelRequest(original,cancelled,'将 Python 转换成 Simulink');
     const cancel=new AbortController();
     const running=new Promise(r=>{notify=r;});
     const interrupted=call(original,cancelled,[build],true,cancel.signal);
@@ -90,14 +108,27 @@ test('verified delivery stops native siblings, both live and after replay, until
     assert.equal((await interrupted)[0].isError,true);
     assert.equal((await call(original,cancelled,[raw]))[0].error.info.code,'PLANT_CONTROLLED_TOOL_REQUIRED');
     // A successful-looking but incomplete body does not claim verified delivery.
-    const incomplete=chat();user(incomplete,'把 Python 上传转成 Simulink',true);
+    const incomplete=chat();await sendPanelRequest(original,incomplete,'把 Python 上传转成 Simulink');
     buildBody=()=>({...result,session_verified:false});
     await call(original,incomplete,[build]);
     assert.equal((await call(original,incomplete,[raw]))[0].error.info.code,'PLANT_CONTROLLED_TOOL_REQUIRED');
+    // A slow form build must not inherit matrix-only validation from later chat.
+    const changed=chat();await sendPanelRequest(original,changed,'转换并对比源码');
+    const entered=new Promise(resolve=>{notify=resolve;});
+    buildBody=async(exec,guard)=>{
+      await new Promise(resolve=>{settle=resolve;notify();});
+      await guard.verifyReference(exec.agent,undefined,undefined,undefined,exec.callId);
+      return result;
+    };
+    const waiting=call(original,changed,[build]);
+    await entered;
+    sendUser(changed,'继续做轻量化');
+    settle();
+    assert.match((await waiting)[0].error.message,/请求已结束/);
   } finally { await restored.fiber.dispose();await original.fiber.dispose(); }
 });
 
-test('native attachment conversion gates the first side effect, subsequent turns, cold replay and post-repair dispatch',async()=>{
+test('the panel gates its request from the first side effect, preserves its diagnostic on replay and releases ordinary follow-ups',async()=>{
   const ctx=new Context();
   await mkdir(join(project,'test-output'),{recursive:true});
   const cwd=await mkdtemp(join(project,'test-output','workspace-admission-'));
@@ -119,17 +150,15 @@ test('native attachment conversion gates the first side effect, subsequent turns
     const chat=()=>{ const id=randomUUID();return {id,session:Session.create(id,undefined,{...Session.create(id).header,cwd}),
       ctx:ctx.plugin(()=>{}).ctx,options:{}}; };
     const first=chat(), other=chat();
-    const user=(agent,content)=>agent.session.append('user/message',llm.createUserMessage({source:{kind:'user'},content}),{surfaceOp:'append'});
     const call=async(agent,name,args={})=>{
       const id=randomUUID();
       const batch=await ctx.tools.execute({agent,signal:AbortSignal.timeout(5000),
         calls:[{id,type:'tool_call',name,arguments:JSON.stringify(args)}]});
       return batch.results[0].result;
     };
-    const source={type:'file',attachment:{attachmentId:'sha256:'+'a'.repeat(64),name:'plant_numpy.py',bytes:128}};
-    user(first,[source,{type:'text',text:'这是源文件。'}]);
+    sendUser(first,'这是源文件。',[pythonAttachment]);
     assert.equal((await call(first,'pwsh')).isError,false);
-    user(first,[{type:'text',text:'把附件转成 Simulink 被控对象，交付 slx'}]);
+    await sendPanelRequest(ctx,first,'把附件转成 Simulink 被控对象，交付 slx');
     assert.equal((await call(first,'read')).isError,false);
     const initial=await call(first,'pwsh');
     assert.equal(initial.error.info.code,'PLANT_WORKSPACE_PREFLIGHT_REQUIRED');
@@ -139,7 +168,6 @@ test('native attachment conversion gates the first side effect, subsequent turns
     assert.equal(issue.preflight_observation,'fresh');
     assert.match((await ctx.systemPrompt.assemble({agent:first})).contexts.find(c=>c.name==='control:uploaded-plant-workspace').text,/停止工具重试/);
     assert.equal(checks,1);
-    user(first,[{type:'text',text:'请继续处理'}]);
     for (const name of ['pwsh','workflow','write','mcp__matlab__evaluate_matlab_code']) {
       const denied=await call(first,name);
       assert.equal(denied.error.info.code,'PLANT_WORKSPACE_PREFLIGHT_REQUIRED');
@@ -160,14 +188,123 @@ test('native attachment conversion gates the first side effect, subsequent turns
     // Restore the original failed agent loop's contracted tool result (the
     // native executor alone intentionally does not persist agent-loop events).
     const cold=chat();
-    user(cold,[source,{type:'text',text:'创建 Simulink 被控对象'}]);
+    await sendPanelRequest(ctx,cold,'创建 Simulink 被控对象');
     const callId=randomUUID();
     cold.session.append('tool/call',{turn:1,step:1,callId,name:'control_build_zoh_plant',arguments:'{}'});
     cold.session.append('tool/result',{turn:1,step:1,message:llm.createToolResultMessage({callId,
       isError:true,content:[{type:'text',text:'Error: '+initial.error.message}]})},{surfaceOp:'append'});
     assert.equal((await call(cold,'pwsh')).error.info.code,'PLANT_WORKSPACE_PREFLIGHT_REQUIRED');
-    assert.equal((await ctx.commands.execute(first,'/control-end-plant-task',[],new AbortController().signal)).result.kind,'success');
+    sendUser(cold,'继续使用这个工作区，用 Python 训练控制器。');
+    assert.equal((await call(cold,'pwsh')).isError,false);
+    // The previous request's delayed tool result cannot reattach its preflight denial.
+    const late=chat(), pending=randomUUID();
+    await sendPanelRequest(ctx,late,'把附件转成 SLX。');
+    late.session.append('tool/call',{turn:1,step:1,callId:pending,name:'control_replay_plant_source',arguments:'{}'});
+    sendUser(late,'使用这个 SLX 生成 Python 版本。');
+    late.session.append('tool/result',{turn:1,step:1,message:llm.createToolResultMessage({callId:pending,isError:true,
+      content:[{type:'text',text:'Error: '+initial.error.message}]})},{surfaceOp:'append'});
+    assert.equal((await call(late,'pwsh')).isError,false);
+    sendUser(first,'不再构建对象，现在将刚才的 SLX 模型转为 Python。');
     assert.equal((await call(first,'pwsh')).isError,false);
+  } finally { await ctx.fiber.dispose(); }
+});
+
+test('ordinary direction changes, legacy refusals and failed plant tool attempts leave native tools available',async()=>{
+  const cwd=join(project,'test-output'),ctx=new Context();
+  const writable=['write','pwsh','mcp__matlab__evaluate_matlab_code','control_lightweight'];
+  let preflights=0;
+  const id=randomUUID(),session=Session.create(id,undefined,{...Session.create(id).header,cwd});
+  const agent={id,session,ctx:ctx.plugin(()=>{}).ctx,options:{}};
+  const call=async(name,args={})=>(await ctx.tools.execute({agent,log:{turn:1,step:1},signal:AbortSignal.timeout(5000),
+    calls:[{id:randomUUID(),type:'tool_call',name,arguments:JSON.stringify(args)}]})).results[0].result;
+  async function assertOrdinaryTools() {
+    const assembled=await ctx.systemPrompt.assemble({agent});
+    assert.ok(!assembled.contexts.find(c=>c.name==='control:uploaded-plant-workspace')?.text);
+    for (const name of writable) assert.equal((await call(name)).value?.dispatched,name);
+  }
+  try {
+    for (const plugin of [prompt.default,tools.default,executor,projection.default,commands.default]) await ctx.plugin(plugin);
+    await ctx.plugin(policy.default,{mode:'workspace-write',workspaceRoot:cwd});
+    installPlantWorkspace(ctx,{codeRoot:project},async()=>{
+      ++preflights;
+      throw new WorkspacePreflightError({code:'WORKSPACE_PREFLIGHT_FAILED',operation:'check_WRITE_OWNER',path:cwd,detail:'fixture'});
+    });
+    for (const name of writable) ctx.tools.register(defineTool({name,description:'Observe dispatch',parameters:{},output,
+      execute:()=>({dispatched:name})}));
+    session.append('turn/start',{turn:1});
+    sendUser(agent,'把 stage.slx 中的被控对象和 MPC 控制器转为 Python，分别保存成两个程序。');
+    await assertOrdinaryTools();
+    sendUser(agent,'写入并核对');
+    await assertOrdinaryTools();
+    const controller={type:'file',attachment:{name:'mpc.py',attachmentId:'sha256:'+'b'.repeat(64),bytes:22}};
+    sendUser(agent,'附件是 Python 被控对象和 MPC。请用轻量神经网络替代 MPC，先核对接口，等我确认后再采数据。',[pythonAttachment,controller]);
+    // This mirrors the failed replay in the original lightweight chat, before sampling was approved.
+    assert.equal((await call('control_replay_plant_source',{source:'absent.py',request:{}})).isError,true);
+    await assertOrdinaryTools();
+    sendUser(agent,'把已有的 Python 被控对象转换为 Simulink，同时整理 Python 测试脚本。');
+    await assertOrdinaryTools();
+    assert.equal(preflights,0);
+
+    // Tool selection and a genuine failed specialized call are not user consent to restrict this chat.
+    assert.equal((await call('control_recheck_plant_workspace')).isError,true);
+    await assertOrdinaryTools();
+    assert.equal(preflights,1);
+
+    // Version 8 stored both inferred direction and host refusals. Replay original events and
+    // compare the refreshed checkpoint with a clean restore of the same old transcript.
+    const oldDenial={code:'WORKSPACE_PREFLIGHT_FAILED',operation:'check_WRITE_OWNER',path:cwd,detail:'historical denial'};
+    const callId=randomUUID();
+    session.append('tool/call',{turn:1,step:2,callId,name:'pwsh',arguments:'{}'});
+    session.append('tool/result',{turn:1,step:2,error:{code:'PLANT_WORKSPACE_PREFLIGHT_REQUIRED'},
+      message:llm.createToolResultMessage({callId,isError:true,content:[{type:'text',
+        text:JSON.stringify({stage:'workspace_preflight',diagnostic:oldDenial})}]})},{surfaceOp:'append'});
+    const key='controlPlantWorkspaceAdmission',events=session.snapshotEvents();
+    const oldCache={[key]:{ver:8,seq:events.at(-1).seq,val:{ownStart:0,cwd,workspaceSources:[],needsReplay:true,
+      userSeq:events.at(-1).seq-2,delivered:null,pythonSource:true,awaitingSource:false,
+      sources:[pythonAttachment.attachment],active:true,epoch:1,blocked:oldDenial,pending:{},replays:{}}}};
+    const projections=ctx.sessionProjections;
+    assert.equal(projections.restoreFloor(oldCache),0);
+    const migrated=projections.restore(oldCache,events,0,session.header,0);
+    assert.deepEqual(migrated.checkpoint,projections.restore({},events,0,session.header,0).checkpoint);
+    assert.ok(migrated.checkpoint[key].ver>8);
+    await assertOrdinaryTools();
+    assert.equal(preflights,1);
+  } finally { await ctx.fiber.dispose(); }
+});
+
+test('panel admission follows the matching queued user message and its own Python attachment',async()=>{
+  const ctx=new Context(),cwd=join(project,'test-output');
+  const id=randomUUID(),session=Session.create(id,undefined,{...Session.create(id).header,cwd});
+  const agent={id,session,ctx:ctx.plugin(()=>{}).ctx,options:{}};
+  const shell=async()=>(await ctx.tools.execute({agent,log:{turn:1,step:1},signal:AbortSignal.timeout(5000),
+    calls:[{id:randomUUID(),type:'tool_call',name:'pwsh',arguments:'{}'}]})).results[0].result;
+  let sideEffects=0,preflights=0;
+  try {
+    for (const plugin of [prompt.default,tools.default,executor,projection.default,commands.default]) await ctx.plugin(plugin);
+    await ctx.plugin(policy.default,{mode:'workspace-write',workspaceRoot:cwd});
+    installPlantWorkspace(ctx,{codeRoot:project},async()=>{preflights++;return {ok:true,workspace:cwd,sandbox_mode:'workspace-write'};});
+    ctx.tools.register(defineTool({name:'pwsh',description:'Count shell dispatch',parameters:{},output,
+      execute:()=>({sideEffects:++sideEffects})}));
+    session.append('turn/start',{turn:1});
+    const first=await registerPanelRequest(ctx,agent);
+    const second=await registerPanelRequest(ctx,agent);
+    sendUser(agent,'这次是 SLX 转 Python。',[pythonAttachment],randomUUID());
+    assert.equal((await shell()).isError,false);
+    sendUser(agent,'转换这个文件。',[pythonAttachment],second);
+    assert.equal((await shell()).error?.info.code,'PLANT_CONTROLLED_TOOL_REQUIRED');
+    // A distinct queued form request cannot reuse the preceding request's Python attachment.
+    sendUser(agent,'处理附件。',[],first);
+    assert.equal((await shell()).isError,false);
+    // Retrying an old RPC message must not re-enter a consumed selection.
+    sendUser(agent,'写个 Python 脚本去仿真 SLX。',[pythonAttachment],second);
+    assert.equal((await shell()).isError,false);
+    const abandoned=await registerPanelRequest(ctx,agent);
+    const end=await ctx.commands.execute(agent,'/control-end-plant-task',[],AbortSignal.timeout(5000));
+    assert.equal(end.result.kind,'success');
+    sendUser(agent,'处理附件。',[pythonAttachment],abandoned);
+    assert.equal((await shell()).isError,false);
+    assert.equal(sideEffects,4);
+    assert.equal(preflights,1);
   } finally { await ctx.fiber.dispose(); }
 });
 
@@ -195,8 +332,7 @@ test('real ACL failure, broader Session mode, fresh rechecks, leaf repair and lo
     ].join('\n'))});
     const id=randomUUID(), session=Session.create(id,undefined,{...Session.create(id).header,cwd});
     const agent={id,session,ctx:ctx.plugin(()=>{}).ctx,options:{}};
-    session.append('user/message',llm.createUserMessage({source:{kind:'user'},content:[{type:'file',attachment:source},
-      {type:'text',text:'把附件转成 Simulink 被控对象'}]}),{surfaceOp:'append'});
+    await sendPanelRequest(ctx,agent,'把附件转成 Simulink 被控对象',{type:'file',attachment:source});
     const request={absTolerance:1e-12,sampleTime:0.25,parameters:{gain:2},
       trajectories:[{initialCondition:[4],controls:[[3],[2]],disturbances:[[1],[-4]]}]};
     const call=async (args,name='control_replay_plant_source')=>(await ctx.tools.execute({agent,log:{turn:1,step:1},signal:AbortSignal.timeout(90000),

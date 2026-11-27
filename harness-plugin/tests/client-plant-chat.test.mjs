@@ -11,7 +11,7 @@ const React = require('react');
 const {renderToStaticMarkup} = require('react-dom/server');
 const bundle = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
 
-function client(rejectFile, commandError) {
+function client(rejectFile, commandError, rejectPlantRequest = false) {
   let descriptor, actions, resultView, recheckView, gateDefinition, gateTail;
   const calls = [];
   const ok = value => ({ok:true, value});
@@ -34,7 +34,15 @@ function client(rejectFile, commandError) {
       return ok({receiptId:'receipt-' + file.name});
     }},
     remote:{
-      commands:{execute:async () => ok({result:commandError ? {kind:'error', text:JSON.stringify(commandError)} : {kind:'success', text:'{}'}})},
+      commands:{execute:async (session,line) => {
+        if (line.startsWith('/control-plant-request ')) {
+          const registration=JSON.parse(line.slice('/control-plant-request '.length));
+          calls.push({plantRequest:registration,session});
+          if (rejectPlantRequest) return ok({result:{kind:'error',text:'registration failed'}});
+          return ok({result:{kind:'success',text:JSON.stringify(registration)}});
+        }
+        return ok({result:commandError ? {kind:'error', text:JSON.stringify(commandError)} : {kind:'success', text:'{}'}});
+      }},
       workspace:{create:async () => ok({workspace:{workspaceId:'testWorkspace'}})},
       session:{create:async () => ok({sessionId:'user-chat',agentPreset:'control-model'}),rename:async()=>ok({}),
         prompt: async request => { calls.push({request}); return ok({}); }},
@@ -49,19 +57,37 @@ function client(rejectFile, commandError) {
     {phase:'result', block:{content:[{type:'text',text}], isError}}))};
 }
 
-test('new Python source and parameter files are native attachments on the same natural-language turn', async () => {
+test('the conversion form binds its successful uploads to one queued native request', async () => {
   const {actions, calls} = client();
   const files = [{name:'plant_numpy.py'}, {name:'case.json'}];
-  await actions.prompt('fresh-session', '转换成 Simulink 被控对象', files, new AbortController().signal);
+  await actions.prompt('fresh-session', '转换成 Simulink 被控对象', files, new AbortController().signal, 'python-to-simulink');
   assert.deepEqual(calls.slice(0,2), files.map(file => ({upload:file.name, session:'fresh-session'})));
-  const {request} = calls[2];
+  const {request} = calls[3];
+  assert.match(request.requestId,/^[0-9a-f-]{36}$/);
+  assert.deepEqual(calls[2],{plantRequest:{requestId:request.requestId},session:'fresh-session'});
   assert.equal(request.sessionId, 'fresh-session');
+  assert.equal(request.mode,'queue');
   assert.deepEqual(JSON.parse(JSON.stringify(request.content)), [{type:'text',text:'转换成 Simulink 被控对象'},
     ...files.map(file => ({type:'file',receiptId:'receipt-' + file.name}))]);
-  assert.deepEqual(calls[3], {open:'fresh-session'});
+  assert.deepEqual(calls[4], {open:'fresh-session'});
   const failed = client('case.json');
-  await assert.rejects(failed.actions.prompt('fresh-session','建模',files), /rejected/);
+  await assert.rejects(failed.actions.prompt('fresh-session','建模',files,undefined,'python-to-simulink'), /rejected/);
   assert.ok(failed.calls.every(row => row.upload));
+});
+
+test('a failed form registration cannot send its turn or mark ordinary chat with the same text and file', async () => {
+  const {actions,calls}=client(undefined,undefined,true);
+  const files=[{name:'plant.py'}];
+  const text='参考这个 Python 对象讨论转换成 Simulink 的方法';
+  await assert.rejects(actions.prompt('same-session',text,files,undefined,'python-to-simulink'),/registration failed/);
+  assert.equal(calls.length,2);
+  assert.equal(calls[1].session,'same-session');
+  const failedId=calls[1].plantRequest.requestId;
+  await actions.prompt('same-session',text,files);
+  assert.deepEqual(calls[2],{upload:'plant.py',session:'same-session'});
+  assert.notEqual(calls[3].request.requestId,failedId);
+  assert.equal(calls[3].request.content[0].text,text);
+  assert.deepEqual(calls[4],{open:'same-session'});
 });
 
 test('build receipt distinguishes source verification, a saved file, and an uncertain terminal state', () => {

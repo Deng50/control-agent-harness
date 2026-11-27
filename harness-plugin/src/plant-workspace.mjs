@@ -44,72 +44,75 @@ function completedDelivery(result) {
 }
 
 const deliveredNote = file => '本次转换已交付并完成重载、仿真和源码对照：'+file.path+'。请向用户报告现有文件和实测误差。用户在下一条消息另行要求调试时可继续操作。';
-const hasSource = state => state.sources.length>0 || state.workspaceSources.length>0;
+const formCommand = 'control-plant-request';
+function formRequestId(input) {
+  try {
+    const {requestId} = JSON.parse(input);
+    if (typeof requestId === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(requestId)) return requestId;
+  } catch { /* Invalid command input never reserves a request. */ }
+}
 
-// Project only actual user requests and native tool outcomes. Assistant text,
-// injected context and an agent's claims about permissions have no authority.
+// A file is evidence for a replay, not a task selection. Only a successful
+// human form submission can reserve the matching native prompt's RPC identity.
 function projection(codeRoot) {
   const {z} = createRequire(resolve(codeRoot,'vendor/deepseek-harness/packages/interaction/commands/package.json'))('zod');
-  return {key:'controlPlantWorkspaceAdmission',stateVersion:8,stateSchema:z.object({
-    ownStart:z.number(),pythonSource:z.boolean(),awaitingSource:z.boolean(),active:z.boolean(),epoch:z.number(),blocked:z.record(z.string(),z.unknown()).nullable(),
-    userSeq:z.number(),delivered:z.object({model:z.string(),path:z.string(),sha256:z.string(),bytes:z.number()}).nullable(),
-    sources:z.array(z.object({attachmentId:z.string(),name:z.string(),bytes:z.number()})),pending:z.record(z.string(),z.object({name:z.string(),userSeq:z.number()})),
-    cwd:z.string(),workspaceSources:z.array(z.string()),needsReplay:z.boolean(),
+  return {key:'controlPlantWorkspaceAdmission',stateVersion:9,stateSchema:z.object({
+    ownStart:z.number(),cwd:z.string(),userSeq:z.number(),strict:z.boolean(),
+    formCommands:z.array(z.string()),formRequests:z.array(z.string()),
+    blocked:z.record(z.string(),z.unknown()).nullable(),
+    delivered:z.object({model:z.string(),path:z.string(),sha256:z.string(),bytes:z.number()}).nullable(),
+    sources:z.array(z.object({attachmentId:z.string(),name:z.string(),bytes:z.number()})),workspaceSources:z.array(z.string()),
+    pending:z.record(z.string(),z.object({name:z.string(),userSeq:z.number()})),
     replays:z.record(z.string(),z.object({source_sha256:z.string(),reference_data_sha256:z.string(),source:z.string().optional(),source_kind:z.string().optional()})),
-  }),init:(header,ownStart)=>({ownStart,cwd:header.cwd??'',workspaceSources:[],needsReplay:false,userSeq:-1,delivered:null,pythonSource:false,awaitingSource:false,sources:[],active:false,epoch:-1,blocked:null,pending:{},replays:{}}),
+  }),init:(header,ownStart)=>({ownStart,cwd:header.cwd??'',userSeq:-1,strict:false,
+    formCommands:[],formRequests:[],blocked:null,delivered:null,sources:[],workspaceSources:[],pending:{},replays:{}}),
   apply(state,event) {
     if (event.seq < state.ownStart) return state;
     const {type,data}=event;
+    if (type === 'command/run' && data.source?.kind === 'user') {
+      if (data.name === formCommand) return {...state,formCommands:[...state.formCommands,data.commandId]};
+      if (data.name === 'control-end-plant-task') return {...state,userSeq:event.seq,strict:false,formCommands:[],formRequests:[],
+        blocked:null,delivered:null,sources:[],workspaceSources:[],pending:{},replays:{}};
+    }
+    if (type === 'command/done' && state.formCommands.includes(data.commandId)) {
+      const formCommands=state.formCommands.filter(id=>id!==data.commandId);
+      const id=data.kind==='success' && formRequestId(data.text);
+      return {...state,formCommands,formRequests:id && !state.formRequests.includes(id) ? [...state.formRequests,id] : state.formRequests};
+    }
     if (type === 'user/message' && data.source?.kind === 'user') {
-      const blocks=data.content;
-      const text=blocks.filter(b=>b.type==='text').map(b=>b.text).join(' ');
-      const uploads=blocks.filter(b=>b.type==='file' && /\.py$/i.test(b.attachment?.name)).map(b=>b.attachment);
-      // A new native upload replaces the source selection for this task.
-      // A later text-only prompt or parameter attachment keeps that selection.
+      const uploads=data.content.filter(b=>b.type==='file' && /\.py$/i.test(b.attachment?.name)).map(b=>b.attachment);
       const sources=uploads.length ? uploads.filter((f,i)=>uploads.findIndex(other=>
         f.attachmentId===other.attachmentId && f.name===other.name)===i) : state.sources;
-      const pythonSource = state.pythonSource || uploads.length>0 || state.workspaceSources.length>0;
-      const wantsModel=/simulink|\bslx\b/i.test(text) && /转换|转成|转为|转[到换]|改[成为]|弄成|生成|创建|搭建|建模|建立|构建|做[成个]|被控对象|convert|build|creat|generat|produce|turn.+into|model (?:it|this)|export/i.test(text);
-      const request=(pythonSource || /\bpython\b|\.py\b/i.test(text)) && (wantsModel || state.awaitingSource && uploads.length>0);
-      const awaitingSource=!request && (state.awaitingSource || wantsModel);
-      return {...state,userSeq:event.seq,delivered:null,pythonSource,sources,workspaceSources:uploads.length?[]:state.workspaceSources,needsReplay:state.needsReplay || request,awaitingSource,active:state.active || request,replays:uploads.length?{}:state.replays,
-        epoch:uploads.length || request ? event.seq : state.epoch};
+      const id=data.source.rpcId;
+      return {...state,userSeq:event.seq,strict:uploads.length>0 && state.formRequests.includes(id),
+        formRequests:state.formRequests.filter(requestId=>requestId!==id),pending:{},blocked:null,delivered:null,
+        sources,workspaceSources:uploads.length?[]:state.workspaceSources,
+        replays:uploads.length?{}:state.replays};
     }
-    if (type === 'command/run' && data.name === 'control-end-plant-task' && data.source?.kind === 'user') {
-      return {...state,userSeq:event.seq,delivered:null,active:false,needsReplay:false,pythonSource:false,awaitingSource:false,sources:[],workspaceSources:[],blocked:null,epoch:event.seq,pending:{},replays:{}};
-    }
-    if (type==='tool/call' && data.name==='read')
-      return {...state,pending:{...state.pending,[data.callId]:{name:'read',userSeq:state.userSeq}}};
-    if (type === 'tool/call' && [build,recheck,replay].includes(data.name)) {
-      if (state.delivered) return state;
-      const active=state.active || data.name!==recheck;
-      return {...state,active,needsReplay:state.needsReplay || data.name===replay,epoch:active && !state.active ? event.seq : state.epoch,
-        pending:{...state.pending,[data.callId]:{name:data.name,userSeq:state.userSeq}}};
+    if (type === 'tool/call' && (state.strict || data.name==='read' || data.name===replay)) {
+      return {...state,pending:{...state.pending,[data.callId]:{name:data.name,userSeq:state.userSeq}}};
     }
     if (type !== 'tool/result') return state;
-    const msg=data.message, invocation=state.pending[msg.toolCallId], tool=invocation?.name;
-    if (!tool && data.error?.code !== gateCode) return state;
+    const msg=data.message, invocation=state.pending[msg.toolCallId];
+    if (!invocation || invocation.userSeq!==state.userSeq) return state;
     const pending={...state.pending};
     delete pending[msg.toolCallId];
+    const tool=invocation.name;
     if (tool==='read') {
-      // Native read metadata contains the resolved path even for a relative argument.
       const name=!msg.isError && workspacePythonName(state.cwd,data.meta?.path);
-      if (!name || state.workspaceSources.includes(name) || invocation.userSeq<state.epoch && invocation.userSeq!==state.userSeq) return {...state,pending};
-      return {...state,pending,workspaceSources:[...state.workspaceSources,name],pythonSource:true,
-        active:state.active || state.awaitingSource,awaitingSource:false,epoch:state.awaitingSource?event.seq:state.epoch};
+      if (!name) return {...state,pending};
+      return {...state,pending,workspaceSources:state.workspaceSources.includes(name)
+        ? state.workspaceSources : [...state.workspaceSources,name]};
     }
     if (msg.isError) {
+      if (!state.strict || !(data.error?.code===gateCode || [build,recheck,replay].includes(tool))) return {...state,pending};
       const diagnostic=[data.error?.reason,...msg.content.filter(b=>b.type==='text').map(b=>b.text)]
         .filter(x=>typeof x==='string').map(readFailure).find(Boolean);
       return {...state,pending,blocked:diagnostic ?? state.blocked};
     }
     if (tool === build) {
-      const delivered=hasSource(state) ? completedDelivery(msg) : null;
-      if (hasSource(state) && !delivered) return {...state,pending};
-      const sameRequest=invocation.userSeq===state.userSeq;
-      if (!sameRequest && state.epoch>invocation.userSeq) return {...state,pending};
-      return {...state,active:false,needsReplay:false,delivered:sameRequest?delivered:null,pythonSource:hasSource(state),
-        awaitingSource:false,blocked:null,epoch:event.seq,pending,replays:{}};
+      const delivered=completedDelivery(msg);
+      return {...state,pending,delivered:delivered ?? state.delivered};
     }
     if (tool === replay) {
       try {
@@ -118,7 +121,7 @@ function projection(codeRoot) {
           source_sha256:r.source_sha256,reference_data_sha256:r.reference_data_sha256,source:r.source,source_kind:r.source_kind}}};
       } catch { /* A missing typed replay receipt cannot authorize a comparison. */ }
     }
-    return {...state,pending,blocked:tool === recheck ? null : state.blocked};
+    return {...state,pending,blocked:tool===recheck ? null : state.blocked};
   }};
 }
 
@@ -140,12 +143,6 @@ export function installPlantWorkspace(ctx,config,preflight) {
   const runningBuilds=new WeakMap();
   const deliveredFile=(session,state)=>state.delivered ??
     (finalDeliveries.get(session)?.userSeq===state.userSeq ? finalDeliveries.get(session).file : null);
-  function conversionActive(session,state) {
-    // Direct registry clients may omit the native transcript. Retire a completed
-    // request on the next user message, including when only its hot receipt exists.
-    const previous=finalDeliveries.get(session);
-    return state.active && (!previous || previous.userSeq===state.userSeq || state.epoch>previous.userSeq);
-  }
   // This final native event runs after cancellation, policy and rendering have
   // settled, before the next exclusive sibling. The Session projection restores
   // the same receipt from the recorded call/result pair after a restart.
@@ -155,31 +152,30 @@ export function installPlantWorkspace(ctx,config,preflight) {
     const calls=runningBuilds.get(session);
     const started=state.pending[exec.callId]?.userSeq ?? calls?.get(exec.callId);
     calls?.delete(exec.callId);
-    if (started===undefined || (started!==state.userSeq && state.epoch>started) ||
-        finalDeliveries.get(session)?.userSeq>started) return;
-    const file=hasSource(state) && completedDelivery(result);
+    if (!state.strict || started!==state.userSeq) return;
+    const file=completedDelivery(result);
     if (file) finalDeliveries.set(session,{userSeq:started,file});
   });
   const prompt=ctx.get('systemPrompt');
   prompt?.context({name:'control:uploaded-plant-workspace',order:prompt.getContextOrder('SANDBOX_POLICY')+2,text:({agent})=>{
     if (!projectionHandle || !agent?.session) return '';
     const state=projectionHandle.stateOf(agent.session);
+    if (!state.strict) return '';
     const delivered=deliveredFile(agent.session,state);
     if (delivered) return deliveredNote(delivered);
     const local=checks.get(agent.session);
-    const blocked=local?.epoch===state.epoch ? local.blocked : state.blocked;
+    const blocked=local?.userSeq===state.userSeq ? local.blocked : state.blocked;
     if (eligiblePreviousDenial(agent.session,blocked)) return '上次记录显示当前项目工作区缺少 WRITE_OWNER。用户继续建模时，请直接调用 control_recheck_plant_workspace 或 control_replay_plant_source。Host 将重新核验并准备符合条件的目录。';
     if (blocked) return '上次工作区预检失败：'+blocked.operation+' '+blocked.path+'。请说明哪些步骤尚未启动，并转述 Host 给当前普通账户的恢复方法。用户要求重新检查或确认修复后，用 control_recheck_plant_workspace 核验当前权限，通过后继续回放源码并建模。此前保留现场，停止工具重试。';
-    if (conversionActive(agent.session,state)) return '用户正在将 Python 被控对象转换为 Simulink。从本次附件或已用 read 读取的当前工作区 Python 源文件中选择正确文件，用 control_replay_plant_source 回放原始 step，将其 referenceFile 交给 control_build_zoh_plant。缺少参数时直接向用户询问。';
-    return '';
+    return '用户已在专用表单中选择将 Python 被控对象转换为 Simulink。从本次附件或已用 read 读取的当前工作区 Python 源文件中选择正确文件，用 control_replay_plant_source 回放原始 step，将其 referenceFile 交给 control_build_zoh_plant。缺少参数时直接向用户询问。';
   }});
   async function context(agent) {
     const session=agent?.session;
     if (!session) return;
     const state=(await registered).stateOf(session);
     let local=checks.get(session);
-    if (!local || local.epoch !== state.epoch) {
-      local={epoch:state.epoch,blocked:state.blocked,verified:false,replays:new Map()};
+    if (!local || local.userSeq !== state.userSeq) {
+      local={userSeq:state.userSeq,blocked:state.blocked,verified:false,replays:new Map()};
       checks.set(session,local);
     }
     return {session,state,local};
@@ -228,15 +224,15 @@ export function installPlantWorkspace(ctx,config,preflight) {
   async function refusal(exec) {
     if (!exec.agent?.session || safeTools.has(exec.name) || (exec.name==='working_directory' && exec.arguments?.cd === undefined)) return;
     const c=await context(exec.agent);
+    if (!c.state.strict) return;
     const delivered=deliveredFile(c.session,c.state);
     if (delivered) return {code:deliveryCode,text:JSON.stringify({status:'not_dispatched',stage:'delivery_complete',code:deliveryCode,work_started:false,
       verified_delivery:delivered,reason:deliveredNote(delivered)})};
     if (exec.name===recheck) return;
-    // The build body runs its own real preflight, including when it is the
-    // first explicit operation and no natural-language conversion was found.
+    // The builder checks the actual target workspace immediately before use.
     if (c.local.blocked && !([build,replay].includes(exec.name) && eligiblePreviousDenial(c.session,c.local.blocked)))
       return {code:gateCode,text:JSON.stringify(receipt(c.local.blocked,'previous_failure'))};
-    if (exec.name===build || !conversionActive(c.session,c.state) && !c.local.blocked) return;
+    if (exec.name===build) return;
     if (!c.local.verified) {
       try { await check(exec.agent,exec.signal,c); } catch (error) { return {code:gateCode,text:error.message}; }
     }
@@ -248,8 +244,10 @@ export function installPlantWorkspace(ctx,config,preflight) {
   ctx.on('tools/pre-execute',async(exec,next)=>{
     if (exec.name===build && exec.agent?.session) {
       const {session,state}=await context(exec.agent);
-      if (!runningBuilds.has(session)) runningBuilds.set(session,new Map());
-      runningBuilds.get(session).set(exec.callId,state.userSeq);
+      if (state.strict) {
+        if (!runningBuilds.has(session)) runningBuilds.set(session,new Map());
+        runningBuilds.get(session).set(exec.callId,state.userSeq);
+      }
     }
     const reason=await refusal(exec);
     return reason ? {kind:'deny',reason:reason.text,info:{name:'PlantWorkspaceError',code:reason.code}} : next();
@@ -263,12 +261,19 @@ export function installPlantWorkspace(ctx,config,preflight) {
   ctx.tools.register(defineTool({name:recheck,description:'Recheck the current conversation workspace ACL, Host publication and confined worker I/O after a plant conversion was blocked. Takes no paths; releases the workspace gate only after successful verification.',
     parameters:{},output,execute:(_,{agent,signal})=>check(agent,signal)}));
   ctx.tools.register(replayTool(ctx,config,context,check));
+  ctx.commands.register({definitionId:'@control-engineering/harness-bundle/plant-request',name:formCommand,recordInput:false,
+    description:'Bind the dedicated Python-to-Simulink form to its single native prompt.',
+    input:{hint:'JSON with the native requestId of the form submission'},
+    handler:({rawInput})=>{
+      const requestId=formRequestId(rawInput);
+      return requestId ? {kind:'success',text:JSON.stringify({requestId})} : {kind:'error',text:'需要原生表单请求的 UUID。'};
+    }});
   ctx.commands.register({definitionId:'@control-engineering/harness-bundle/end-plant-task',name:'control-end-plant-task',
     description:'End this Python-to-Simulink conversion in the current chat to start unrelated work.',
     handler:()=>({kind:'success',text:'已结束本次对象转换。'})});
   // The existing target helper uses this callback inside its normal workspace
-  // authorization. A failed preflight becomes visible to sibling native calls
-  // immediately, before the agent-loop logs the outer tool result.
+  // authorization. Inside a dedicated form its diagnostic is also available
+  // to sibling calls before the agent loop logs the outer result.
   async function checkBuild(options,execution) {
     const c=await context(execution.agent);
     try {
@@ -279,19 +284,30 @@ export function installPlantWorkspace(ctx,config,preflight) {
       throw error;
     }
   }
-  async function verifyReference(agent,name,data) {
+  async function verifyReference(agent,name,data,pythonSource,callId) {
     const c=await context(agent);
-    if (!c?.state.active || !c.state.needsReplay && !hasSource(c.state)) return;
+    if (!c) throw new Error('建模需要已绑定工作区的原生会话。');
+    const started=runningBuilds.get(c.session)?.get(callId);
+    if (started!==undefined && started!==c.state.userSeq)
+      throw new Error('发起转换的表单请求已结束，请核对当前任务。');
     const proof=typeof name==='string' && (c.local.replays.get(name) ?? c.state.replays[name]);
+    // Matrix-only builds can use numeric references. A build using Python source
+    // must compare against the original replay, including after a Host restart.
+    if (!c.state.strict && pythonSource===undefined && !proof &&
+        !(data && Object.hasOwn(data,'source_sha256')) && !(typeof name==='string' && /^plant-reference-/i.test(name))) return;
     if (!proof || data?.source_sha256!==proof.source_sha256 ||
         createHash('sha256').update(JSON.stringify(data)).digest('hex')!==proof.reference_data_sha256)
       throw new Error('本次转换需要 control_replay_plant_source 以原始源码回放生成的完整 referenceFile。');
+    if (pythonSource!==undefined && pythonSource!==proof.source && pythonSource!=='sha256:'+proof.source_sha256 &&
+        !(proof.source_kind==='workspace' && workspacePythonName(c.session.header.cwd,pythonSource)===proof.source))
+      throw new Error('本次构建指定的 Python 源文件与回放凭证不一致。');
     if (proof.source_kind==='workspace' && c.state.workspaceSources.includes(proof.source)) {
       const bytes=await readWorkspaceBytes(c.session.header.cwd,proof.source,maxPythonBytes);
       if (createHash('sha256').update(bytes).digest('hex')!==proof.source_sha256)
         throw new Error('工作区源码在回放后已变化，请重新读取并回放当前文件。');
     } else if (!c.state.sources.some(f=>f.attachmentId==='sha256:'+proof.source_sha256))
       throw new Error('回放源码与本次会话选择的文件不符。');
+    return {source:proof.source,sha256:proof.source_sha256};
   }
   return {checkBuild,verifyReference};
 }

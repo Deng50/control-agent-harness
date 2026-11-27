@@ -54,7 +54,13 @@ if (values.action === 'start') {
 async function save() { await writeFile(path,JSON.stringify(record,null,2)); }
 async function submit(text,receiptId) {
   const requestId = randomUUID();
-  record.turns.push({requestId,text,submitted:new Date().toISOString()});
+  if (receiptId) {
+    const execution=await rpc('commands/execute',{agentId:record.sessionId,
+      line:'/control-plant-request '+JSON.stringify({requestId}),submittedAttachments:[]});
+    assert.equal(execution?.result?.kind,'success',execution?.result?.text ?? 'Plant request registration failed');
+    assert.equal(JSON.parse(execution.result.text).requestId,requestId);
+  }
+  record.turns.push({requestId,text,source:receiptId?'conversion-form':'chat',submitted:new Date().toISOString()});
   await save();
   await rpc('session/prompt',{request:{sessionId:record.sessionId,requestId,mode:'queue',
     content:[{type:'text',text},...(receiptId ? [{type:'file',receiptId}] : [])]}});
@@ -112,14 +118,23 @@ if (values.action==='verify') {
     'The same live chat must first observe the workspace failure.');
   const completed=record.observed.results.findLast(r=>r.status==='simulated' && !r.error && r.comparison?.compared);
   assert.ok(completed?.session_verified && completed.verified?.includes('reload') && completed.verified.includes('compare'));
-  // A saved model can be numerically correct even if a later call quarantines MATLAB.
-  const readOnlyTools=new Set(['read','read_image','glob','grep','skill','ask_user_question','control_help']);
-  for (const call of record.observed.calls.filter(c=>c.turn===completed.turn && c.callId!==completed.callId)) {
-    const result=record.observed.results.find(r=>r.callId===call.callId);
-    if (call.seq<completed.seq && result?.seq<completed.seq) continue;
-    if (readOnlyTools.has(call.name) || call.name==='working_directory' && !call.changes_directory) continue;
-    assert.ok(result?.error && result.host_code==='PLANT_DELIVERY_COMPLETE',
-      'Side effect after verified delivery was not stopped by the Host: '+call.name+' at #'+call.seq);
+  const submission=record.turns[completed.turn-1];
+  assert.ok(submission,'Missing submission for the completed turn');
+  if(submission.source===undefined || submission.source==='conversion-form') {
+    // Keep the original handoff assertion when rechecking pre-migration records.
+    const readOnlyTools=new Set(['read','read_image','glob','grep','skill','ask_user_question','control_help']);
+    for (const call of record.observed.calls.filter(c=>c.turn===completed.turn && c.callId!==completed.callId)) {
+      const result=record.observed.results.find(r=>r.callId===call.callId);
+      if (call.seq<completed.seq && result?.seq<completed.seq) continue;
+      if (readOnlyTools.has(call.name) || call.name==='working_directory' && !call.changes_directory) continue;
+      assert.ok(result?.error && result.host_code==='PLANT_DELIVERY_COMPLETE',
+        'Side effect after verified delivery was not stopped by the Host: '+call.name+' at #'+call.seq);
+    }
+  } else {
+    assert.equal(submission.source,'chat');
+    assert.ok(!record.observed.results.some(r=>r.turn===completed.turn &&
+      ['PLANT_CONTROLLED_TOOL_REQUIRED','PLANT_DELIVERY_COMPLETE'].includes(r.host_code)),
+      'An ordinary follow-up inherited an exclusive conversion workflow');
   }
   assert.equal(dirname(await realpath(completed.path)),workspace);
   assert.equal(createHash('sha256').update(await readFile(completed.path)).digest('hex'),completed.sha256);

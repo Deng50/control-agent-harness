@@ -127,7 +127,7 @@ export function apply(ctx) {
       if (!execution || execution.result.kind !== 'success') throw new Error(execution?.result.text ?? 'Upload admission is unavailable');
       return JSON.parse(execution.result.text);
     },
-    async prompt(sessionId, text, files = [], signal) {
+    async prompt(sessionId, text, files = [], signal, purpose?: 'python-to-simulink') {
       await execute(sessionId, 'control-workspace', {});
       const content: ({type:'text', text:string} | {type:'file', receiptId:string})[] = [{ type: 'text', text }];
       for (const file of files) {
@@ -136,7 +136,13 @@ export function apply(ctx) {
         content.push({ type: 'file', receiptId: receipt.receiptId });
       }
       signal?.throwIfAborted();
-      unwrap(await ctx.remote.session.prompt({ sessionId, requestId: crypto.randomUUID(), mode: 'queue', content }));
+      const requestId = crypto.randomUUID();
+      if (purpose === 'python-to-simulink') {
+        const receipt = await execute(sessionId, 'control-plant-request', { requestId });
+        if (receipt?.requestId !== requestId) throw new Error('转换表单的登记回执与本次请求不匹配');
+        signal?.throwIfAborted();
+      }
+      unwrap(await ctx.remote.session.prompt({ sessionId, requestId, mode: 'queue', content }));
       ctx.uiWorkspace.openSession(sessionId);
     },
     watchJobs: sessionId => ctx.jobs.watchRows(sessionId),

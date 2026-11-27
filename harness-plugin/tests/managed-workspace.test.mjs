@@ -6,9 +6,9 @@ import {join,resolve} from 'node:path';
 import test from 'node:test';
 import {pathToFileURL} from 'node:url';
 import {installPlantWorkspace} from '../src/plant-workspace.mjs';
-import {ensureSessionWorkspace} from '../src/session-workspace.mjs';
+import {ensureSessionWorkspace,installManagedShellWorkspace} from '../src/session-workspace.mjs';
 import {inspectHostSecurity} from '../src/windows-host-security.mjs';
-import {preflightWorkspace} from '../src/workspace-preflight.mjs';
+import {preflightWorkspace,prepareShellWorkspaceGrant} from '../src/workspace-preflight.mjs';
 import {createHost} from './history-host.mjs';
 
 const project=resolve(import.meta.dirname,'../..');
@@ -31,12 +31,12 @@ test('each new managed Session leaf prepares only itself before panel admission 
   const evidenceDir=await mkdtemp(join(project,'test-output','managed-workspace-'));
   const fixture=JSON.parse(powershell(['-File',join(project,'scripts/new-workspace-acl-fixture.ps1'),'-Name','acl-plant-'+randomUUID(),'-ManagedWorkspace']));
   const parent=fixture.workspace, first=join(parent,"first case's [1]"), second=join(parent,'nested','second'),
-    historical=join(parent,'resumed'), denied=join(parent,'denied');
+    historical=join(parent,'resumed'), denied=join(parent,'denied'), shellLeaf=join(parent,'chat-shell');
   const ctx=new Context();
   const business=[];
   const preflight=options=>preflightWorkspace({ctx,config,...options});
-  const agent=cwd=>{
-    const id=randomUUID(),session=ctx.sessions.create(id,{meta:{cwd}});
+  const agent=(cwd,agentPreset)=>{
+    const id=randomUUID(),session=ctx.sessions.create(id,{meta:{cwd,agentPreset}});
     return {id,session,ctx:ctx.plugin(()=>{}).ctx,options:{}};
   };
   const references=[];
@@ -114,6 +114,46 @@ test('each new managed Session leaf prepares only itself before panel admission 
       return deniedReceipt?.workspace_preparation?.reason==='applicable_deny_ace' && deniedReceipt.workspace_recovery.can_prepare===false;
     });
     assert.equal(dacl(denied),deniedAcl);assert.deepEqual(await readdir(denied),[]);
+
+    // A new native professional chat has a preset and cwd but no panel command
+    // or plant conversion. Run the upstream pwsh tool with its real ACL worker.
+    const [pwsh, pwshTool, shellEnv]=await Promise.all(['packages/shell/pwsh-sandbox',
+      'packages/shell/tool-pwsh','packages/shell/shell-env'].map(upstream));
+    ctx.provide('workingDirectory',{ensure:async a=>a.session.header.cwd});
+    const shellAgent=agent(shellLeaf,'control-lightweight');
+    let composed='standard';
+    ctx.provide('agentPresets',{presetForSession:s=>s.header.agentPreset,composedPreset:()=>composed});
+    await ctx.plugin(shellEnv,{dshHome:join(evidenceDir,'home')});
+    await ctx.plugin(pwsh.default,{pwshPath:join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe')});
+    await ctx.plugin(pwshTool,{enableRunInBackground:false});
+    installManagedShellWorkspace(ctx,config);
+    const shellArgs={description:'Check this workspace',command:"Write-Output 'shell-ready'"};
+    await mkdir(shellLeaf);
+    const unprepared=await call('pwsh',shellArgs,shellAgent);
+    assert.match(unprepared.error.message,/SetNamedSecurityInfoW failed \(Win32 5\): grantWrite/);
+    assert.equal(inspectHostSecurity(shellLeaf).right_errors.WRITE_OWNER,5);
+    composed='control-lightweight';
+    for (const mode of ['read-only','danger-full-access']) {
+      shellAgent.session.append('sandbox/mode',{mode});
+      const result=await call('pwsh',shellArgs,shellAgent);
+      assert.equal(result.isError,false,result.error?.message);
+      assert.equal(result.value.sandbox.mode,mode);
+      assert.equal(inspectHostSecurity(shellLeaf).right_errors.WRITE_OWNER,5);
+    }
+    shellAgent.session.append('sandbox/mode',{mode:'workspace-write'});
+    await prepareShellWorkspaceGrant({sandbox:{confine:async()=>({argv:['custom-runner']})}},config,
+      ctx.sandboxPolicy.resolve({session:shellAgent.session}),AbortSignal.timeout(3000));
+    assert.equal(inspectHostSecurity(shellLeaf).right_errors.WRITE_OWNER,5);
+    for (let i=0;i<2;i++) {
+      const result=await call('pwsh',shellArgs,shellAgent);
+      assert.equal(result.isError,false,result.error?.message);
+      assert.equal(result.value.sandbox.mode,'workspace-write');
+      assert.match(result.value.stdout.text,/shell-ready/);
+    }
+    assert.equal(inspectHostSecurity(shellLeaf).effective_rights.WRITE_OWNER,true);
+    const blockedShell=await call('pwsh',shellArgs,agent(denied,'control-lightweight'));
+    assert.ok(blockedShell.isError);assert.match(blockedShell.error.message,/applicable_deny_ace/);
+    assert.equal(dacl(denied),deniedAcl);assert.equal(dacl(parent),parentAcl);
     // Each business entry opens a new workspace without ever opening the panel.
     const stages=[];
     for(const command of ['control-prepare-review','control']) {
@@ -157,7 +197,7 @@ test('each new managed Session leaf prepares only itself before panel admission 
       assert.equal(await realpath(path),path);
       await rename(path,join(evidenceDir,path.slice(parent.length+1)));
     }
-    for(const leaf of [second,join(parent,'nested'),first,historical,denied,parent]) {
+    for(const leaf of [second,join(parent,'nested'),first,historical,denied,shellLeaf,parent]) {
       try { await rmdir(leaf); } catch(e) { if(e.code!=='ENOENT') throw e; }
     }
   }

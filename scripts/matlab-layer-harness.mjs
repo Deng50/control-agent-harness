@@ -57,6 +57,17 @@ export async function configureFixtureFileGeneration(layer,fixture) {
   assert.equal(result.isError,false,result.error?.message);
 }
 
+/** Attach the reviewed fixture to one native chat, using only its private store. */
+export async function attachFixtureSource(layer,fixture,file) {
+  const [attachments,llm]=await Promise.all(['packages/attachment/attachment-local','packages/llm/llm'].map(built));
+  await layer.ctx.plugin(attachments.default,{dshHome:join(fixture,'test-homes',layer.agent.id)});
+  const attachment=await layer.ctx.attachments.saveFile(file);
+  layer.agent.session.append('turn/start',{turn:1});
+  layer.agent.session.append('user/message',llm.createUserMessage({source:{kind:'user'},
+    content:[{type:'file',attachment},{type:'text',text:'请用附件的原始 step 验证模型轨迹。'}]}),{surfaceOp:'append'});
+  return attachment;
+}
+
 export async function openLayer({fixture, workspace, managed, toolCallTimeoutMs=120000}) {
   const {marker, identityFile, config, resource} = await readFixture(fixture);
   if (!managed) await requireUnboundFixture(resource);

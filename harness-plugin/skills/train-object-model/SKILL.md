@@ -15,6 +15,8 @@ description: 分析被控对象或实车时序数据，规划并执行受支持�
 
 ## 按材料选择路线
 
+从已有 SLX 移植到 Python 时，用 SLX 作为参照，检查端口、采样、复位、延迟及控制器内部状态。在 Python 交付用户要求的模块，用相同的初态和输入序列与原模型逐步对齐。可查 `port-dynamic-plant` 的案例和误差核验方法。
+
 用户上传 Python 对象并要求生成可仿真的 SLX 时，按[从 Python 转换 Simulink](../references/execution.md#从-python-转换-simulink)执行。共享文件位于本技能目录的上一级 `skills/references/execution.md`。读取当前附件后，使用 `control_replay_plant_source` 回放原始函数，再把工具返回的参考文件交给 `control_build_zoh_plant`。交付点是可重载的对象模型和对照结果。
 
 - 有 Python、MATLAB 或 Simulink 对象：读 [材料与信号](../references/materials.md)，提出状态、输入、输出、扰动、单位、采样与复位方式。静态读取不能充当运行证据。完成接口核对后，按 [采样](../references/sampling.md) 提交用户工况或推荐工况摘要，确认后再运行。
